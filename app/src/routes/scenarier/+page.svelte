@@ -4,4 +4,4 @@
 	let { data } = $props();
 </script>
 
-<ScenarioExplorer meta={data.meta} initialScenario={data.initialScenario} />
+<ScenarioExplorer meta={data.meta} initialScenario={data.initialScenario} baseline={data.baseline} />

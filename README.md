@@ -42,8 +42,7 @@ Shock deviations are **always** measured against `etl/shock_gdx/_reference.gdx`,
 calibration point, which `extract.py` prefers automatically when the file exists. Scenario
 files follow the catalogue in `etl/catalog.py`: `<Name><variant>.gdx`, e.g. `Rente_perm.gdx`
 (`_perm` = permanent, financed through DREAM's closure tax; `_ufin` = unfinanced;
-`_midl`/`_blip` = temporary profiles). Without real shock data the app shows a clearly
-marked synthetic demo scenario (`--demo`).
+`_midl`/`_blip` = temporary profiles). `/scenarier/` opens on `Rente_ufin`.
 
 ## Repository layout
 
@@ -59,7 +58,7 @@ docs/   Design notes and implementation plans
 ```bash
 # ETL (needs uv and a MAKRO checkout; default location ../MAKRO, or --makro-root)
 cd etl
-uv run python extract.py             # --demo for a synthetic shock
+uv run python extract.py
 
 # Free solver: parse + residual check + a small shock on a 10-year window
 uv run python freesolver.py parse

@@ -4,11 +4,11 @@
 	import { formatSigned } from '$lib/format';
 	import { ALL_SCALE_STEPS, cardTiles, changeText, formatScale, scaleSteps as stepsFor } from '$lib/card';
 	import type { CardTile } from '$lib/card';
-	import { loadBaseline, loadScenario, type Meta, type Scenario, type ShockMeta } from '$lib/data';
+	import { loadBaseline, loadScenario, type Baseline, type Meta, type Scenario, type ShockMeta } from '$lib/data';
 	import { page } from '$app/state';
 	import { replaceState } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { onMount, untrack } from 'svelte';
+	import { onMount, tick, untrack } from 'svelte';
 	import {
 		downloadBlob, exportFilename, permalink, provenanceLine, scenarioCsv, svgToPngBlob
 	} from '$lib/export';
@@ -17,34 +17,36 @@
 		meta,
 		initialScenario,
 		initial = null,
-		initialTiles = null
+		initialTiles = null,
+		baseline = null
 	}: {
 		meta: Meta;
+		/** A scenario loaded ahead of time (the bare /scenarier/ page prerenders its default view). */
 		initialScenario: Scenario | null;
 		/** Preselected view (the prerendered /scenarier/<view>/ pages); otherwise the ?stod= query. */
 		initial?: { name: string; variation: string; scale: number } | null;
 		/** The view's tiles as prerendered, shown until the scenario JSON has loaded. */
 		initialTiles?: CardTile[] | null;
+		/** Baseline levels for the persons tile when the page loaded them already (prerendered). */
+		baseline?: Baseline | null;
 	} = $props();
 
-	const DEMO: ShockMeta = {
-		name: '_demo',
-		labelDa: 'Syntetisk demo-scenarie',
-		labelEn: 'Synthetic demo',
-		group: 'Demo',
-		available: ['']
-	};
-
-	/** Prerendered view pages seed from `initial`, so the built HTML shows the right shock,
-	 *  variant, scale and loading state before hydration — not the demo/pending markup.
-	 *  Seeded once from the prerendered view (untrack: the initial value is the point; later
-	 *  changes come through select()). */
-	let selectedName = $state(untrack(() => initial?.name ?? '_demo'));
-	let selectedVariation = $state(untrack(() => initial?.variation ?? ''));
+	/** Prerendered pages seed from `initial` (view pages) or `initialScenario` (the bare page),
+	 *  so the built HTML shows the right shock, variant, scale and loading state before
+	 *  hydration — not the pending markup. Seeded once (untrack: the initial value is the
+	 *  point; later changes come through select()). */
+	let selectedName = $state(untrack(() => initial?.name ?? initialScenario?.shock ?? ''));
+	let selectedVariation = $state(untrack(() => initial?.variation ?? initialScenario?.variation ?? ''));
 	let override: Scenario | null | 'unset' = $state.raw('unset');
-	let loading = $state(untrack(() => !!initial));
-	/** Baseline nL/vBNP by year (persons tile), fetched once after mount. */
-	let levelsByYear: Record<number, { nL: number | null; vBNP: number | null }> = $state.raw({});
+	let loading = $state(untrack(() => !!initial && !initialScenario));
+	/** Baseline nL/vBNP by year (persons tile): from the page when prerendered, else fetched after mount. */
+	let levelsByYear = $state.raw(untrack(() => (baseline ? levelsOf(baseline) : {})));
+
+	function levelsOf(b: Baseline): Record<number, { nL: number | null; vBNP: number | null }> {
+		return Object.fromEntries(
+			b.years.map((year, i) => [year, { nL: b.series.nL?.[i] ?? null, vBNP: b.series.vBNP?.[i] ?? null }])
+		);
+	}
 	const scenario = $derived(override === 'unset' ? initialScenario : override);
 
 	/** Client-side linear rescaling of a solved scenario (1 = as solved).
@@ -64,7 +66,8 @@
 	const mirrored = $derived(scale < 0);
 
 	const selectedShock = $derived(
-		selectedName === '_demo' ? DEMO : (meta.shocks.find((s) => s.name === selectedName) ?? DEMO)
+		meta.shocks.find((s) => s.name === selectedName) ??
+			({ name: selectedName, labelDa: selectedName, labelEn: selectedName, group: '', available: [] } satisfies ShockMeta)
 	);
 
 	const shockGroups = $derived.by(() => {
@@ -81,8 +84,7 @@
 		selectedName = name;
 		selectedVariation = variation;
 		scaleIdx = ALL_SCALE_STEPS.indexOf(UNSCALED);
-		const shock = name === '_demo' ? DEMO : meta.shocks.find((s) => s.name === name);
-		if (name === '_demo' && (location.pathname !== resolve('/scenarier/') || location.search)) replaceState(resolve('/scenarier/'), {});
+		const shock = meta.shocks.find((s) => s.name === name);
 		if (!shock || !shock.available.includes(variation)) {
 			override = null;
 			return;
@@ -103,13 +105,13 @@
 		return { name, variation: variant, scale: Number.isFinite(skala) && skala !== 0 ? skala : 1 };
 	}
 
+	/** replaceState throws until SvelteKit's router is up, which is after hydration. */
+	let hydrated = $state(false);
+
 	onMount(() => {
+		void tick().then(() => (hydrated = true));
 		// Baseline levels for the persons tile (55 KB, browser-cached); every solved scenario needs them.
-		void loadBaseline(fetch).then((baseline) => {
-			levelsByYear = Object.fromEntries(
-				baseline.years.map((year, i) => [year, { nL: baseline.series.nL?.[i] ?? null, vBNP: baseline.series.vBNP?.[i] ?? null }])
-			);
-		});
+		if (!baseline) void loadBaseline(fetch).then((b) => (levelsByYear = levelsOf(b)));
 		const wanted = wantedView();
 		const shock = wanted ? meta.shocks.find((s) => s.name === wanted.name) : undefined;
 		if (!wanted || !shock) return;
@@ -174,7 +176,7 @@
 
 	// ------------------------------------------------------------------------------------
 	// Sharing: every solved view is a permalink, and every export carries the source stamp.
-	const shareable = $derived(!!scenario && !scenario.synthetic && selectedName !== '_demo');
+	const shareable = $derived(!!scenario);
 	const closureLabel = $derived(
 		meta.variations.find((v) => v.suffix === selectedVariation)?.labelDa ?? 'Ufinansieret'
 	);
@@ -211,9 +213,13 @@
 		return loading ? initialTiles : null;
 	});
 
+	/** The bare page's prerendered default view stays at /scenarier/ until the reader changes something. */
+	const seededUrl = untrack(() => (initialScenario && !initial ? shareUrl : ''));
+
 	// Keep the address bar in sync, so the URL a reader copies reproduces the view.
 	$effect(() => {
-		if (!shareable) return;
+		if (!shareable || loading || !hydrated) return;
+		if (shareUrl === seededUrl && location.pathname === resolve('/scenarier/') && !location.search) return;
 		const url = new URL(shareUrl);
 		if (url.pathname + url.search !== location.pathname + location.search) replaceState(url, {});
 	});
@@ -227,7 +233,6 @@
 	const statusText = $derived.by(() => {
 		if (loading) return 'Henter scenariet …';
 		if (!scenario) return `${selectedShock.labelDa}: endnu ikke beregnet.`;
-		if (selectedName === '_demo') return 'Viser det syntetiske demo-scenarie.';
 		return `Viser ${selectedShock.labelDa}, ${closureLabel.toLowerCase()}.`;
 	});
 
@@ -297,15 +302,6 @@
 
 <div class="workbench">
 	<aside aria-label="Stødkatalog">
-		<button
-			class="shock demo-entry"
-			class:selected={selectedName === '_demo'}
-			aria-pressed={selectedName === '_demo'}
-			onclick={() => select('_demo', '')}
-		>
-			Syntetisk demo-scenarie
-		</button>
-
 		{#each [...shockGroups] as [group, shocks] (group)}
 			<h2>{group}</h2>
 			{#each shocks as shock (shock.name)}
@@ -330,32 +326,22 @@
 		<div class="sr-only" role="status">{exporting ? 'Laver PNG …' : ''}</div>
 		<div class="detail-head">
 			<h2>{selectedShock.labelDa}</h2>
-			{#if selectedName !== '_demo'}
-				<div class="chip-row" role="group" aria-label="Variant">
-					{#each meta.variations as variation (variation.suffix)}
-						<button
-							class="chip"
-							class:active={selectedVariation === variation.suffix}
-							aria-pressed={selectedVariation === variation.suffix}
-							disabled={!selectedShock.available.includes(variation.suffix)}
-							onclick={() => select(selectedName, variation.suffix)}
-						>
-							{variation.labelDa}
-						</button>
-					{/each}
-				</div>
-			{/if}
+			<div class="chip-row" role="group" aria-label="Variant">
+				{#each meta.variations as variation (variation.suffix)}
+					<button
+						class="chip"
+						class:active={selectedVariation === variation.suffix}
+						aria-pressed={selectedVariation === variation.suffix}
+						disabled={!selectedShock.available.includes(variation.suffix)}
+						onclick={() => select(selectedName, variation.suffix)}
+					>
+						{variation.labelDa}
+					</button>
+				{/each}
+			</div>
 		</div>
 		{#if scenario?.definition?.explainerDa}
 			<p class="explainer">{scenario.definition.explainerDa}</p>
-		{/if}
-
-		{#if scenario?.synthetic}
-			<div class="banner" role="note">
-				<strong>Syntetisk demo.</strong> Kurverne her er opdigtede tal, der kun viser, hvordan værktøjet
-				virker. De er <strong>ikke</strong> en MAKRO-beregning. Rigtige scenarier kræver én modelkørsel med
-				GAMS – resultatfilerne lægges i <code>etl/shock_gdx/</code> og indlæses automatisk.
-			</div>
 		{/if}
 
 		{#if scenario?.definition}
@@ -397,43 +383,41 @@
 					{/if}
 				</dl>
 				<p class="dream-note">{def.dreamDa}</p>
-				{#if !scenario.synthetic}
-					<div class="scaler">
-						<label for="scale">Prøv en anden størrelse</label>
-						<input
-							id="scale"
-							type="range"
-							min="0"
-							max={scaleSteps.length - 1}
-							step="1"
-							bind:value={scaleIdx}
-							aria-valuetext={`${formatScale(scale)} gange stødet${mirrored ? ' — spejlet, altså en lempelse' : ''}`}
-						/>
-						<output for="scale" class="scale-readout">
-							<span class="scale-value"><strong>×{formatScale(scale)}</strong> = {scaledChange}</span>
-							<!-- Always rendered: the badge sits next to the slider, so popping it in and out
-							     would resize the track mid-drag. -->
-							<span class="approx" class:blank={scale === 1} class:mirror={mirrored}>
-								{mirrored ? 'spejlet' : 'lineær tilnærmelse'}
-							</span>
-						</output>
-						<p class="scale-note">
-							Kurverne skaleres i browseren — det er <em>ikke</em> en ny modelkørsel. Modellen er
-							tæt på lineær for stød af denne størrelse, men ikke helt: {def.linearityDa}
+				<div class="scaler">
+					<label for="scale">Prøv en anden størrelse</label>
+					<input
+						id="scale"
+						type="range"
+						min="0"
+						max={scaleSteps.length - 1}
+						step="1"
+						bind:value={scaleIdx}
+						aria-valuetext={`${formatScale(scale)} gange stødet${mirrored ? ' — spejlet, altså en lempelse' : ''}`}
+					/>
+					<output for="scale" class="scale-readout">
+						<span class="scale-value"><strong>×{formatScale(scale)}</strong> = {scaledChange}</span>
+						<!-- Always rendered: the badge sits next to the slider, so popping it in and out
+						     would resize the track mid-drag. -->
+						<span class="approx" class:blank={scale === 1} class:mirror={mirrored}>
+							{mirrored ? 'spejlet' : 'lineær tilnærmelse'}
+						</span>
+					</output>
+					<p class="scale-note">
+						Kurverne skaleres i browseren — det er <em>ikke</em> en ny modelkørsel. Modellen er
+						tæt på lineær for stød af denne størrelse, men ikke helt: {def.linearityDa}
+					</p>
+					{#if mirrored}
+						<p class="scale-note mirror-note">
+							<strong>Negativ skala spejler stødet.</strong> Kataloget indeholder kun forhøjelser,
+							så en lempelse vises ved at vende fortegnet på afvigelserne. Det er en lineær
+							tilnærmelse på den anden side af grundforløbet — retningen er rigtig, men størrelsen
+							er ikke løst i modellen. En rigtig nedsættelse kræver en ny modelkørsel.
 						</p>
-						{#if mirrored}
-							<p class="scale-note mirror-note">
-								<strong>Negativ skala spejler stødet.</strong> Kataloget indeholder kun forhøjelser,
-								så en lempelse vises ved at vende fortegnet på afvigelserne. Det er en lineær
-								tilnærmelse på den anden side af grundforløbet — retningen er rigtig, men størrelsen
-								er ikke løst i modellen. En rigtig nedsættelse kræver en ny modelkørsel.
-							</p>
-						{/if}
-						{#if def.maxScaleDa}
-							<p class="scale-note">{def.maxScaleDa}</p>
-						{/if}
-					</div>
-				{/if}
+					{/if}
+					{#if def.maxScaleDa}
+						<p class="scale-note">{def.maxScaleDa}</p>
+					{/if}
+				</div>
 			</section>
 		{/if}
 
@@ -470,10 +454,9 @@
 					<span class="share-hint">Linket gengiver præcis denne visning; hver graf kan hentes som PNG med kildeangivelse.</span>
 				</div>
 			{/if}
-			<div class="chart-grid" class:is-demo={scenario.synthetic} style:opacity={loading ? 0.5 : 1}>
+			<div class="chart-grid" style:opacity={loading ? 0.5 : 1}>
 				{#each charts as chart (chart.key)}
 					<div class="cell" class:instrument={chart.isInstrument}>
-						{#if scenario.synthetic}<span class="badge warm" aria-hidden="true">Demo</span>{/if}
 						{#if chart.isInstrument}<span class="badge accent">Stødet (input)</span>{/if}
 						{#if scale !== 1 && !chart.isInstrument}<span class="badge warm">×{formatScale(scale)} {mirrored ? 'spejlet' : 'tilnærmet'}</span>{/if}
 						<LineChart
@@ -542,10 +525,6 @@
 </div>
 
 <style>
-	.demo-entry {
-		margin-bottom: 14px;
-	}
-
 	.detail-head {
 		display: flex;
 		flex-wrap: wrap;
@@ -703,7 +682,6 @@
 	}
 
 	/* keep the caption clear of a badge */
-	.is-demo .cell :global(figcaption),
 	.cell.instrument :global(figcaption) {
 		padding-right: 110px;
 	}

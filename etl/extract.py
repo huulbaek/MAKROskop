@@ -1,7 +1,7 @@
 """Extract MAKRO baseline (and any solved shock GDX files) to JSON for the web explorer.
 
 Usage:
-    uv run python extract.py [--makro-root PATH] [--out PATH] [--shocks-dir PATH] [--demo]
+    uv run python extract.py [--makro-root PATH] [--out PATH] [--shocks-dir PATH]
 
 Reads `Model/Gdx/baseline.gdx` from the MAKRO repo and writes:
     out/meta.json         catalog of series, sectors, shocks, model version
@@ -323,41 +323,11 @@ def scan_shock_gdx_files(shocks_dir: Path) -> dict[str, list[tuple[str, Path]]]:
     return found
 
 
-def write_demo_scenario(out_dir: Path) -> None:
-    """Synthetic, clearly-flagged demo so the scenario UI can be exercised without GAMS output."""
-    def damped(amplitude: float, persistence: float, delay: int = 0) -> list[float | None]:
-        column: list[float | None] = []
-        for year in YEARS:
-            offset = year - 2030 - delay
-            column.append(0.0 if offset < 0 else sig_round(amplitude * (persistence ** offset) * (offset + 1) * math.exp(-0.25 * offset), 4))
-        return column
-
-    demo = {
-        "shock": "_demo",
-        "variation": "",
-        "synthetic": True,
-        "labelDa": "Syntetisk demo-scenarie (IKKE en MAKRO-beregning)",
-        "labelEn": "Synthetic demo scenario (NOT a MAKRO simulation)",
-        "hbi": None,
-        "deviations": {
-            "qBNP": damped(0.35, 0.80), "nL": damped(0.28, 0.78, 1), "qC": damped(0.22, 0.85),
-            "qX": damped(-0.15, 0.82, 1), "qM": damped(0.25, 0.80), "qI": damped(0.55, 0.75),
-            "pC": damped(0.10, 0.90, 2), "vhW": damped(0.18, 0.90, 2), "pBolig": damped(0.40, 0.72),
-            "ledighedsgrad": damped(-0.20, 0.78, 1), "saldo2bnp": damped(-0.45, 0.85),
-            "primsaldo2bnp": damped(-0.42, 0.85), "rRenteObl": damped(0.0, 0.0),
-        },
-    }
-    (out_dir / "shocks").mkdir(parents=True, exist_ok=True)
-    (out_dir / "shocks" / "_demo.json").write_text(json.dumps(demo), encoding="utf-8")
-    print("  wrote shocks/_demo.json (synthetic, flagged)")
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--makro-root", type=Path, default=Path(__file__).parent.parent.parent / "MAKRO")
     parser.add_argument("--out", type=Path, default=Path(__file__).parent.parent / "app" / "static" / "data")
     parser.add_argument("--shocks-dir", type=Path, default=Path(__file__).parent / "shock_gdx")
-    parser.add_argument("--demo", action="store_true", help="also write a synthetic, flagged demo scenario")
     args = parser.parse_args()
 
     args.out.mkdir(parents=True, exist_ok=True)
@@ -402,9 +372,6 @@ def main() -> None:
                 payload["hbi"] = None
             (args.out / "shocks" / f"{shock_name}{suffix}.json").write_text(json.dumps(payload), encoding="utf-8")
             available.setdefault(shock_name, []).append(suffix)
-
-    if args.demo:
-        write_demo_scenario(args.out)
 
     (args.out / "meta.json").write_text(
         json.dumps(build_meta(baseline, args.makro_root, available), ensure_ascii=False),

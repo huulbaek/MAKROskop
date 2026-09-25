@@ -31,13 +31,15 @@ check(sample.includes('<link rel="canonical" href="https://makroskop.nodalit.com
 check(sample.includes('vist som år efter stødet, lineært skaleret'), 'sample: honesty line missing from description');
 check(sample.includes('key-figures'), 'sample: prerendered HTML is missing the key-figures tiles');
 check(!sample.includes('Endnu ikke beregnet'), 'sample: prerendered HTML still shows the pending-scenario card');
-check(!sample.includes('<h2>Syntetisk demo-scenarie</h2>'), 'sample: prerendered HTML still shows the demo scenario');
 
 const bare = readFileSync(join(build, 'scenarier', 'index.html'), 'utf8');
 check(bare.includes('content="Scenarier · MAKROskop"'), 'bare page lost its generic og:title');
 check(bare.includes('<title>Scenarier · MAKROskop</title>'), 'bare page: <title> is not the page name');
 check(bare.includes('content="https://makroskop.nodalit.com/og.png"'), 'bare page lost the site og:image');
 check(count(bare, /property="og:url"/g) === 0, 'bare page must not carry og:url');
+check(/<h2[^>]*>Rente \(ECB\)<\/h2>/.test(bare), 'bare page: does not open on the default scenario (Rente_ufin)');
+check(bare.includes('key-figures') && !bare.includes('Henter scenariet'), 'bare page: default scenario is not prerendered with its tiles');
+check(!/Syntetisk|synthetic demo/i.test(bare), 'bare page still mentions the synthetic demo');
 
 if (failures.length) {
 	console.error(`verify-build: ${failures.length} problem(s)\n` + failures.slice(0, 20).join('\n'));
