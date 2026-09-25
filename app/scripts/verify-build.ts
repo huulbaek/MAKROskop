@@ -47,6 +47,7 @@ check(count(home, /class="chip[^"]*"[^>]*aria-pressed/g) === 6, 'front page: exp
 check(home.includes('<title>MAKROskop – spørg Finansministeriets model, hvad der sker, hvis …</title>'), 'front page: <title> is not its own');
 check(/content="Hvad sker der, hvis ECB hæver renten[^"]*beskæftigelse −/.test(home), 'front page: description lacks the default answer');
 check(home.includes('href="/grundforloeb/"'), 'front page: no doorway to the baseline');
+check(home.includes('Varigt, ufinansieret stød fra 2030'), 'front page: does not say the shock is permanent and unfinanced');
 check(home.includes('href="/scenarier/Rente_ufin/"'), 'front page: default answer does not link to its scenario page');
 
 const grund = readFileSync(join(build, 'grundforloeb', 'index.html'), 'utf8');

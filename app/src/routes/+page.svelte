@@ -24,6 +24,7 @@
 <section class="answer" aria-labelledby="question">
 	<div class="sr-only" role="status">Viser: {answer.question.question}</div>
 	<h2 id="question">… {answer.question.question}</h2>
+	<p class="framing">{answer.framing}</p>
 	<div class="tiles" role="group" aria-label="Svaret i tre tal">
 		{#each answer.tiles as tile (tile.key)}
 			<StatTile label={`${tile.label}, år ${tile.year}`} value={tile.value ?? '–'} unit={tile.value == null ? '' : tile.unit} />
@@ -77,6 +78,12 @@
 		font-family: var(--font-display);
 		font-size: 30px;
 		margin: 0 0 16px;
+	}
+
+	.framing {
+		font-size: 13.5px;
+		color: var(--ink-muted);
+		margin: -8px 0 16px;
 	}
 
 	.tiles {

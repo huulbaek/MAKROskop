@@ -23,6 +23,31 @@ describe('QUESTIONS', () => {
 			expect(readScenario(q.file).definition?.changeDa, q.file).toBe(q.solvedAs);
 		}
 	});
+
+	it('pins the catalog move (factor, delta) each question was written for', () => {
+		for (const q of QUESTIONS) {
+			const def = readScenario(q.file).definition;
+			expect({ factor: def?.factor, delta: def?.delta }, q.file).toEqual(q.solvedMove);
+		}
+	});
+
+	it('the instrument moved by exactly that much, where the scenario carries its series', () => {
+		const yearStart = readMeta().yearStart;
+		let checked = 0;
+		for (const q of QUESTIONS) {
+			const scenario = readScenario(q.file);
+			const def = scenario.definition!;
+			if (!def.seriesKey) continue;
+			const expected = def.delta !== 0 ? def.delta * 100 : (def.factor - 1) * 100;
+			expect(scenario.deviations[def.seriesKey]?.[def.firstYear - yearStart], q.file).toBeCloseTo(expected, 6);
+			checked++;
+		}
+		expect(checked).toBeGreaterThan(0);
+	});
+
+	it('states the export shock as a larger market, not a growth rate', () => {
+		expect(QUESTIONS.find((q) => q.file === 'Eksportmarkedsvaekst_ufin')?.question).toBe('eksportmarkederne bliver 1 pct. større?');
+	});
 });
 
 /** 1985-based series with values only where the test sets them. */
@@ -92,6 +117,11 @@ describe('buildAnswer', () => {
 		expect(answer.fiveYear).toBeNull();
 	});
 
+	it('says the shock is permanent and unfinanced, and from when', () => {
+		const answer = buildAnswer({ question, scenario: fake({ 2030: -0.4 }), yearStart: 1985, levels, nL5: 3000 });
+		expect(answer.framing).toBe('Varigt, ufinansieret stød fra 2030 · tallene er afvigelser fra grundforløbet');
+	});
+
 	it('charts BNP and employment', () => {
 		const answer = buildAnswer({ question, scenario: fake({ 2030: -0.4 }), yearStart: 1985, levels, nL5: 3000 });
 		expect(answer.chart.map((s) => [s.key, s.label])).toEqual([['qBNP', 'BNP'], ['nL', 'Beskæftigelse']]);
@@ -116,7 +146,7 @@ describe('homeHead', () => {
 		const head = homeHead(answer);
 		expect(head.title).toBe('MAKROskop – spørg Finansministeriets model, hvad der sker, hvis …');
 		expect(head.description).toBe(
-			'Hvad sker der, hvis ECB hæver renten med 1 pct.-point? MAKRO: beskæftigelse −12.000 personer i år 1, BNP −1,2 pct. efter 3 år, offentlig saldo −1,0 pct. af BNP i år 1. Seks spørgsmål til Finansministeriets model, besvaret med MAKROskops frie løser.'
+			'Hvad sker der, hvis ECB hæver renten med 1 pct.-point? MAKRO, varigt og ufinansieret: beskæftigelse −12.000 personer i år 1, BNP −1,2 pct. efter 3 år, offentlig saldo −1,0 pct. af BNP i år 1. Seks spørgsmål til Finansministeriets model, besvaret med MAKROskops frie løser.'
 		);
 	});
 });

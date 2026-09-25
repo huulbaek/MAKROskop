@@ -12,19 +12,23 @@ export interface Question {
 	/** Scenario file stem in static/data/shocks. */
 	file: string;
 	/** The scenario's definition.changeDa the wording was written against; a test pins it,
-	 *  so a re-solve at another size fails instead of shipping a wrong question. */
+	 *  so a catalog change of size fails instead of shipping a wrong question. */
 	solvedAs: string;
+	/** The catalog move (definition.factor, delta), pinned by the same test. Both are catalog
+	 *  values, not read from the solve; where the scenario carries the instrument's own series
+	 *  (Rente), a test also checks the solved move itself. */
+	solvedMove: { factor: number; delta: number };
 }
 
 /** Demand shocks fade within five years as wages adjust; the labour-supply shock keeps
  *  growing — the set is chosen so that contrast shows without prose. Default first. */
 export const QUESTIONS: Question[] = [
-	{ chip: 'renten stiger', question: 'ECB hæver renten med 1 pct.-point?', file: 'Rente_ufin', solvedAs: '+1 pct.-point (100 basispoint)' },
-	{ chip: 'momsen sænkes', question: 'momsen sænkes med 0,5 pct.-point?', file: 'Moms_ned_ufin', solvedAs: '−0,5 pct.-point' },
-	{ chip: 'bundskatten hæves', question: 'bundskatten hæves med 1 pct.-point?', file: 'Bundskat_ufin', solvedAs: '+1 pct.-point' },
-	{ chip: 'det offentlige forbrug øges', question: 'det offentlige forbrug øges med 1 pct.?', file: 'Offentligt_forbrug_ufin', solvedAs: '+1 pct.' },
-	{ chip: 'eksporten vokser', question: 'eksportmarkederne vokser 1 pct.?', file: 'Eksportmarkedsvaekst_ufin', solvedAs: '+1 pct.' },
-	{ chip: 'flere vil arbejde', question: '1 pct. flere vil arbejde?', file: 'Arbejdsudbud_beskaeftigelse_ufin', solvedAs: '+1 pct.' }
+	{ chip: 'renten stiger', question: 'ECB hæver renten med 1 pct.-point?', file: 'Rente_ufin', solvedAs: '+1 pct.-point (100 basispoint)', solvedMove: { factor: 1, delta: 0.01 } },
+	{ chip: 'momsen sænkes', question: 'momsen sænkes med 0,5 pct.-point?', file: 'Moms_ned_ufin', solvedAs: '−0,5 pct.-point', solvedMove: { factor: 1, delta: -0.005 } },
+	{ chip: 'bundskatten hæves', question: 'bundskatten hæves med 1 pct.-point?', file: 'Bundskat_ufin', solvedAs: '+1 pct.-point', solvedMove: { factor: 1, delta: 0.01 } },
+	{ chip: 'det offentlige forbrug øges', question: 'det offentlige forbrug øges med 1 pct.?', file: 'Offentligt_forbrug_ufin', solvedAs: '+1 pct.', solvedMove: { factor: 1.01, delta: 0 } },
+	{ chip: 'eksporten vokser', question: 'eksportmarkederne bliver 1 pct. større?', file: 'Eksportmarkedsvaekst_ufin', solvedAs: '+1 pct.', solvedMove: { factor: 1.01, delta: 0 } },
+	{ chip: 'flere vil arbejde', question: '1 pct. flere vil arbejde?', file: 'Arbejdsudbud_beskaeftigelse_ufin', solvedAs: '+1 pct.', solvedMove: { factor: 1.01, delta: 0 } }
 ];
 
 const ANSWER_SERIES = ['qBNP', 'nL', 'saldo2bnp'] as const;
@@ -59,6 +63,8 @@ export function fiveYearLine(y1: number, y5: number): string {
 export interface Answer {
 	question: Question;
 	tiles: CardTile[];
+	/** What kind of shock this is — the questions read like one-off events, the runs are not. */
+	framing: string;
 	/** null when a deviation or a baseline level is missing */
 	fiveYear: string | null;
 	chart: { key: string; label: string; values: (number | null)[] }[];
@@ -87,6 +93,7 @@ export function buildAnswer(input: {
 	return {
 		question,
 		tiles: cardTiles({ scenario, definition: scenario.definition, yearStart, levels, scale: 1 }),
+		framing: `Varigt, ${scenario.variation === '_ufin' ? 'ufinansieret' : 'finansieret'} stød fra ${y1} · tallene er afvigelser fra grundforløbet`,
 		fiveYear,
 		chart: [
 			{ key: 'qBNP', label: 'BNP', values: scenario.deviations.qBNP ?? [] },
@@ -113,7 +120,7 @@ export function homeHead(answer: Answer): PageHead {
 		title: 'MAKROskop – spørg Finansministeriets model, hvad der sker, hvis …',
 		description:
 			`Hvad sker der, hvis ${answer.question.question}` +
-			(numbers.length ? ` MAKRO: ${numbers.join(', ')}.` : '') +
+			(numbers.length ? ` MAKRO, varigt og ufinansieret: ${numbers.join(', ')}.` : '') +
 			' Seks spørgsmål til Finansministeriets model, besvaret med MAKROskops frie løser.'
 	};
 }

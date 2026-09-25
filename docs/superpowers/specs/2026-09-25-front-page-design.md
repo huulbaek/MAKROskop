@@ -32,13 +32,16 @@ completes "Hvad sker der, hvis …".
 | momsen sænkes | momsen sænkes med 0,5 pct.-point? | `Moms_ned_ufin` |
 | bundskatten hæves | bundskatten hæves med 1 pct.-point? | `Bundskat_ufin` |
 | det offentlige forbrug øges | det offentlige forbrug øges med 1 pct.? | `Offentligt_forbrug_ufin` |
-| eksporten vokser | eksportmarkederne vokser 1 pct.? | `Eksportmarkedsvaekst_ufin` |
+| eksporten vokser | eksportmarkederne bliver 1 pct. større? | `Eksportmarkedsvaekst_ufin` |
 | flere vil arbejde | 1 pct. flere vil arbejde? | `Arbejdsudbud_beskaeftigelse_ufin` |
 
 The question wording is hand-written per entry. Each entry also carries `solvedAs`, the exact
 `definition.changeDa` it was written against (e.g. `"+1 pct.-point (100 basispoint)"` for
-Rente, `"−0,5 pct.-point"` for Moms_ned); a unit test asserts equality with the scenario file,
-so a re-solve at another size fails the tests instead of shipping a wrong question.
+Rente, `"−0,5 pct.-point"` for Moms_ned) and `solvedMove`, the catalog `factor`/`delta`; a unit
+test asserts both against the scenario file. Both are catalog values, not read from the solve, so
+where a scenario carries the instrument's own series (Rente) a test also checks the solved move
+itself. Carrying the solver's stamp into the JSON would close the gap for all six (review
+finding, 2026-09-25; separate bead).
 
 The set is chosen so the contrast between demand and supply shocks is visible without prose:
 demand shocks fade within five years as wages adjust; the labour-supply shock keeps growing.
@@ -47,6 +50,9 @@ demand shocks fade within five years as wages adjust; the labour-supply shock ke
 
 Built by a pure function from a trimmed scenario plus baseline levels:
 
+- **Framing line** under the question: "Varigt, ufinansieret stød fra 2030 · tallene er
+  afvigelser fra grundforløbet" — the questions read like one-off events; the runs are permanent
+  and unfinanced (review finding, 2026-09-25). The description says "varigt og ufinansieret" too.
 - **Three tiles**, via `cardTiles` from `lib/card.ts` (same numbers and formatting as the share
   cards): employment in persons in year 1, BNP in pct. in year 3, public balance in pct. of BNP
   in year 1.
