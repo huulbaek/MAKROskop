@@ -4,6 +4,7 @@
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import { SITE_URL } from '$lib/site';
 	import type { CardHead } from '$lib/card';
+	import type { PageHead } from '$lib/frontpage';
 
 	let { children, data } = $props();
 
@@ -11,7 +12,7 @@
 	 *  one description and the layout never emits a duplicate tag. */
 	const links = [
 		{
-			href: '/',
+			href: '/grundforloeb/',
 			label: 'Grundforløb',
 			description:
 				'MAKROs grundforløb for dansk økonomi: BNP, beskæftigelse, priser, offentlige finanser og renter – historiske data og modelfremskrivning frem til 2100.'
@@ -55,10 +56,14 @@
 		return data && page.url.pathname === new URL(data.url).pathname ? data : undefined;
 	});
 	const current = $derived(links.find((link) => isActive(link.href)));
-	const description = $derived(card?.description ?? current?.description ?? SITE_DESCRIPTION);
-	const ogTitle = $derived(card?.title ?? (current ? `${current.label} · MAKROskop` : 'MAKROskop – udforsk MAKRO uden licens'));
-	/** The tab title: the card's headline number, else the page name. Only the layout sets <title>. */
-	const title = $derived(card ? `${card.title} · MAKROskop` : current ? `${current.label} · MAKROskop` : 'MAKROskop');
+	/** The front page passes its own title and description (the default answer's numbers). */
+	const head = $derived(page.data.head as PageHead | undefined);
+	const description = $derived(card?.description ?? head?.description ?? current?.description ?? SITE_DESCRIPTION);
+	const ogTitle = $derived(
+		card?.title ?? head?.title ?? (current ? `${current.label} · MAKROskop` : 'MAKROskop – udforsk MAKRO uden licens')
+	);
+	/** The tab title: the card's headline number, the front page's own, else the page name. Only the layout sets <title>. */
+	const title = $derived(card ? `${card.title} · MAKROskop` : head ? head.title : current ? `${current.label} · MAKROskop` : 'MAKROskop');
 	const ogImage = $derived(card ? `${SITE_URL}/og/${card.image}` : `${SITE_URL}/og.png`);
 	const ogImageAlt = $derived(
 		card?.imageAlt ??
