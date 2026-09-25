@@ -1,8 +1,9 @@
-/** The front page: six curated "Hvad sker der, hvis …" questions, each answered by a solved
+/** The front page: curated "Hvad sker der, hvis …" questions, each answered by a solved
  *  unfinanced scenario exactly as solved — no scaling, no mirroring. Spec:
  *  docs/superpowers/specs/2026-09-25-front-page-design.md (makroskop-169). */
 import { cardTiles, formatPersons, type CardLevels, type CardTile } from './card';
 import type { Scenario, ScenarioDefinition } from './data';
+import { RECOMPUTING } from './notices';
 
 export interface Question {
 	/** Short form on the chip. */
@@ -22,7 +23,7 @@ export interface Question {
 
 /** Demand shocks fade within five years as wages adjust; the labour-supply shock keeps
  *  growing — the set is chosen so that contrast shows without prose. Default first. */
-export const QUESTIONS: Question[] = [
+const ALL_QUESTIONS: Question[] = [
 	{ chip: 'renten stiger', question: 'ECB hæver renten med 1 pct.-point?', file: 'Rente_ufin', solvedAs: '+1 pct.-point (100 basispoint)', solvedMove: { factor: 1, delta: 0.01 } },
 	{ chip: 'momsen sænkes', question: 'momsen sænkes med 0,5 pct.-point?', file: 'Moms_ned_ufin', solvedAs: '−0,5 pct.-point', solvedMove: { factor: 1, delta: -0.005 } },
 	{ chip: 'bundskatten hæves', question: 'bundskatten hæves med 1 pct.-point?', file: 'Bundskat_ufin', solvedAs: '+1 pct.-point', solvedMove: { factor: 1, delta: 0.01 } },
@@ -30,6 +31,17 @@ export const QUESTIONS: Question[] = [
 	{ chip: 'eksporten vokser', question: 'eksportmarkederne bliver 1 pct. større?', file: 'Eksportmarkedsvaekst_ufin', solvedAs: '+1 pct.', solvedMove: { factor: 1.01, delta: 0 } },
 	{ chip: 'flere vil arbejde', question: '1 pct. flere vil arbejde?', file: 'Arbejdsudbud_beskaeftigelse_ufin', solvedAs: '+1 pct.', solvedMove: { factor: 1.01, delta: 0 } }
 ];
+
+/** The questions on the page: a scenario under recomputation (lib/notices.ts) is left out
+ *  until its re-solve is ingested. */
+export const QUESTIONS: Question[] = ALL_QUESTIONS.filter((q) => !RECOMPUTING[q.file.replace(/_ufin$/, '')]);
+
+const COUNT_WORDS = ['Nul', 'Ét', 'To', 'Tre', 'Fire', 'Fem', 'Seks', 'Syv', 'Otte', 'Ni', 'Ti'];
+
+/** "Fem", "Seks", … for the description; digits beyond ten. */
+export function countWord(n: number): string {
+	return COUNT_WORDS[n] ?? String(n);
+}
 
 const ANSWER_SERIES = ['qBNP', 'nL', 'saldo2bnp'] as const;
 
@@ -40,7 +52,7 @@ export interface TrimmedScenario {
 	deviations: Record<string, (number | null)[]>;
 }
 
-/** Only what the answer uses: ~3 KB instead of the 54 KB scenario file, times six in the page. */
+/** Only what the answer uses: ~3 KB instead of the 54 KB scenario file, per question in the page. */
 export function trimScenario(scenario: Scenario): TrimmedScenario {
 	const def = scenario.definition;
 	if (!def) throw new Error(`${scenario.shock}${scenario.variation}: scenario has no definition`);
@@ -121,6 +133,6 @@ export function homeHead(answer: Answer): PageHead {
 		description:
 			`Hvad sker der, hvis ${answer.question.question}` +
 			(numbers.length ? ` MAKRO, varigt og ufinansieret: ${numbers.join(', ')}.` : '') +
-			' Seks spørgsmål til Finansministeriets model, besvaret med MAKROskops frie løser.'
+			` ${countWord(QUESTIONS.length)} spørgsmål til Finansministeriets model, besvaret med MAKROskops frie løser.`
 	};
 }

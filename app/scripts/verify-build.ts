@@ -4,6 +4,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { shareViews } from '../src/lib/card';
+import { QUESTIONS } from '../src/lib/frontpage';
 import { maxScales, readMeta } from '../src/lib/server/scenarios';
 
 const build = join(process.cwd(), 'build');
@@ -43,7 +44,7 @@ check(!/Syntetisk|synthetic demo/i.test(bare), 'bare page still mentions the syn
 
 const home = readFileSync(join(build, 'index.html'), 'utf8');
 check(home.includes('ECB hæver renten med 1 pct.-point?'), 'front page: default question missing');
-check(count(home, /class="chip[^"]*"[^>]*aria-pressed/g) === 6, 'front page: expected six question chips');
+check(count(home, /class="chip[^"]*"[^>]*aria-pressed/g) === QUESTIONS.length, `front page: expected ${QUESTIONS.length} question chips`);
 check(home.includes('<title>MAKROskop – spørg Finansministeriets model, hvad der sker, hvis …</title>'), 'front page: <title> is not its own');
 check(/content="Hvad sker der, hvis ECB hæver renten[^"]*beskæftigelse −/.test(home), 'front page: description lacks the default answer');
 check(home.includes('href="/grundforloeb/"'), 'front page: no doorway to the baseline');

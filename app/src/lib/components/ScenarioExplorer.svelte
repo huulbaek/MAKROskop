@@ -5,6 +5,7 @@
 	import { ALL_SCALE_STEPS, cardTiles, changeText, formatScale, scaleSteps as stepsFor } from '$lib/card';
 	import type { CardTile } from '$lib/card';
 	import { defaultVariation, loadBaseline, loadScenario, type Baseline, type Meta, type Scenario, type ShockMeta } from '$lib/data';
+	import { RECOMPUTING } from '$lib/notices';
 	import { page } from '$app/state';
 	import { replaceState } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -340,6 +341,9 @@
 				{/each}
 			</div>
 		</div>
+		{#if RECOMPUTING[selectedName]}
+			<div class="banner warn" role="note"><strong>Genberegnes.</strong> {RECOMPUTING[selectedName]}</div>
+		{/if}
 		{#if scenario?.definition?.explainerDa}
 			<p class="explainer">{scenario.definition.explainerDa}</p>
 		{/if}

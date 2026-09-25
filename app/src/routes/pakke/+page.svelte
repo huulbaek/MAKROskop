@@ -3,6 +3,7 @@
 	import StatTile from '$lib/components/StatTile.svelte';
 	import { formatSigned } from '$lib/format';
 	import { loadScenario, type Scenario, type ShockMeta } from '$lib/data';
+	import { RECOMPUTING } from '$lib/notices';
 	import {
 		financedCostLine,
 		formatScale,
@@ -409,6 +410,11 @@
 		<div class="sr-only" role="status">{statusText}</div>
 		<div class="sr-only" role="status">{copied ? 'Link kopieret til udklipsholderen.' : ''}</div>
 		<div class="sr-only" role="status">{exporting ? 'Laver PNG …' : ''}</div>
+		{#each components.filter((c) => RECOMPUTING[c.name]) as c (c.name)}
+			<div class="banner warn" role="note">
+				<strong>{shocksByName.get(c.name)?.labelDa ?? c.name} genberegnes.</strong> {RECOMPUTING[c.name]}
+			</div>
+		{/each}
 		<div class="detail-head">
 			<h2>Pakkens indhold</h2>
 			<div class="chip-row" role="group" aria-label="Finansiering">

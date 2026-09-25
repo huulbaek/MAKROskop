@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { cardTiles } from './card';
-import { QUESTIONS, buildAnswer, fiveYearLine, homeHead, trimScenario, type TrimmedScenario } from './frontpage';
+import { QUESTIONS, buildAnswer, countWord, fiveYearLine, homeHead, trimScenario, type TrimmedScenario } from './frontpage';
+import { RECOMPUTING } from './notices';
 import { levelsAt, readBaseline, readMeta, readScenario } from './server/scenarios';
 
 describe('QUESTIONS', () => {
-	it('has six questions, the ECB rate first', () => {
-		expect(QUESTIONS).toHaveLength(6);
+	it('opens on the ECB rate', () => {
 		expect(QUESTIONS[0].file).toBe('Rente_ufin');
+	});
+
+	it('asks nothing whose scenario is being recomputed', () => {
+		for (const q of QUESTIONS) expect(RECOMPUTING[q.file.replace(/_ufin$/, '')], q.file).toBeUndefined();
 	});
 
 	it('every question points at a solved unfinanced scenario', () => {
@@ -146,7 +150,7 @@ describe('homeHead', () => {
 		const head = homeHead(answer);
 		expect(head.title).toBe('MAKROskop – spørg Finansministeriets model, hvad der sker, hvis …');
 		expect(head.description).toBe(
-			'Hvad sker der, hvis ECB hæver renten med 1 pct.-point? MAKRO, varigt og ufinansieret: beskæftigelse −12.000 personer i år 1, BNP −1,2 pct. efter 3 år, offentlig saldo −1,0 pct. af BNP i år 1. Seks spørgsmål til Finansministeriets model, besvaret med MAKROskops frie løser.'
+			'Hvad sker der, hvis ECB hæver renten med 1 pct.-point? MAKRO, varigt og ufinansieret: beskæftigelse −12.000 personer i år 1, BNP −1,2 pct. efter 3 år, offentlig saldo −1,0 pct. af BNP i år 1. Seks spørgsmål til Finansministeriets model, besvaret med MAKROskops frie løser.'.replace('Seks', countWord(QUESTIONS.length))
 		);
 	});
 });
