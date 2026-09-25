@@ -41,6 +41,19 @@ check(/<h2[^>]*>Rente \(ECB\)<\/h2>/.test(bare), 'bare page: does not open on th
 check(bare.includes('key-figures') && !bare.includes('Henter scenariet'), 'bare page: default scenario is not prerendered with its tiles');
 check(!/Syntetisk|synthetic demo/i.test(bare), 'bare page still mentions the synthetic demo');
 
+const home = readFileSync(join(build, 'index.html'), 'utf8');
+check(home.includes('ECB hæver renten med 1 pct.-point?'), 'front page: default question missing');
+check(count(home, /class="chip[^"]*"[^>]*aria-pressed/g) === 6, 'front page: expected six question chips');
+check(home.includes('<title>MAKROskop – spørg Finansministeriets model, hvad der sker, hvis …</title>'), 'front page: <title> is not its own');
+check(/content="Hvad sker der, hvis ECB hæver renten[^"]*beskæftigelse −/.test(home), 'front page: description lacks the default answer');
+check(home.includes('href="/grundforloeb/"'), 'front page: no doorway to the baseline');
+check(home.includes('href="/scenarier/Rente_ufin/"'), 'front page: default answer does not link to its scenario page');
+
+const grund = readFileSync(join(build, 'grundforloeb', 'index.html'), 'utf8');
+check(grund.includes('Dansk økonomi, beregnet et århundrede frem'), '/grundforloeb/: baseline heading missing');
+check(grund.includes('<title>Grundforløb · MAKROskop</title>'), '/grundforloeb/: <title> is not the page name');
+check(grund.includes('MAKROs grundforløb for dansk økonomi'), '/grundforloeb/: lost the baseline description');
+
 if (failures.length) {
 	console.error(`verify-build: ${failures.length} problem(s)\n` + failures.slice(0, 20).join('\n'));
 	process.exit(1);
