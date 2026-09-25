@@ -147,6 +147,10 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
   where `solve_window`/`solve_shock` drop a factorization; before that the process grew ~8 GB per
   fresh factorization and a 2027 Rente run was OOM-killed at its 12th. Invariants are in
   `tests/test_lu_lifetime.py`.
+- Multi-cell *effective* rates (e.g. `tMoms_y[d,s]` = revenue/base, ~0 for exports and deductible
+  inputs) must be shocked proportionally (`--shock-factor`), never with a flat `--shock-delta`: a flat
+  ±0.005 on tMoms turned 90 of 163 cells negative and overstated the VAT cut's BNP effect ~6×. The
+  VAT runs were re-solved ×0.98/×1.02 (`cloud/run_moms_prop.sh`, makroskop-gnp.2, 2026-09-25).
 - Shock design: instruments must be exogenous (`is_fixed`). Mapped: tBund, tAMbidrag,
   tSelskab, tEjd, uG (offentligt forbrug), uvOvfSats (overførsler), uXMarked, nPop
   (single ages), rRenteECB, pOlieBrent (NB: propagates to almost nothing in this

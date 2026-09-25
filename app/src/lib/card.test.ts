@@ -88,6 +88,13 @@ describe('formatting', () => {
 		expect(changeText({ delta: 0, factor: 1.1, changeDa: '+10 pct. af satsen' }, 1)).toBe('+10 pct. af satsen');
 		expect(changeText({ delta: 0, factor: 1.1, changeDa: '+10 pct. af satsen' }, 0.5)).toBe('+5 pct. af satsen');
 	});
+	it('scales a proportional rate cut worded "af satsen" (the VAT shocks, makroskop-gnp.2)', () => {
+		const cut = { delta: 0, factor: 0.98, changeDa: '−2 pct. af satsen' };
+		expect(scalableChange(cut)).toBe(true);
+		expect(changeText(cut, 1)).toBe('−2 pct. af satsen');
+		expect(changeText(cut, 0.5)).toBe('−1 pct. af satsen');
+		expect(changeText(cut, -1)).toBe('+2 pct. af satsen');
+	});
 	it('formats a bare scale label with the true minus', () => {
 		expect(scaleLabel(0.5)).toBe('×0,5');
 		expect(scaleLabel(-1)).toBe('×−1');

@@ -1,14 +1,5 @@
-/** Scenarios under recomputation, by catalog shock name. The explorer shows the text as a
- *  banner; the front page leaves their questions out. Remove an entry once its re-solve is
- *  ingested. */
+/** Scenarios under recomputation, by catalog shock name. The explorer and /pakke/ show the text as
+ *  a banner; the front page leaves their questions out. Add an entry while a scenario is known to
+ *  be wrong and a re-solve is under way; remove it once the re-solve is ingested. (Last used for
+ *  the VAT shocks, makroskop-gnp.2, 2026-09-25.) */
 export const RECOMPUTING: Record<string, string> = {};
-
-const VAT =
-	'Stødet flytter alle momssatser med det samme antal procentpoint — også satserne på eksport og ' +
-	'på virksomhedernes køb, der i virkeligheden er nul, fordi momsen dér er fradragsberettiget. Det ' +
-	'giver en momsrabat (eller -byrde) på eksport og input, som en rigtig momsændring ikke har, så ' +
-	'tallene viser ikke en rigtig momsændring. Scenariet løses igen med forholdsmæssigt ændrede satser, som i DREAMs ' +
-	'egne beregninger (25 → 24,5 pct.).';
-
-RECOMPUTING.Moms = VAT;
-RECOMPUTING.Moms_ned = VAT;

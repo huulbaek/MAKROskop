@@ -29,7 +29,7 @@ completes "Hvad sker der, hvis …".
 | Chip | Question (after "Hvad sker der, hvis …") | Scenario file |
 |---|---|---|
 | renten stiger *(default)* | ECB hæver renten med 1 pct.-point? | `Rente_ufin` |
-| momsen sænkes | momsen sænkes med 0,5 pct.-point? | `Moms_ned_ufin` |
+| momsen sænkes | momsen sænkes fra 25 til 24,5 pct.? | `Moms_ned_ufin` (×0,98, re-solved 2026-09-25, makroskop-gnp.2) |
 | bundskatten hæves | bundskatten hæves med 1 pct.-point? | `Bundskat_ufin` |
 | det offentlige forbrug øges | det offentlige forbrug øges med 1 pct.? | `Offentligt_forbrug_ufin` |
 | eksporten vokser | eksportmarkederne bliver 1 pct. større? | `Eksportmarkedsvaekst_ufin` |

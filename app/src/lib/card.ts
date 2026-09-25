@@ -109,11 +109,13 @@ export function formatPersons(value: number): string {
 }
 
 /** Whether the instrument moves in a unit the numeric rule can state and scale: a plain rate
- *  change (factor 1, |delta| < 1 → pct.-point) or a plain percentage increase (delta 0, factor > 1).
+ *  change (factor 1, |delta| < 1 → pct.-point), a plain percentage increase (delta 0, factor > 1),
+ *  or a proportional change of a rate the catalog words "… af satsen" (the VAT cut, factor 0.98).
  *  Anything else (a factor below 1 on a disutility parameter, a delta in mia. kr.) is worded by the
  *  catalog's own changeDa. */
-export function scalableChange(def: Pick<ScenarioDefinition, 'delta' | 'factor'>): boolean {
-	return (def.delta !== 0 && def.factor === 1 && Math.abs(def.delta) < 1) || (def.delta === 0 && def.factor > 1);
+export function scalableChange(def: Pick<ScenarioDefinition, 'delta' | 'factor'> & { changeDa?: string }): boolean {
+	if (def.delta !== 0) return def.factor === 1 && Math.abs(def.delta) < 1;
+	return def.factor > 1 || (def.factor < 1 && !!def.changeDa?.endsWith('af satsen'));
 }
 
 /** The scale as a bare Danish number with the true minus ("0,5", "−1"). */

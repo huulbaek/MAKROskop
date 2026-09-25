@@ -192,6 +192,16 @@ class ShockRun:
     explainer_da: str | None = None  # 2-3 plain-language sentences on the mechanism, for readers
 
 
+# makroskop-gnp.2: tMoms_y/tMoms_m are effective per-cell rates (revenue / base), about zero for
+# exports and deductible business inputs. A flat pct.-point delta put VAT on (or subsidised) those
+# cells; scale every cell by the same factor instead, as DREAM does.
+_VAT_PROPORTIONAL = (
+    "Alle momssatser i modellen ganges med samme faktor, som i DREAMs standardstød – satserne er "
+    "effektive satser pr. efterspørgselskomponent, og dem, der er nul (eksport, fradragsberettigede "
+    "køb), forbliver nul. 2 pct. af satsen svarer til, at momsen på 25 pct. ændres med 0,5 pct.-point. "
+    "DREAM normerer størrelsen til 1 pct. af BNP i provenu; MAKROskop bruger en fast faktor."
+)
+
 _DREAM_GDP_NORM = (
     "DREAMs standardstød af samme navn normerer i stedet ændringen til 1 pct. af BNP i provenu "
     "(og sænker satsen); MAKROskop ændrer selve satsen med et fast beløb. Størrelserne er derfor "
@@ -298,19 +308,16 @@ SHOCK_RUNS: list[ShockRun] = [
     ShockRun("Aktieskat", "tAktieTop", "Aktieindkomstskat, topsats", 1.0, 0.01, "+1 pct.-point", 2030,
              "DREAM ændrer både top- og lavsatsen normeret til 1 pct. af BNP; i denne konfiguration er kun topsatsen en variabel.",
              explainer_da="En højere topsats på aktieindkomst har næsten ingen realøkonomisk virkning i MAKRO; provenuet forbedrer saldoen marginalt, og forbruget falder først på langt sigt."),
-    ShockRun("Moms_ned", "tMoms_y,tMoms_m", "Momssatser (indenlandsk og importeret)", 1.0, -0.005, "−0,5 pct.-point", 2030,
-             _DREAM_GDP_NORM + " Nedsættelsen er løst som sit eget scenarie i stedet for at spejle forhøjelsen: "
-             "nedad findes ingen modelgrænse, så skalaen er fri.",
-             explainer_da="Lavere moms sænker forbrugerpriserne og hæver realindkomsten: forbruget stiger, boligpriserne "
-                          "stiger, og BNP løftes svagt, mens saldoen svækkes med det tabte provenu."),
-    ShockRun("Moms", "tMoms_y,tMoms_m", "Momssatser (indenlandsk og importeret)", 1.0, 0.005, "+0,5 pct.-point", 2030,
-             _DREAM_GDP_NORM + " Stødet er halveret i forhold til de øvrige satsstød: ved ca. 0,9 pct.-point rammer "
-             "de 18-åriges ejerboligbeholdning omkring 2110 nul, og modellen har ingen håndtering af den grænse.",
-             max_scale=1.5,
-             max_scale_da="Opskaleringen stopper ved ×1,5 (+0,75 pct.-point): omkring +0,9 pct.-point rammer de "
-                          "18-åriges ejerboligbeholdning nul ca. 2110, og der har modellen ingen løsning at "
-                          "tilnærme sig imod. Nedad gælder grænsen ikke.",
-             explainer_da="Højere moms hæver forbrugerpriserne og sænker realindkomsten: forbruget falder ca. 1,5 pct., boligpriserne ca. 1,5 pct. og BNP ca. 0,3 pct., mens saldoen forbedres markant."),
+    ShockRun("Moms_ned", "tMoms_y,tMoms_m", "Momssatser (indenlandsk og importeret)", 0.98, 0.0, "−2 pct. af satsen", 2030,
+             _VAT_PROPORTIONAL + " Nedsættelsen er løst som sit eget scenarie i stedet for at spejle forhøjelsen.",
+             explainer_da="Lavere moms sænker forbrugerpriserne ca. 0,2 pct. og hæver realindkomsten: forbruget stiger ca. "
+                          "0,3 pct. og boligpriserne lidt, men BNP kun ca. 0,05 pct., og beskæftigelsen er stort set uændret. "
+                          "Saldoen svækkes med ca. 0,1 pct. af BNP – mere over tid, fordi nedsættelsen er ufinansieret."),
+    ShockRun("Moms", "tMoms_y,tMoms_m", "Momssatser (indenlandsk og importeret)", 1.02, 0.0, "+2 pct. af satsen", 2030,
+             _VAT_PROPORTIONAL,
+             explainer_da="Højere moms hæver forbrugerpriserne ca. 0,2 pct. og sænker realindkomsten: forbruget falder ca. "
+                          "0,3 pct. og boligpriserne lidt, men BNP kun ca. 0,05 pct. Saldoen forbedres med ca. 0,1 pct. af "
+                          "BNP i starten og mere over tid."),
     ShockRun("Registreringsafgift", "tReg_y,tReg_m", "Registreringsafgift, implicitte satser", 1.10, 0.0, "+10 pct. af satsen", 2030, _DREAM_GDP_NORM,
              explainer_da="Højere registreringsafgift rammer bilkøbet: forbrug og investeringer falder marginalt, og saldoen forbedres lidt."),
     ShockRun("Energiafgift", "tAfg_y(cEne,*,*),tAfg_m(cEne,*,*)", "Energiafgifter på privat forbrug", 1.10, 0.0, "+10 pct. af satsen", 2030, _DREAM_GDP_NORM,

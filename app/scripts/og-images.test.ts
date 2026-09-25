@@ -26,7 +26,7 @@ describe('scenario readers', () => {
 });
 
 describe('every real headline fits the image', () => {
-	it('fitHeadline neither throws nor drops words for any of the 932 views', () => {
+	it('fitHeadline neither throws nor drops words for any of the 936 views', () => {
 		const meta = readMeta();
 		const baseline = readBaseline();
 		let checked = 0;
@@ -40,7 +40,7 @@ describe('every real headline fits the image', () => {
 			for (const line of lines) expect(line.length * DISPLAY_EM * size).toBeLessThanOrEqual(HEADLINE_WIDTH);
 			checked++;
 		}
-		expect(checked).toBe(932);
+		expect(checked).toBe(936); // +4: Moms lost its ×1,5 cap with the proportional re-solve (makroskop-gnp.2)
 	});
 });
 

@@ -9,6 +9,10 @@ describe('QUESTIONS', () => {
 		expect(QUESTIONS[0].file).toBe('Rente_ufin');
 	});
 
+	it('asks the VAT question again, proportionally re-solved (makroskop-gnp.2)', () => {
+		expect(QUESTIONS.find((q) => q.file === 'Moms_ned_ufin')?.question).toBe('momsen sænkes fra 25 til 24,5 pct.?');
+	});
+
 	it('asks nothing whose scenario is being recomputed', () => {
 		for (const q of QUESTIONS) expect(RECOMPUTING[q.file.replace(/_ufin$/, '')], q.file).toBeUndefined();
 	});

@@ -25,7 +25,7 @@ export interface Question {
  *  growing — the set is chosen so that contrast shows without prose. Default first. */
 const ALL_QUESTIONS: Question[] = [
 	{ chip: 'renten stiger', question: 'ECB hæver renten med 1 pct.-point?', file: 'Rente_ufin', solvedAs: '+1 pct.-point (100 basispoint)', solvedMove: { factor: 1, delta: 0.01 } },
-	{ chip: 'momsen sænkes', question: 'momsen sænkes med 0,5 pct.-point?', file: 'Moms_ned_ufin', solvedAs: '−0,5 pct.-point', solvedMove: { factor: 1, delta: -0.005 } },
+	{ chip: 'momsen sænkes', question: 'momsen sænkes fra 25 til 24,5 pct.?', file: 'Moms_ned_ufin', solvedAs: '−2 pct. af satsen', solvedMove: { factor: 0.98, delta: 0 } },
 	{ chip: 'bundskatten hæves', question: 'bundskatten hæves med 1 pct.-point?', file: 'Bundskat_ufin', solvedAs: '+1 pct.-point', solvedMove: { factor: 1, delta: 0.01 } },
 	{ chip: 'det offentlige forbrug øges', question: 'det offentlige forbrug øges med 1 pct.?', file: 'Offentligt_forbrug_ufin', solvedAs: '+1 pct.', solvedMove: { factor: 1.01, delta: 0 } },
 	{ chip: 'eksporten vokser', question: 'eksportmarkederne bliver 1 pct. større?', file: 'Eksportmarkedsvaekst_ufin', solvedAs: '+1 pct.', solvedMove: { factor: 1.01, delta: 0 } },
