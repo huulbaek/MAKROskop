@@ -4,7 +4,7 @@
 	import { formatSigned } from '$lib/format';
 	import { ALL_SCALE_STEPS, cardTiles, changeText, formatScale, scaleSteps as stepsFor } from '$lib/card';
 	import type { CardTile } from '$lib/card';
-	import { loadBaseline, loadScenario, type Baseline, type Meta, type Scenario, type ShockMeta } from '$lib/data';
+	import { defaultVariation, loadBaseline, loadScenario, type Baseline, type Meta, type Scenario, type ShockMeta } from '$lib/data';
 	import { page } from '$app/state';
 	import { replaceState } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -117,7 +117,7 @@
 		if (!wanted || !shock) return;
 		const variation = shock.available.includes(wanted.variation)
 			? wanted.variation
-			: (shock.available[0] ?? meta.variations[1]?.suffix ?? '_midl');
+			: (defaultVariation(shock) ?? meta.variations[1]?.suffix ?? '_midl');
 		void select(shock.name, variation).then(() => {
 			if (scaleSteps.includes(wanted.scale)) scaleIdx = scaleSteps.indexOf(wanted.scale);
 		});
@@ -312,7 +312,7 @@
 					class:pending={pending}
 					aria-pressed={selectedName === shock.name}
 					title={pending ? 'Afventer modelkørsel' : undefined}
-					onclick={() => select(shock.name, shock.available[0] ?? meta.variations[1]?.suffix ?? '_midl')}
+					onclick={() => select(shock.name, defaultVariation(shock) ?? meta.variations[1]?.suffix ?? '_midl')}
 				>
 					{shock.labelDa}{#if pending}<span class="sr-only"> – afventer modelkørsel</span>{/if}
 				</button>

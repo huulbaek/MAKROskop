@@ -101,6 +101,15 @@ export async function loadScenario(fetcher: typeof fetch, file: string): Promise
 	return response.json();
 }
 
+/** Unfinanced first: that is how DREAM presents its shock reactions, and a financed run's
+ *  closure-tax reaction can swamp the shock itself (Rente, makroskop-cak). */
+const VARIATION_PREFERENCE = ['_ufin', '_perm', '_midl', '_blip'];
+
+/** The variant a shock opens on in the explorer; undefined when it is not solved yet. */
+export function defaultVariation(shock: ShockMeta): string | undefined {
+	return VARIATION_PREFERENCE.find((v) => shock.available.includes(v)) ?? shock.available[0];
+}
+
 export function seriesByKey(meta: Meta): Map<string, SeriesMeta> {
 	return new Map(meta.series.map((s) => [s.key, s]));
 }
