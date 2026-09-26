@@ -1,5 +1,8 @@
 <script lang="ts">
 	import LineChart from '$lib/components/LineChart.svelte';
+	import MechanismMap from '$lib/components/MechanismMap.svelte';
+	import YearScrubber from '$lib/components/YearScrubber.svelte';
+	import { pathOf } from '$lib/mechanism';
 	import StatTile from '$lib/components/StatTile.svelte';
 	import { formatSigned } from '$lib/format';
 	import { ALL_SCALE_STEPS, cardSubject, cardTiles, changeText, formatScale, scaleSteps as stepsFor } from '$lib/card';
@@ -121,6 +124,12 @@
 	});
 
 	async function select(name: string, variation: string) {
+		if (name !== selectedName) {
+			// another shock is another story: it starts again at the shock year
+			year = meta.defaultShockYear;
+			scrubbed = false;
+			playing = false;
+		}
 		selectedName = name;
 		selectedVariation = variation;
 		scaleIdx = ALL_SCALE_STEPS.indexOf(UNSCALED);
@@ -150,7 +159,9 @@
 
 	onMount(() => {
 		void tick().then(() => (hydrated = true));
-		compare = new URLSearchParams(location.search).has('sammenlign');
+		const query = new URLSearchParams(location.search);
+		compare = query.has('sammenlign');
+		const aar = Number(query.get('aar'));
 		// Baseline levels for the persons tile (55 KB, browser-cached); every solved scenario needs them.
 		if (!baseline) void loadBaseline(fetch).then((b) => (levelsByYear = levelsOf(b)));
 		const wanted = wantedView();
@@ -161,6 +172,7 @@
 			: (defaultVariation(shock) ?? meta.variations[1]?.suffix ?? '_midl');
 		void select(shock.name, variation).then(() => {
 			if (scaleSteps.includes(wanted.scale)) scaleIdx = scaleSteps.indexOf(wanted.scale);
+			if (Number.isInteger(aar) && aar >= yearMin && aar <= toYear) pickYear(aar);
 		});
 	});
 
@@ -233,6 +245,30 @@
 
 	const fromYear = $derived(meta.defaultShockYear - 1);
 	const toYear = 2060;
+
+	// ------------------------------------------------------------------------------------
+	// The shared year (makroskop-hkt): the scrubber drives the mechanism map, a marker on every
+	// chart and — once the reader has scrubbed — the key-figure tiles. Hovering a chart previews
+	// a year; a click, tap or arrow key commits it.
+	let year = $state(untrack(() => meta.defaultShockYear));
+	let playing = $state(false);
+	/** Until the reader moves the year, the tiles keep the share card's years and the URL has no ?aar. */
+	let scrubbed = $state(false);
+	let previewYear = $state<number | null>(null);
+	const shownYear = $derived(previewYear ?? year);
+	const yearMin = $derived(scenario?.definition?.firstYear ?? meta.defaultShockYear);
+
+	/** The charts start the year before the shock; the scrubber starts at the shock. */
+	const clampYear = (y: number) => Math.min(toYear, Math.max(yearMin, y));
+
+	function pickYear(y: number) {
+		year = clampYear(y);
+		scrubbed = true;
+		playing = false;
+	}
+
+	const devModes = $derived(Object.fromEntries(meta.series.map((s) => [s.key, s.devMode])));
+	const mechanismPath = $derived(pathOf(scenario?.definition?.channel ?? [], scenario?.variation ?? ''));
 	const years = $derived(Array.from({ length: meta.yearEnd - meta.yearStart + 1 }, (_, i) => meta.yearStart + i));
 
 	// ------------------------------------------------------------------------------------
@@ -244,7 +280,11 @@
 			: (meta.variations.find((v) => v.suffix === selectedVariation)?.labelDa ?? 'Ufinansieret')
 	);
 	const shareUrl = $derived(
-		shareable ? permalink(page.url.origin, { stod: selectedName, variant: selectedVariation, skala: scale, sammenlign: compare && canCompare }) : ''
+		shareable
+			? permalink(page.url.origin, {
+					stod: selectedName, variant: selectedVariation, skala: scale, sammenlign: compare && canCompare, aar: scrubbed ? year : null
+				})
+			: ''
 	);
 	const provenance = $derived(
 		provenanceLine({
@@ -268,10 +308,10 @@
 	 *  values bridge the gap until the scenario JSON has loaded. */
 	const tiles = $derived.by((): CardTile[] | null => {
 		if (scenario && shareable && scenario.definition) {
-			const year = scenario.definition.firstYear;
-			const at = levelsByYear[year];
+			const tileYear = scrubbed ? year : null;
+			const at = levelsByYear[tileYear ?? scenario.definition.firstYear];
 			const levels = at && at.nL != null && at.vBNP != null ? { nL: at.nL, vBNP: at.vBNP } : null;
-			return cardTiles({ scenario, definition: scenario.definition, yearStart: meta.yearStart, levels, scale });
+			return cardTiles({ scenario, definition: scenario.definition, yearStart: meta.yearStart, levels, scale, year: tileYear });
 		}
 		return loading ? initialTiles : null;
 	});
@@ -450,6 +490,25 @@
 			<p class="explainer">{scenario.definition.explainerDa}</p>
 		{/if}
 
+		{#if scenario?.definition && mechanismPath.nodes.length > 0}
+			<!-- A direct child of .detail, so it stays on screen down through the charts. -->
+			<div class="year-bar">
+				<YearScrubber bind:year bind:playing min={yearMin} max={toYear} onscrub={() => (scrubbed = true)} />
+			</div>
+			<MechanismMap
+				shockLabel={`${cardSubject(selectedShock, scenario.definition)} ${scaledChange}`}
+				path={mechanismPath}
+				deviations={scenario.deviations}
+				{devModes}
+				year={shownYear}
+				yearStart={meta.yearStart}
+				firstYear={yearMin}
+				lastYear={toYear}
+				{scale}
+				financed={scenario.variation === '_perm'}
+			/>
+		{/if}
+
 		{#if scenario?.definition}
 			{@const def = scenario.definition}
 			<section class="card definition" aria-label="Stødets definition">
@@ -588,6 +647,9 @@
 							zeroLine
 							height={200}
 							suffix={chart.suffix}
+							markerYear={mechanismPath.nodes.length > 0 ? shownYear : null}
+							onhover={(y) => (previewYear = y == null ? null : clampYear(y))}
+							onpick={pickYear}
 							bind:svg={chartSvgs[chart.key]}
 						/>
 						{#if shareable}
@@ -671,6 +733,16 @@
 		line-height: 1.5;
 		color: var(--ink-secondary);
 		max-width: 72ch;
+	}
+
+	.year-bar {
+		position: sticky;
+		top: 0;
+		z-index: 5;
+		margin: 0 -12px 12px;
+		padding: 8px 12px;
+		background: var(--page);
+		border-bottom: 1px solid var(--rule);
 	}
 
 	.answer {

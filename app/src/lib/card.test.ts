@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Scenario, ShockMeta } from './data';
 import {
-	ALL_SCALE_STEPS, buildCard, changeText, formatPersons, formatTileValue, imageFile, parseSkala,
+	ALL_SCALE_STEPS, buildCard, cardTiles, changeText, formatPersons, formatTileValue, imageFile, parseSkala,
 	scalableChange, scaleLabel, scaleSteps, shareViews, splitView, viewPath
 } from './card';
 
@@ -218,5 +218,17 @@ describe('paths', () => {
 		expect(views).toContainEqual({ scenario: 'Rente_ufin' });
 		expect(views).toContainEqual({ scenario: 'Rente_ufin', skala: '-0.75' });
 		expect(views.filter((v) => v.scenario === 'Rente_perm' && v.skala === '2')).toHaveLength(0);
+	});
+});
+
+describe('cardTiles at a scrubbed year (makroskop-hkt)', () => {
+	it('reads all three figures at that year and numbers it from the shock year', () => {
+		const s = scenario();
+		const tiles = cardTiles({ scenario: s, definition: s.definition!, yearStart: YEAR_START, levels, scale: 1, year: 2031 });
+		expect(tiles.map((t) => [t.key, t.year, t.value])).toEqual([
+			['nL', 2, '−11.200'],
+			['qBNP', 2, '−1,1'],
+			['saldo2bnp', 2, '−1,0']
+		]);
 	});
 });

@@ -21,6 +21,15 @@ describe('permalink', () => {
 			'https://x.dk/scenarier/Bundskat_perm/'
 		);
 	});
+	it('carries a scrubbed year as ?aar, after ?sammenlign (makroskop-hkt)', () => {
+		expect(permalink('https://x.dk', { stod: 'Rente', variant: '_ufin', skala: 1, aar: 2035 })).toBe(
+			'https://x.dk/scenarier/Rente_ufin/?aar=2035'
+		);
+		expect(permalink('https://x.dk', { stod: 'Rente', variant: '_perm', skala: 1, sammenlign: true, aar: 2035 })).toBe(
+			'https://x.dk/scenarier/Rente_perm/?sammenlign&aar=2035'
+		);
+		expect(permalink('https://x.dk', { stod: 'Rente', variant: '_ufin', skala: 1, aar: null })).toBe('https://x.dk/scenarier/Rente_ufin/');
+	});
 });
 
 describe('provenanceLine', () => {

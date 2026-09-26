@@ -12,13 +12,17 @@ export interface PermalinkParams {
 	skala: number;
 	/** Compare mode: both permanent variants on every chart (compare.ts). */
 	sammenlign?: boolean;
+	/** The year the reader scrubbed to (makroskop-hkt); null/absent until they have. */
+	aar?: number | null;
 }
 
 /** Deep link to a scenario view: its prerendered page, which carries the view's own share tags.
- *  Compare mode rides along as a bare `?sammenlign` the page reads after hydration. */
+ *  Compare mode rides along as a bare `?sammenlign`, a scrubbed year as `?aar=`; the page reads
+ *  both after hydration. */
 export function permalink(origin: string, p: PermalinkParams): string {
 	const url = new URL(viewPath(p.stod, p.variant, p.skala), origin).toString();
-	return p.sammenlign ? `${url}?sammenlign` : url;
+	const query = [p.sammenlign ? 'sammenlign' : null, p.aar != null ? `aar=${p.aar}` : null].filter(Boolean);
+	return query.length > 0 ? `${url}?${query.join('&')}` : url;
 }
 
 export interface Provenance {
@@ -151,6 +155,8 @@ export async function svgToPngBlob(svg: SVGSVGElement, opts: PngOptions): Promis
 	const height = Math.round((svgHeight * width) / svgWidth);
 	const clone = svg.cloneNode(true) as SVGSVGElement;
 	inlineStyles(svg, clone, width / svgWidth);
+	// Page-state overlays (the shared-year marker) are not part of the chart.
+	for (const node of clone.querySelectorAll('[data-export="skip"]')) node.remove();
 	clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
 	clone.setAttribute('width', String(svgWidth));
 	clone.setAttribute('height', String(svgHeight));

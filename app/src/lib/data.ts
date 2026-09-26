@@ -62,6 +62,8 @@ export interface ScenarioDefinition {
 	maxScaleDa: string | null;
 	/** Plain-language mechanism text for readers, when the catalog has one. */
 	explainerDa?: string | null;
+	/** The shock's channel on the mechanism map: chains of series keys, "a>b>c" (mechanism.ts). */
+	channel?: string[] | null;
 }
 
 /** Which MAKRO version a scenario was solved on. `source` is "gdx" when the solver

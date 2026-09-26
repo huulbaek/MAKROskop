@@ -214,21 +214,25 @@ export interface TileInput {
 	yearStart: number;
 	levels: CardLevels | null;
 	scale: number;
+	/** Read all three figures at this year (the explorer's scrubber); levels must be that year's. */
+	year?: number | null;
 }
 
 /** The three fixed headline figures, in layout order: Beskæftigelse år 1 (persons), BNP år 3,
  *  Offentlig saldo år 1. Cheap enough for the page to recompute on every slider step. */
-export function cardTiles({ scenario, definition, yearStart, levels, scale }: TileInput): CardTile[] {
+export function cardTiles({ scenario, definition, yearStart, levels, scale, year }: TileInput): CardTile[] {
 	const at = deviationAt(scenario, yearStart, scale);
 	const y1 = definition.firstYear;
-	const employment = at('nL', y1);
-	const gdp = at('qBNP', y1 + 2);
-	const balance = at('saldo2bnp', y1);
+	// The share card's years (år 1 / år 3 / år 1), unless the reader scrubbed to one year.
+	const [yL, yB, yS] = year == null ? [y1, y1 + 2, y1] : [year, year, year];
+	const employment = at('nL', yL);
+	const gdp = at('qBNP', yB);
+	const balance = at('saldo2bnp', yS);
 	return [
-		{ key: 'nL', label: 'Beskæftigelse', year: 1, unit: 'personer',
+		{ key: 'nL', label: 'Beskæftigelse', year: yL - y1 + 1, unit: 'personer',
 			value: employment == null || levels == null ? null : formatPersons((employment / 100) * levels.nL * 1000) },
-		{ key: 'qBNP', label: 'BNP', year: 3, unit: 'pct.', value: gdp == null ? null : formatTileValue(gdp) },
-		{ key: 'saldo2bnp', label: 'Offentlig saldo', year: 1, unit: 'pct. af BNP', value: balance == null ? null : formatTileValue(balance) }
+		{ key: 'qBNP', label: 'BNP', year: yB - y1 + 1, unit: 'pct.', value: gdp == null ? null : formatTileValue(gdp) },
+		{ key: 'saldo2bnp', label: 'Offentlig saldo', year: yS - y1 + 1, unit: 'pct. af BNP', value: balance == null ? null : formatTileValue(balance) }
 	];
 }
 

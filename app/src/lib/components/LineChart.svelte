@@ -21,6 +21,9 @@
 		nowLabel = false,
 		height = 240,
 		suffix = '',
+		markerYear = null,
+		onhover,
+		onpick,
 		svg = $bindable<SVGSVGElement | undefined>()
 	}: {
 		title: string;
@@ -35,6 +38,12 @@
 		nowLabel?: boolean;
 		height?: number;
 		suffix?: string;
+		/** The page's shared year (the scrubber), marked on the plot while the chart is not hovered. */
+		markerYear?: number | null;
+		/** Pointer hover over the plot: the year, or null when the pointer leaves. */
+		onhover?: (year: number | null) => void;
+		/** A click, tap or arrow key chose a year. */
+		onpick?: (year: number) => void;
 		/** The rendered <svg>, for PNG export by the parent. */
 		svg?: SVGSVGElement;
 	} = $props();
@@ -161,12 +170,19 @@
 
 	function onPointer(event: PointerEvent & { currentTarget: SVGRectElement }) {
 		hoverYear = nearestYear(event.clientX, event.currentTarget);
+		onhover?.(hoverYear);
+	}
+
+	function onPointerDown(event: PointerEvent & { currentTarget: SVGRectElement }) {
+		onPointer(event);
+		if (hoverYear != null) onpick?.(hoverYear);
 	}
 
 	/** Touch has no hover: a tap or a sideways drag sets the readout and it stays until the
 	 *  next touch elsewhere. A vertical swipe is a scroll (pointercancel), so it leaves nothing behind. */
 	function onPointerEnd(event: PointerEvent) {
 		if (event.type === 'pointercancel' || event.pointerType !== 'touch') hoverYear = null;
+		onhover?.(null);
 	}
 
 	function onWindowPointerdown(event: PointerEvent) {
@@ -183,11 +199,12 @@
 		}
 		const yearsVisible = visible.map((i) => years[i]);
 		if (yearsVisible.length === 0) return;
-		const current = hoverYear ?? yearsVisible[yearsVisible.length - 1];
+		const current = hoverYear ?? markerYear ?? yearsVisible[yearsVisible.length - 1];
 		const pos = yearsVisible.indexOf(current);
 		const next = event.key === 'ArrowRight' ? Math.min(yearsVisible.length - 1, pos + 1) : Math.max(0, pos - 1);
 		hoverYear = yearsVisible[next];
 		announce = readout(hoverYear);
+		onpick?.(hoverYear);
 	}
 
 	/** "2030 (fremskrivning): BNP, realt +0,4 pct." — the tooltip in words. */
@@ -201,6 +218,9 @@
 	}
 
 	const hoverIndex = $derived(hoverYear == null ? -1 : years.indexOf(hoverYear));
+	const markerIndex = $derived(
+		markerYear == null || hoverYear != null || markerYear < fromYear || markerYear > toYear ? -1 : years.indexOf(markerYear)
+	);
 
 	const tooltipRows = $derived.by(() => {
 		if (hoverIndex < 0) return [];
@@ -316,6 +336,18 @@
 					<path d={linePath(s)} fill="none" stroke={seriesColor(s, i)} stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
 				{/each}
 
+				<!-- the page's shared year -->
+				{#if markerYear != null && markerIndex >= 0}
+					<g data-export="skip">
+						<line class="marker" x1={xPos(markerYear)} x2={xPos(markerYear)} y1={margin.top} y2={margin.top + plotH} />
+						{#each series as s, i (s.key)}
+							{#if s.values[markerIndex] != null}
+								<circle cx={xPos(markerYear)} cy={yPos(s.values[markerIndex] as number)} r="3" fill={seriesColor(s, i)} />
+							{/if}
+						{/each}
+					</g>
+				{/if}
+
 				<!-- crosshair + markers -->
 				{#if hoverYear != null && hoverIndex >= 0}
 					<line x1={xPos(hoverYear)} x2={xPos(hoverYear)} y1={margin.top} y2={margin.top + plotH} stroke="var(--ink-muted)" stroke-width="1" />
@@ -341,7 +373,7 @@
 					width={plotW}
 					height={plotH}
 					fill="transparent"
-					onpointerdown={onPointer}
+					onpointerdown={onPointerDown}
 					onpointermove={onPointer}
 					onpointerleave={onPointerEnd}
 					onpointercancel={onPointerEnd}
@@ -474,6 +506,12 @@
 		font-size: 10.5px;
 		font-variant-numeric: tabular-nums;
 		fill: var(--ink-muted);
+	}
+
+	svg line.marker {
+		stroke: var(--makro);
+		stroke-width: 1.5;
+		stroke-dasharray: 3 3;
 	}
 
 	svg text.nu-label {
