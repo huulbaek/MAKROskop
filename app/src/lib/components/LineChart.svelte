@@ -157,6 +157,22 @@
 		return best;
 	}
 
+	let plotEl: HTMLDivElement | undefined = $state();
+
+	function onPointer(event: PointerEvent & { currentTarget: SVGRectElement }) {
+		hoverYear = nearestYear(event.clientX, event.currentTarget);
+	}
+
+	/** Touch has no hover: a tap or a sideways drag sets the readout and it stays until the
+	 *  next touch elsewhere. A vertical swipe is a scroll (pointercancel), so it leaves nothing behind. */
+	function onPointerEnd(event: PointerEvent) {
+		if (event.type === 'pointercancel' || event.pointerType !== 'touch') hoverYear = null;
+	}
+
+	function onWindowPointerdown(event: PointerEvent) {
+		if (event.pointerType === 'touch' && hoverYear != null && !plotEl?.contains(event.target as Node)) hoverYear = null;
+	}
+
 	function onKeydown(event: KeyboardEvent) {
 		if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'Escape') return;
 		event.preventDefault();
@@ -204,6 +220,8 @@
 	}
 </script>
 
+<svelte:window onpointerdown={onWindowPointerdown} />
+
 <figure class="chart" bind:clientWidth={width}>
 	<!-- Fixed two-line header (title + code / unit) so plots in the same row start at the same y. -->
 	<figcaption>
@@ -230,6 +248,7 @@
 		     region below; the same numbers are in the table view. A group, not an application:
 		     an application role would trap a screen reader's virtual cursor in a silent widget. -->
 		<div
+			bind:this={plotEl}
 			class="plot"
 			role="group"
 			aria-label="{title}. Linjediagram {fromYear} til {toYear}."
@@ -322,8 +341,10 @@
 					width={plotW}
 					height={plotH}
 					fill="transparent"
-					onpointermove={(e) => (hoverYear = nearestYear(e.clientX, e.currentTarget))}
-					onpointerleave={() => (hoverYear = null)}
+					onpointerdown={onPointer}
+					onpointermove={onPointer}
+					onpointerleave={onPointerEnd}
+					onpointercancel={onPointerEnd}
 				/>
 			</svg>
 
@@ -434,6 +455,8 @@
 
 	.plot {
 		position: relative;
+		/* a sideways finger drag scrubs the readout; vertical swipes still scroll the page */
+		touch-action: pan-y pinch-zoom;
 	}
 
 	.plot:focus-visible {
@@ -517,11 +540,12 @@
 	}
 
 	.table-view {
-		margin-top: 10px;
+		margin-top: 4px;
 	}
 
 	.table-view summary {
-		font-size: 11px;
+		padding: 6px 0;
+		font-size: 12px;
 		color: var(--ink-muted);
 		cursor: pointer;
 		user-select: none;

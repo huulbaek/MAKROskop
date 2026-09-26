@@ -278,6 +278,8 @@
 	});
 
 	let chartSvgs: Record<string, SVGSVGElement | undefined> = $state({});
+	/** Phones only: the catalog folds behind a toggle so the package comes first (CSS shows it open on wide screens). */
+	let catalogOpen = $state(false);
 	let copied = $state(false);
 	let exporting: string | null = $state(null);
 
@@ -376,34 +378,41 @@
 </section>
 
 <div class="workbench">
-	<aside aria-label="Stødkatalog">
-		<p class="aside-hint">Klik for at lægge et stød i pakken.</p>
-		{#each [...shockGroups] as [group, shocks] (group)}
-			<h2>{group}</h2>
-			{#each shocks as shock (shock.name)}
-				{@const inPackage = components.some((c) => c.name === shock.name)}
-				{@const usable = shock.available.includes(variant)}
-				{@const reason = usable
-					? ''
-					: shock.available.length > 0
-						? `Kun løst ${meta.variations.find((v) => v.suffix === shock.available[0])?.labelDa?.toLowerCase()}`
-						: 'Afventer modelkørsel'}
-				{@const blocked = !usable && !inPackage}
-				<!-- aria-disabled rather than disabled: the button stays focusable, so the reason is read out. -->
-				<button
-					class="shock"
-					class:selected={inPackage}
-					aria-disabled={blocked}
-					title={reason || undefined}
-					aria-pressed={inPackage}
-					onclick={() => {
-						if (!blocked) toggle(shock.name);
-					}}
-				>
-					{shock.labelDa}{#if reason}<span class="sr-only"> – {reason.toLowerCase()}</span>{/if}
-				</button>
+	<aside aria-label="Stødkatalog" class:open={catalogOpen}>
+		<button class="catalog-toggle" aria-expanded={catalogOpen} aria-controls="catalog-list" onclick={() => (catalogOpen = !catalogOpen)}>
+			<span class="catalog-toggle-key">Stød</span>
+			<span class="catalog-toggle-value">{components.length === 0 ? 'Tilføj stød til pakken' : `${components.length} i pakken`}</span>
+			<span class="catalog-toggle-action">{catalogOpen ? 'Luk' : 'Vælg'}</span>
+		</button>
+		<div class="catalog-list" id="catalog-list">
+			<p class="aside-hint">Vælg et stød for at lægge det i pakken.</p>
+			{#each [...shockGroups] as [group, shocks] (group)}
+				<h2>{group}</h2>
+				{#each shocks as shock (shock.name)}
+					{@const inPackage = components.some((c) => c.name === shock.name)}
+					{@const usable = shock.available.includes(variant)}
+					{@const reason = usable
+						? ''
+						: shock.available.length > 0
+							? `Kun løst ${meta.variations.find((v) => v.suffix === shock.available[0])?.labelDa?.toLowerCase()}`
+							: 'Afventer modelkørsel'}
+					{@const blocked = !usable && !inPackage}
+					<!-- aria-disabled rather than disabled: the button stays focusable, so the reason is read out. -->
+					<button
+						class="shock"
+						class:selected={inPackage}
+						aria-disabled={blocked}
+						title={reason || undefined}
+						aria-pressed={inPackage}
+						onclick={() => {
+							if (!blocked) toggle(shock.name);
+						}}
+					>
+						{shock.labelDa}{#if reason}<span class="sr-only"> – {reason.toLowerCase()}</span>{/if}
+					</button>
+				{/each}
 			{/each}
-		{/each}
+		</div>
 	</aside>
 
 	<div class="detail">
@@ -434,7 +443,7 @@
 		{#if components.length === 0}
 			<section class="empty">
 				<h3>Pakken er tom</h3>
-				<p>Vælg stød i kataloget til venstre – eller start fra et eksempel:</p>
+				<p>Vælg stød i kataloget – eller start fra et eksempel:</p>
 				<ul class="examples">
 					{#each EXAMPLES as example (example.query)}
 						<li>
@@ -790,6 +799,9 @@
 
 	.scaler input[type='range'] {
 		width: 100%;
+		/* a finger-sized hit area; the track itself stays thin */
+		height: 32px;
+		margin: 0;
 		accent-color: var(--makro);
 	}
 
@@ -837,6 +849,20 @@
 	.figures > :global(.figure:first-child) {
 		border-left: 0;
 		padding-left: 0;
+	}
+
+	@media (max-width: 520px) {
+		.figures {
+			grid-template-columns: 1fr;
+			padding: 4px 0;
+		}
+		.figures > :global(.figure) {
+			border-right: 0;
+			padding: 12px 0;
+		}
+		.figures > :global(.figure + .figure) {
+			border-top: 1px solid var(--rule);
+		}
 	}
 
 	.facts,

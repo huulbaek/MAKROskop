@@ -297,6 +297,11 @@ em {
 	font-style: italic;
 }
 
+/* phones: the catalog folds behind this toggle so the scenario, not 40 shock names, comes first */
+.catalog-toggle {
+	display: none;
+}
+
 @media (max-width: 780px) {
 	.workbench {
 		grid-template-columns: 1fr;
@@ -304,8 +309,58 @@ em {
 	}
 	.workbench aside {
 		border-right: 0;
+		padding: 0;
+	}
+	.catalog-toggle {
+		display: flex;
+		align-items: baseline;
+		gap: 10px;
+		width: 100%;
+		min-height: 48px;
+		padding: 12px 14px;
+		font: inherit;
+		font-size: 15px;
+		text-align: left;
+		color: var(--ink);
+		background: var(--surface-raised);
+		border: 1px solid var(--rule-strong);
+		border-radius: var(--radius);
+		cursor: pointer;
+		-webkit-tap-highlight-color: transparent;
+	}
+	.catalog-toggle-key {
+		font-size: 11px;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.09em;
+		color: var(--ink-muted);
+	}
+	.catalog-toggle-value {
+		flex: 1;
+		min-width: 0;
+		font-weight: 600;
+	}
+	.catalog-toggle-action {
+		font-size: 13px;
+		color: var(--makro-strong);
+	}
+	.catalog-toggle-action::after {
+		content: ' ▾' / '';
+	}
+	.workbench aside.open .catalog-toggle-action::after {
+		content: ' ▴' / '';
+	}
+	.workbench aside:not(.open) .catalog-list {
+		display: none;
+	}
+	.catalog-list {
 		border-bottom: 1px solid var(--rule);
-		padding: 0 0 16px;
+		padding: 16px 0;
+	}
+	/* a finger-sized row per shock */
+	.shock {
+		font-size: 15px;
+		padding: 10px 0 10px 12px;
 	}
 }
 
@@ -351,7 +406,7 @@ em {
 .png-btn {
 	font: inherit;
 	font-size: 12px;
-	padding: 2px 0;
+	padding: 6px 0;
 	border: 0;
 	border-bottom: 1px solid transparent;
 	border-radius: 0;

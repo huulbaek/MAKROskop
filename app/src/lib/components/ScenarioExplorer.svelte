@@ -306,6 +306,8 @@
 	});
 
 	let chartSvgs: Record<string, SVGSVGElement | undefined> = $state({});
+	/** Phones only: the catalog folds behind a toggle so the answer comes first (CSS shows it open on wide screens). */
+	let catalogOpen = $state(false);
 	let copied = $state(false);
 	let exporting: string | null = $state(null);
 
@@ -389,23 +391,33 @@
 </section>
 
 <div class="workbench">
-	<aside aria-label="Stødkatalog">
-		{#each [...shockGroups] as [group, shocks] (group)}
-			<h2>{group}</h2>
-			{#each shocks as shock (shock.name)}
-				{@const pending = shock.available.length === 0}
-				<button
-					class="shock"
-					class:selected={selectedName === shock.name}
-					class:pending={pending}
-					aria-pressed={selectedName === shock.name}
-					title={pending ? 'Afventer modelkørsel' : undefined}
-					onclick={() => select(shock.name, defaultVariation(shock) ?? meta.variations[1]?.suffix ?? '_midl')}
-				>
-					{shock.labelDa}{#if pending}<span class="sr-only"> – afventer modelkørsel</span>{/if}
-				</button>
+	<aside aria-label="Stødkatalog" class:open={catalogOpen}>
+		<button class="catalog-toggle" aria-expanded={catalogOpen} aria-controls="catalog-list" onclick={() => (catalogOpen = !catalogOpen)}>
+			<span class="catalog-toggle-key">Stød</span>
+			<span class="catalog-toggle-value">{selectedShock.labelDa}</span>
+			<span class="catalog-toggle-action">{catalogOpen ? 'Luk' : 'Skift'}</span>
+		</button>
+		<div class="catalog-list" id="catalog-list">
+			{#each [...shockGroups] as [group, shocks] (group)}
+				<h2>{group}</h2>
+				{#each shocks as shock (shock.name)}
+					{@const pending = shock.available.length === 0}
+					<button
+						class="shock"
+						class:selected={selectedName === shock.name}
+						class:pending={pending}
+						aria-pressed={selectedName === shock.name}
+						title={pending ? 'Afventer modelkørsel' : undefined}
+						onclick={() => {
+							catalogOpen = false;
+							select(shock.name, defaultVariation(shock) ?? meta.variations[1]?.suffix ?? '_midl');
+						}}
+					>
+						{shock.labelDa}{#if pending}<span class="sr-only"> – afventer modelkørsel</span>{/if}
+					</button>
+				{/each}
 			{/each}
-		{/each}
+		</div>
 	</aside>
 
 	<div class="detail">
@@ -751,6 +763,9 @@
 
 	.scaler input[type='range'] {
 		width: 100%;
+		/* a finger-sized hit area; the track itself stays thin */
+		height: 32px;
+		margin: 0;
 		accent-color: var(--makro);
 	}
 
@@ -851,6 +866,14 @@
 	@media (max-width: 520px) {
 		.key-figures {
 			grid-template-columns: 1fr;
+			gap: 0;
+		}
+		.key-figures :global(.figure) {
+			border-right: 0;
+			padding: 12px 0;
+		}
+		.key-figures :global(.figure + .figure) {
+			border-top: 1px solid var(--rule);
 		}
 	}
 

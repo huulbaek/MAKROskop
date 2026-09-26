@@ -109,9 +109,13 @@
 	.go {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 8px 22px;
-		margin: 14px 0 0;
+		gap: 0 22px;
+		margin: 8px 0 0;
 		font-size: 15px;
+	}
+
+	.go a {
+		padding: 6px 0;
 	}
 
 	.go .primary {
@@ -134,6 +138,14 @@
 	@media (max-width: 520px) {
 		.tiles {
 			grid-template-columns: 1fr;
+			gap: 0;
+		}
+		.tiles :global(.figure) {
+			border-right: 0;
+			padding: 12px 0;
+		}
+		.tiles :global(.figure + .figure) {
+			border-top: 1px solid var(--rule);
 		}
 		.answer h2 {
 			font-size: 24px;

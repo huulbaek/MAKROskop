@@ -410,43 +410,46 @@
 	</p>
 	<div class="dream-grid">
 		{#each dream.shocks as shock (shock.id)}
-			<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-			<!-- Focusable on purpose: the table scrolls sideways on narrow screens. -->
-			<div class="table-scroll" tabindex="0" role="region" aria-label="{shock.labelDa}, sammenligning med DREAM">
-				<table class="results dream-table">
-					<caption>
-						<strong>{shock.labelDa}</strong> · {shock.scaleNoteDa}
-					</caption>
-					<thead>
-						<tr>
-							<th scope="col">Serie</th>
-							<th scope="col"><span class="sr-only">Kilde</span></th>
-							{#each dream.columns as year (year)}
-								<th scope="col">{year}</th>
-							{/each}
-						</tr>
-					</thead>
-					<tbody>
-						{#each shock.rows as row (row.series)}
-							{@const label = dreamSeries(row.series)}
+			<div class="dream-item">
+				<!-- The caption sits outside the scroller so it wraps to the screen instead of scrolling away. -->
+				<p class="dream-caption" id="dream-caption-{shock.id}">
+					<strong>{shock.labelDa}</strong> · {shock.scaleNoteDa}
+				</p>
+				<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+				<!-- Focusable on purpose: the table scrolls sideways on narrow screens. -->
+				<div class="table-scroll" tabindex="0" role="region" aria-label="{shock.labelDa}, sammenligning med DREAM">
+					<table class="results dream-table" aria-labelledby="dream-caption-{shock.id}">
+						<thead>
 							<tr>
-								<th scope="row" rowspan="2">
-									{label.labelDa}<span class="unit">{label.unitDa}</span>
-								</th>
-								<td class="who">DREAM</td>
+								<th scope="col">Serie</th>
+								<th scope="col"><span class="sr-only">Kilde</span></th>
 								{#each dream.columns as year (year)}
-									<td>{reading(row.dream[String(year)], row.series)}</td>
+									<th scope="col">{year}</th>
 								{/each}
 							</tr>
-							<tr class="ours">
-								<td class="who">MAKROskop</td>
-								{#each dream.columns as year (year)}
-									<td>{reading(row.ours[String(year)], row.series)}</td>
-								{/each}
-							</tr>
-						{/each}
-					</tbody>
-				</table>
+						</thead>
+						<tbody>
+							{#each shock.rows as row (row.series)}
+								{@const label = dreamSeries(row.series)}
+								<tr>
+									<th scope="row" rowspan="2">
+										{label.labelDa}<span class="unit">{label.unitDa}</span>
+									</th>
+									<td class="who">DREAM</td>
+									{#each dream.columns as year (year)}
+										<td>{reading(row.dream[String(year)], row.series)}</td>
+									{/each}
+								</tr>
+								<tr class="ours">
+									<td class="who">MAKROskop</td>
+									{#each dream.columns as year (year)}
+										<td>{reading(row.ours[String(year)], row.series)}</td>
+									{/each}
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				</div>
 				{#if shock.noteDa}<p class="footnote">{shock.noteDa}</p>{/if}
 			</div>
 		{/each}
@@ -755,13 +758,36 @@
 		white-space: nowrap;
 	}
 
+	@media (max-width: 520px) {
+		table.results:not(.multiplier-table):not(.dream-table) td {
+			white-space: normal;
+		}
+	}
+
 	.multipliers .story {
 		max-width: 72ch;
 		margin-bottom: 16px;
 	}
 
+	/* Right-edge shadow while more columns hide off-screen; the page-coloured cover scrolls
+	   with the content and hides the shadow once the last column is in view. */
 	.table-scroll {
 		overflow-x: auto;
+		background:
+			linear-gradient(to left, var(--page) 40%, transparent) right / 28px 100% no-repeat local,
+			radial-gradient(farthest-side at 100% 50%, color-mix(in srgb, var(--ink) 20%, transparent), transparent)
+				right / 12px 100% no-repeat scroll;
+	}
+
+	/* the row labels stay put while the numbers scroll under them */
+	.multiplier-table tbody th,
+	.multiplier-table thead th:first-child,
+	.dream-table tbody th,
+	.dream-table thead th:first-child {
+		position: sticky;
+		left: 0;
+		z-index: 1;
+		background: var(--page);
 	}
 
 	.multiplier-table {
@@ -829,12 +855,18 @@
 		min-width: 560px;
 	}
 
-	.dream-table caption {
-		color: var(--ink-secondary);
-		font-size: 12.5px;
+	/* a grid item defaults to its content's min width, which would let the 560px table push the page wide */
+	.dream-item {
+		min-width: 0;
 	}
 
-	.dream-table caption strong {
+	.dream-caption {
+		color: var(--ink-secondary);
+		font-size: 12.5px;
+		margin: 0 0 6px;
+	}
+
+	.dream-caption strong {
 		color: var(--ink);
 	}
 
@@ -914,6 +946,15 @@
 		font-weight: 500;
 		font-size: 11px;
 		color: var(--ink-muted);
+	}
+
+	/* label column left, numbers right, each header over its own column */
+	.mono-table td:first-child {
+		text-align: left;
+	}
+
+	.mono-table thead th:last-child {
+		text-align: right;
 	}
 
 	.trace h3 {
