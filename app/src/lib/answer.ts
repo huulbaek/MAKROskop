@@ -27,6 +27,10 @@ export interface AnswerSentence {
 	body: string;
 }
 
+/** The closure tax with its base: tLukning is a rate on households' direct taxes
+ *  (vtLukning = tLukning · (vtHhx − vtLukning)); without the base its pct.-point says nothing. */
+export const CLOSURE_TAX_DA = 'lukkeskatten – et beregningsteknisk tillæg til husholdningernes direkte skatter –';
+
 /** Below this many persons an employment effect is "stort set uændret". */
 const MIN_PERSONS = 100;
 /** A fifth-year effect at most this share of the first year's has "næsten" faded (as on the front page). */
@@ -89,9 +93,7 @@ function closureTaxSentence(pp: number): string {
 	const rounded = Math.round(pp * 100) / 100;
 	if (rounded === 0) return 'Finansieringen kræver ingen nævneværdig ændring af lukkeskatten.';
 	const size = formatValue(Math.abs(rounded));
-	// tLukning is a rate on households' direct taxes (vtLukning = tLukning · (vtHhx − vtLukning)):
-	// without its base the pct.-point says nothing to a reader.
-	const tax = 'Lukkeskatten – et beregningsteknisk tillæg til husholdningernes direkte skatter –';
+	const tax = CLOSURE_TAX_DA.charAt(0).toUpperCase() + CLOSURE_TAX_DA.slice(1);
 	return rounded > 0
 		? `${tax} skal hæves ${size} pct.-point, for at de offentlige finanser forbliver holdbare.`
 		: `${tax} kan sænkes ${size} pct.-point, og de offentlige finanser forbliver holdbare.`;

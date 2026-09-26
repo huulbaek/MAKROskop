@@ -10,11 +10,15 @@ export interface PermalinkParams {
 	stod: string;
 	variant: string;
 	skala: number;
+	/** Compare mode: both permanent variants on every chart (compare.ts). */
+	sammenlign?: boolean;
 }
 
-/** Deep link to a scenario view: its prerendered page, which carries the view's own share tags. */
+/** Deep link to a scenario view: its prerendered page, which carries the view's own share tags.
+ *  Compare mode rides along as a bare `?sammenlign` the page reads after hydration. */
 export function permalink(origin: string, p: PermalinkParams): string {
-	return new URL(viewPath(p.stod, p.variant, p.skala), origin).toString();
+	const url = new URL(viewPath(p.stod, p.variant, p.skala), origin).toString();
+	return p.sammenlign ? `${url}?sammenlign` : url;
 }
 
 export interface Provenance {

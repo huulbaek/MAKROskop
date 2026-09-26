@@ -13,6 +13,14 @@ describe('permalink', () => {
 	it('keeps negative (mirrored) scales', () => {
 		expect(permalink('https://x.dk', { stod: 'Bundskat', variant: '_ufin', skala: -0.5 })).toBe('https://x.dk/scenarier/Bundskat_ufin/-0.5/');
 	});
+	it('carries compare mode as ?sammenlign on the same page (makroskop-q43)', () => {
+		expect(permalink('https://x.dk', { stod: 'Bundskat', variant: '_perm', skala: 1, sammenlign: true })).toBe(
+			'https://x.dk/scenarier/Bundskat_perm/?sammenlign'
+		);
+		expect(permalink('https://x.dk', { stod: 'Bundskat', variant: '_perm', skala: 1, sammenlign: false })).toBe(
+			'https://x.dk/scenarier/Bundskat_perm/'
+		);
+	});
 });
 
 describe('provenanceLine', () => {

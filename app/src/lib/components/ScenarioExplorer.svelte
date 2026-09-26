@@ -5,6 +5,7 @@
 	import { ALL_SCALE_STEPS, cardSubject, cardTiles, changeText, formatScale, scaleSteps as stepsFor } from '$lib/card';
 	import type { CardTile } from '$lib/card';
 	import { buildAnswerSentence, type AnswerSentence } from '$lib/answer';
+	import { compareFilenameVariant, financingLine, partnerVariation } from '$lib/compare';
 	import { defaultVariation, loadBaseline, loadScenario, type Baseline, type Meta, type Scenario, type ShockMeta } from '$lib/data';
 	import { RECOMPUTING } from '$lib/notices';
 	import { page } from '$app/state';
@@ -75,6 +76,40 @@
 			({ name: selectedName, labelDa: selectedName, labelEn: selectedName, group: '', available: [] } satisfies ShockMeta)
 	);
 
+	/** Compare mode (makroskop-q43): the other permanent variant on every chart. `compare` is
+	 *  the reader's wish and survives shock changes; `comparing` is true once both runs are here. */
+	let compare = $state(false);
+	let partner = $state.raw<Scenario | null>(null);
+	const partnerVar = $derived(partnerVariation(selectedVariation));
+	const canCompare = $derived(
+		!!partnerVar && selectedShock.available.includes(partnerVar) && selectedShock.available.includes(selectedVariation)
+	);
+	const comparing = $derived(
+		compare && canCompare && !!scenario && partner?.shock === selectedName && partner.variation === partnerVar
+	);
+	/** The two runs by closure, whichever of them is selected. */
+	const runs = $derived(
+		comparing
+			? selectedVariation === '_ufin'
+				? { ufin: scenario!, perm: partner! }
+				: { ufin: partner!, perm: scenario! }
+			: null
+	);
+
+	$effect(() => {
+		if (!compare || !canCompare || !partnerVar) return;
+		const name = selectedName;
+		const variation = partnerVar;
+		if (untrack(() => partner?.shock === name && partner.variation === variation)) return;
+		let stale = false;
+		void loadScenario(fetch, `${name}${variation}`).then((loaded) => {
+			if (!stale) partner = loaded;
+		});
+		return () => {
+			stale = true;
+		};
+	});
+
 	const shockGroups = $derived.by(() => {
 		const groups = new Map<string, ShockMeta[]>();
 		for (const shock of meta.shocks) {
@@ -115,6 +150,7 @@
 
 	onMount(() => {
 		void tick().then(() => (hydrated = true));
+		compare = new URLSearchParams(location.search).has('sammenlign');
 		// Baseline levels for the persons tile (55 KB, browser-cached); every solved scenario needs them.
 		if (!baseline) void loadBaseline(fetch).then((b) => (levelsByYear = levelsOf(b)));
 		const wanted = wantedView();
@@ -138,27 +174,47 @@
 	const charts = $derived.by(() => {
 		if (!scenario) return [];
 		const bySeriesKey = new Map(meta.series.map((s) => [s.key, s]));
-		// The shocked instrument itself leads, so the cause is visible next to the effects.
+		const scaled = (run: Scenario, key: string) =>
+			scale === 1 ? (run.deviations[key] ?? []) : (run.deviations[key] ?? []).map((v) => (v == null ? null : v * scale));
+		// The shocked instrument itself leads, so the cause is visible next to the effects. In compare
+		// mode the closure tax closes the list: it is the only instrument the two runs differ in.
 		const instrument = scenario.definition?.seriesKey;
-		const keys = instrument && !chartKeys.includes(instrument) ? [instrument, ...chartKeys] : chartKeys;
+		const base = instrument && !chartKeys.includes(instrument) ? [instrument, ...chartKeys] : chartKeys;
+		const keys = runs ? [...base, 'tLukning'] : base;
 		return keys
 			.filter((key) => scenario!.deviations[key]?.some((v) => v != null))
 			.map((key) => {
 				const info = bySeriesKey.get(key);
 				const pct = info?.devMode === 'pct';
+				const title = info?.labelDa ?? key;
+				const values = scaled(scenario!, key);
+				// The instrument moves identically in both runs: one line says that best.
+				const series =
+					runs && key !== instrument
+						? [
+								{ key: 'ufin', label: 'Ufinansieret', values: scaled(runs.ufin, key) },
+								{ key: 'perm', label: 'Finansieret', values: scaled(runs.perm, key) }
+							]
+						: [{ key, label: title, values }];
 				return {
 					key,
-					title: info?.labelDa ?? key,
+					title,
 					isInstrument: key === instrument,
 					unit: pct ? 'afvigelse fra grundforløb, pct.' : 'afvigelse, pct.-point',
 					suffix: pct ? ' pct.' : ' pct.-point',
-					values:
-						scale === 1
-							? scenario!.deviations[key]
-							: scenario!.deviations[key].map((v) => (v == null ? null : v * scale))
+					values,
+					series
 				};
 			});
 	});
+
+	/** The one line under the compare toggle: what the financing does, scaled with the slider. */
+	const comparisonLine = $derived(
+		runs && scenario?.definition
+			? financingLine({ ...runs, yearStart: meta.yearStart, firstYear: scenario.definition.firstYear, scale })
+			: null
+	);
+	const exportVariant = $derived(comparing ? compareFilenameVariant : selectedVariation);
 
 	/** The shock size implied by the slider, in the instrument's own units. */
 	const scaledChange = $derived.by(() => {
@@ -183,10 +239,12 @@
 	// Sharing: every solved view is a permalink, and every export carries the source stamp.
 	const shareable = $derived(!!scenario);
 	const closureLabel = $derived(
-		meta.variations.find((v) => v.suffix === selectedVariation)?.labelDa ?? 'Ufinansieret'
+		comparing
+			? 'Permanent, finansieret og ufinansieret'
+			: (meta.variations.find((v) => v.suffix === selectedVariation)?.labelDa ?? 'Ufinansieret')
 	);
 	const shareUrl = $derived(
-		shareable ? permalink(page.url.origin, { stod: selectedName, variant: selectedVariation, skala: scale }) : ''
+		shareable ? permalink(page.url.origin, { stod: selectedName, variant: selectedVariation, skala: scale, sammenlign: compare && canCompare }) : ''
 	);
 	const provenance = $derived(
 		provenanceLine({
@@ -268,7 +326,14 @@
 	function downloadCsv() {
 		const csv = scenarioCsv({
 			years,
-			columns: charts.map((c) => ({ key: c.key, label: c.title, unit: c.suffix.trim(), values: c.values })),
+			columns: charts.flatMap((c) =>
+				c.series.map((s) => ({
+					key: c.series.length > 1 ? `${c.key}_${s.key}` : c.key,
+					label: c.series.length > 1 ? `${c.title}, ${s.label.toLowerCase()}` : c.title,
+					unit: c.suffix.trim(),
+					values: s.values
+				}))
+			),
 			provenance: [
 				scenarioLine,
 				'Afvigelser fra grundforløbet: pct. for mængder og priser, pct.-point for satser og saldi',
@@ -279,7 +344,7 @@
 		// BOM so Excel reads the Danish characters and the decimal commas correctly.
 		downloadBlob(
 			new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }),
-			exportFilename({ stod: selectedName, variant: selectedVariation, key: null, skala: scale, ext: 'csv' })
+			exportFilename({ stod: selectedName, variant: exportVariant, key: null, skala: scale, ext: 'csv' })
 		);
 	}
 
@@ -298,7 +363,7 @@
 			});
 			downloadBlob(
 				blob,
-				exportFilename({ stod: selectedName, variant: selectedVariation, key: chart.key, skala: scale, ext: 'png' })
+				exportFilename({ stod: selectedName, variant: exportVariant, key: chart.key, skala: scale, ext: 'png' })
 			);
 		} finally {
 			exporting = null;
@@ -483,6 +548,18 @@
 					<span class="share-hint">Linket gengiver præcis denne visning; hver graf kan hentes som PNG med kildeangivelse.</span>
 				</div>
 			{/if}
+			{#if canCompare}
+				<div class="compare">
+					<button class="chip" class:active={compare} aria-pressed={compare} onclick={() => (compare = !compare)}>
+						Vis både finansieret og ufinansieret
+					</button>
+					{#if comparisonLine}
+						<p class="compare-line">{comparisonLine}</p>
+					{:else if compare}
+						<p class="compare-line muted">Henter den anden variant …</p>
+					{/if}
+				</div>
+			{/if}
 			<div class="chart-grid" style:opacity={loading ? 0.5 : 1}>
 				{#each charts as chart (chart.key)}
 					<div class="cell" class:instrument={chart.isInstrument}>
@@ -493,7 +570,7 @@
 							code={chart.key}
 							unit={chart.unit}
 							{years}
-							series={[{ key: chart.key, label: chart.title, values: chart.values }]}
+							series={chart.series}
 							fromYear={fromYear}
 							toYear={toYear}
 							zeroLine
@@ -565,6 +642,23 @@
 
 	.detail-head h2 {
 		font-size: 30px;
+	}
+
+	.compare {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: 10px 16px;
+		margin: 0 0 16px;
+	}
+
+	.compare-line {
+		flex: 1 1 32ch;
+		margin: 0;
+		font-size: 15px;
+		line-height: 1.5;
+		color: var(--ink-secondary);
+		max-width: 72ch;
 	}
 
 	.answer {
