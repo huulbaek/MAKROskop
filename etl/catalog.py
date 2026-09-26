@@ -213,7 +213,7 @@ _VAT_PROPORTIONAL = (
 
 _DREAM_GDP_NORM = (
     "DREAMs standardstød af samme navn normerer i stedet ændringen til 1 pct. af BNP i provenu "
-    "(og sænker satsen); MAKROskop ændrer selve satsen med et fast beløb. Størrelserne er derfor "
+    "(og sænker satsen); MAKROskop ændrer selve satsen med en fast størrelse. Størrelserne er derfor "
     "ikke direkte sammenlignelige."
 )
 
@@ -225,11 +225,8 @@ SHOCK_RUNS: list[ShockRun] = [
              "virksomhedernes afkastkrav), så gennemslaget er 1:1; udenlandske priser er uændrede, "
              "så det er reelt en permanent højere realrente.",
              series_key="rRenteECB",
-             channel=("rRenteObl>pBolig>qC>qBNP", "rRenteObl>qI>qBNP", "qBNP>nL>ledighedsgrad>vhW>pC"),
-             explainer_da="En varigt højere ECB-rente slår 1:1 igennem på alle danske renter. Dyrere lån rammer "
-                          "først boligmarkedet — boligpriserne falder omkring 6 pct. — og dernæst forbrug og "
-                          "investeringer, så BNP ligger 1–1,5 pct. lavere. Beskæftigelsen falder kun det første "
-                          "år: lønnen tilpasser sig, og ledigheden vender tilbage til sit strukturelle niveau.",
+             channel=("rRenteObl>pBolig>qC>qBNP", "rRenteObl>qI>qBNP", "qBNP>nL>ledighedsgrad>vhW>pC", "qBNP>saldo2bnp"),
+             explainer_da="En varigt højere ECB-rente slår 1:1 igennem på alle danske renter. Dyrere lån rammer først boligmarkedet — boligpriserne falder omkring 6 pct. de første år — og dernæst forbrug og investeringer, så BNP ligger 1–1,5 pct. lavere. Beskæftigelsen falder de første par år, indtil lønnen har tilpasset sig og ledigheden er tilbage på sit strukturelle niveau. På langt sigt retter boligpriser og forbrug sig, mens en mindre kapitalbeholdning holder investeringer, eksport og BNP nede.",
              linearity_da="Målt på et 10-års udsnit: ved 64 pct. af stødet afviger modellen 1,1 pct. "
                           "(median) fra lineær skalering; BNP 0,8 pct., beskæftigelse 0,9 pct., "
                           "boligpriser 1,8 pct., enkelte branche-serier op til 6 pct. af effekten."),
@@ -245,44 +242,38 @@ SHOCK_RUNS: list[ShockRun] = [
              "importpriser pM[s] og udenlandske konkurrentpriser pXUdl[x] hæves 1 pct.; aggregaterne "
              "er endogene og følger med.",
              solver_shock="pM,pXUdl",
-             channel=("qX>qBNP>nL>ledighedsgrad>vhW>pC", "pC>qX"),
+             channel=("pC>vhW", "qX>qBNP>nL>ledighedsgrad>vhW>pC", "pC>qX"),
              explainer_da="Højere import- og konkurrentpriser gør dansk produktion relativt billigere, så eksport "
                           "og BNP løftes på kort sigt. Over nogle år stiger danske priser og lønninger tilsvarende "
                           "(ca. 1 pct.), og den reale effekt forsvinder: resultatet er et varigt højere prisniveau, "
                           "ikke en varig aktivitetsgevinst."),
     ShockRun("Importpris", "pM", "Importpriser (alle varegrupper)", 1.01, 0.0, "+1 pct.", 2030,
              "Samme instrument og størrelse som DREAMs standardstød \"Importpris\".",
-             channel=("pC>qC>qBNP", "qC>qM"),
-             explainer_da="Dyrere import hæver forbrugerpriserne og forringer bytteforholdet: realindkomst og forbrug falder, og BNP ligger gradvist op til 0,4 pct. lavere."),
+             channel=("pC>qC>qBNP", "pC>qX>qBNP", "qC>qM", "qBNP>saldo2bnp"),
+             explainer_da="Dyrere import hæver forbrugerpriserne og forringer bytteforholdet: realindkomst og forbrug falder, og eksporten taber terræn, fordi importerede input gør dansk produktion dyrere. BNP ligger gradvist op til 0,4 pct. lavere."),
     ShockRun("Eksportkonkurrerende_priser", "pXUdl", "Udenlandske konkurrentpriser på eksportmarkederne",
              1.01, 0.0, "+1 pct.", 2030,
              "Samme instrument og størrelse som DREAMs standardstød \"Eksportkonkurrerende_priser\".",
-             channel=("qX>qBNP>nL>ledighedsgrad>vhW>pC", "qX>qM"),
-             explainer_da="Højere udenlandske konkurrentpriser giver dansk eksport markedsandele: eksporten stiger knap 1 pct. og BNP ca. 0,3 pct., mens danske lønninger og priser trækkes op."),
+             channel=("qX>qBNP>nL>ledighedsgrad>vhW>pC", "vhW>qC>qBNP", "qX>qM", "qBNP>saldo2bnp"),
+             explainer_da="Højere udenlandske konkurrentpriser giver dansk eksport markedsandele: eksporten stiger gradvist til knap 1 pct. og BNP ca. 0,3 pct. Danske lønninger og priser trækkes op, og det bedre bytteforhold løfter forbruget ca. 0,8 pct."),
     ShockRun("Bundskat", "tBund", "Bundskattesats", 1.0, 0.01, "+1 pct.-point", 2030, _DREAM_GDP_NORM,
-             channel=("qC>qBNP>nL", "pBolig>qI>qBNP", "saldo2bnp"),
-             explainer_da="En højere bundskat tager af husholdningernes disponible indkomst: det private forbrug "
-                          "falder godt 1 pct., og boligpriserne følger med ned. BNP ender knap 0,2 pct. lavere, mens "
-                          "den offentlige saldo forbedres år for år. Beskæftigelsen påvirkes kun lidt, fordi "
-                          "arbejdsudbuddet i MAKRO er strukturelt bestemt og kun reagerer svagt på skattesatsen."),
+             channel=("qC>qBNP>nL>ledighedsgrad>vhW>qX", "pBolig>qI>qBNP", "saldo2bnp"),
+             explainer_da="En højere bundskat tager af husholdningernes disponible indkomst: det private forbrug falder godt 1 pct., og boligpriserne følger med ned. Løn og priser falder lidt, hvilket styrker eksporten, så BNP ender knap 0,2 pct. lavere. Saldoen forbedres med ca. 0,4 pct. af BNP og mere over tid. Beskæftigelsen falder kun kortvarigt, fordi skatten i denne udgave af MAKRO ikke påvirker arbejdsudbuddet."),
     ShockRun("AM_bidrag", "tAMbidrag", "Arbejdsmarkedsbidrag, sats", 1.0, 0.01, "+1 pct.-point", 2030, _DREAM_GDP_NORM,
-             channel=("qC>qBNP", "pBolig>qI>qBNP", "saldo2bnp"),
-             explainer_da="Et højere arbejdsmarkedsbidrag virker som bundskatten: lavere disponibel indkomst, forbruget falder knap 1 pct., og boligpriserne følger med. BNP ligger ca. 0,1 pct. lavere, saldoen forbedres."),
+             channel=("qC>qBNP>nL>ledighedsgrad>vhW>qX", "pBolig>qI>qBNP", "saldo2bnp"),
+             explainer_da="Et højere arbejdsmarkedsbidrag virker som bundskatten: lavere disponibel indkomst, forbruget falder ca. 0,8 pct., og boligpriserne følger med. Lavere løn styrker eksporten lidt, og BNP ligger ca. 0,1 pct. lavere. Saldoen forbedres med ca. 0,25 pct. af BNP og mere over tid."),
     ShockRun("Selskabsskat", "tSelskab", "Selskabsskattesats", 1.0, 0.01, "+1 pct.-point", 2030, _DREAM_GDP_NORM,
-             channel=("qI>qBNP", "saldo2bnp"),
-             explainer_da="Højere selskabsskat gør investeringer dyrere: investeringerne falder ca. 0,2 pct. og BNP knap 0,1 pct. på langt sigt, mens saldoen forbedres."),
+             channel=("qI>qBNP", "qC>qBNP", "saldo2bnp"),
+             explainer_da="Højere selskabsskat gør investeringer dyrere: erhvervsinvesteringerne falder op til 0,9 pct. og de samlede investeringer ca. 0,2 pct. Med mindre kapital falder lønnen, og forbruget falder gradvist (ca. 0,25 pct. på langt sigt). BNP ender knap 0,1 pct. lavere, mens saldoen forbedres."),
     ShockRun("Ejendomsvaerdiskat", "tEjd", "Ejendomsværdiskat, implicit sats", 1.10, 0.0, "+10 pct. af satsen", 2030, _DREAM_GDP_NORM,
-             channel=("pBolig>qC>qBNP", "saldo2bnp"),
-             explainer_da="Højere ejendomsværdiskat sænker boligpriserne ca. 0,3 pct. og forbruget lidt; BNP-effekten er lille, saldoen forbedres."),
+             channel=("pBolig>qI>qBNP", "qC>qBNP", "saldo2bnp"),
+             explainer_da="Højere ejendomsværdiskat gør det dyrere at eje bolig: boligpriserne falder ca. 0,3 pct. i starten og knap 0,2 pct. på langt sigt, og investeringerne dæmpes lidt. Forbruget falder ca. 0,1 pct., fordi skatten tager af indkomsten; BNP-effekten er lille, saldoen forbedres."),
     ShockRun("Offentligt_forbrug", "qR(off,*),qE(off,*),hL(off,*),qI_s(!iTot,off,*)",
              "Offentlig sektors input: varekøb, energi, arbejdstimer og investeringer", 1.01, 0.0, "+1 pct.", 2030,
              "Samme instrumenter som DREAMs standardstød (den offentlige produktions eksogene input); "
              "DREAM normerer ændringen til 1 pct. af BNP, MAKROskop hæver alle input med 1 pct.",
-             channel=("qG>qBNP>nL>ledighedsgrad>vhW", "vhW>qX>qBNP", "saldo2bnp"),
-             explainer_da="Mere offentligt forbrug løfter aktivitet og beskæftigelse det første år (BNP +0,1 pct.), "
-                          "men effekten klinger hurtigt af: lønninger og priser stiger og fortrænger privat "
-                          "aktivitet, så BNP-virkningen er omkring nul efter få år. Fordi udgiften ikke er "
-                          "finansieret, vokser underskuddet på de offentlige finanser år for år."),
+             channel=("qG>nL>ledighedsgrad>vhW", "qG>qBNP", "vhW>qX>qBNP", "saldo2bnp"),
+             explainer_da="Mere offentligt forbrug løfter aktivitet og beskæftigelse det første år (BNP knap +0,2 pct.), men effekten klinger hurtigt af: arbejdsudbuddet er uændret, så de ekstra offentlige ansatte trækkes fra den private sektor, lønningerne stiger, og eksporten falder. BNP ender ca. 0,1 pct. lavere. Fordi udgiften ikke er finansieret, vokser underskuddet på de offentlige finanser år for år."),
     ShockRun("Skattepligtig_indkomstoverforsel", "uvOvfSats(!boernyd|boligyd|iskatpl|groen|lumpsumovf,*)",
              "Satser for skattepligtige overførsler (ekskl. de ubeskattede ydelser)", 1.01, 0.0, "+1 pct.", 2030,
              "Samme afgrænsning som DREAMs standardstød (kun skattepligtige ydelser); DREAM normerer "
@@ -293,13 +284,13 @@ SHOCK_RUNS: list[ShockRun] = [
              "DREAMs standardstød normerer ændringen til 1 pct. af BNP i eksport; MAKROskop hæver "
              "eksportmarkedet med 1 pct.",
              channel=("qX>qBNP>nL>ledighedsgrad>vhW>pC", "qX>qM"),
-             explainer_da="Et 1 pct. større eksportmarked løfter eksporten ca. 0,5 pct. og BNP ca. 0,1 pct.; beskæftigelsen stiger kun kortvarigt, og lønnen tager en del af gevinsten."),
+             explainer_da="Et 1 pct. større eksportmarked løfter eksporten ca. 0,7 pct. og BNP knap 0,2 pct. de første år, og ca. 0,5 og 0,1 pct. på langt sigt; beskæftigelsen stiger kun kortvarigt, og lønnen tager en del af gevinsten."),
     ShockRun("Befolkning", "nPop", "Befolkning, alle aldersgrupper", 1.01, 0.0, "+1 pct.", 2030,
              "Samme størrelse som DREAMs standardstød, men DREAM skalerer desuden offentligt forbrug og "
              "arbejdsstyrke med; MAKROskop ændrer kun befolkningen.",
              series_key="nPop",
-             channel=("nPop>snL>nL>qBNP", "nPop>qI>qBNP", "nPop>qC", "nL>saldo2bnp"),
-             explainer_da="Flere mennesker giver flere beskæftigede (+1 pct.) og på sigt 1 pct. højere BNP. På kort sigt springer bolig- og andre investeringer op for at følge med den større befolkning."),
+             channel=("nPop>snL>nL>qBNP", "snL>ledighedsgrad>vhW>qX>qBNP", "nPop>qI>qBNP", "nPop>qC", "nL>saldo2bnp"),
+             explainer_da="Flere mennesker giver på sigt ca. 1 pct. flere beskæftigede og ca. 1 pct. højere BNP. Det første år springer boliginvesteringerne op (ca. 13 pct.), og ledigheden stiger lidt; lønnen falder i nogle år, så de ekstra hænder finder job, og eksporten vokser. Det offentlige forbrug er holdt uændret, så saldoen forbedres."),
     # --- batch 3: the rest of DREAM's standard shocks (Analysis/Standard_shocks/standard_shocks.gms),
     # instruments translated 1:1 where the DREAM instrument is exogenous here; where DREAM swaps
     # endogeneity, the exogenous parameter behind it is moved instead (stated in dream_da).
@@ -310,7 +301,7 @@ SHOCK_RUNS: list[ShockRun] = [
     ShockRun("Offentlig_Beskaeftigelse", "hL(off,*)", "Offentlige arbejdstimer", 1.01, 0.0, "+1 pct.", 2030,
              "Samme instrument som DREAMs standardstød; DREAM normerer til 1 pct. af BNP i lønsum, MAKROskop hæver timerne med 1 pct.",
              channel=("qG>nL>ledighedsgrad>vhW>qX>qBNP", "saldo2bnp"),
-             explainer_da="Flere offentlige arbejdstimer løfter beskæftigelsen det første år, men trækker derefter arbejdskraft fra den private sektor: eksport og investeringer falder, og BNP ender lidt lavere. Udgiften er ufinansieret, så saldoen svækkes."),
+             explainer_da="Flere offentlige arbejdstimer løfter beskæftigelsen det første år, men arbejdsudbuddet er uændret, så de nye offentlige job besættes med folk fra den private sektor: lønnen stiger, eksport og investeringer falder, og BNP ender lidt lavere. Udgiften er ufinansieret, så saldoen svækkes."),
     ShockRun("Offentlige_investeringer", "qI_s(!iTot,off,*)", "Offentlige investeringer (maskiner og bygninger)", 1.01, 0.0, "+1 pct.", 2030,
              "Samme instrument som DREAMs standardstød; DREAM normerer til 1 pct. af BNP, MAKROskop hæver investeringerne med 1 pct.",
              channel=("qI>qBNP", "saldo2bnp"),
@@ -334,20 +325,20 @@ SHOCK_RUNS: list[ShockRun] = [
              "Samme afgrænsning som DREAMs standardstød (de ubeskattede ydelser); DREAM normerer til 1 pct. af BNP.",
              channel=("qC>qBNP", "saldo2bnp"),
              explainer_da="1 pct. højere ubeskattede ydelser er et lille beløb: forbruget stiger marginalt, saldoen svækkes tilsvarende, og beskæftigelsen er upåvirket."),
-    ShockRun("Overforsel_privat", "vOffTilHhRest", "Øvrige offentlige overførsler til husholdninger", 1.0, 10.0, "+10 mia. kr. årligt", 2030,
-             "Samme instrument som DREAMs standardstød (lump sum); DREAM giver 1 pct. af BNP, MAKROskop 10 mia. kr.",
+    ShockRun("Overforsel_privat", "vOffTilHhRest", "Øvrige offentlige overførsler til husholdninger", 1.0, 10.0, "+10 mia. kr. årligt (2020-niveau)", 2030,
+             "Samme instrument som DREAMs standardstød (lump sum); DREAM giver 1 pct. af BNP, MAKROskop 10 mia. kr. i 2020-niveau (ca. 13 mia. kr. i 2030), der vokser med økonomien – godt 0,3 pct. af BNP.",
              channel=("qC>qBNP", "pBolig", "saldo2bnp"),
-             explainer_da="10 mia. kr. mere i overførsler går næsten fuldt ud i privat forbrug (+0,7 pct.) og boligpriser; BNP løftes ca. 0,1 pct., mens saldoen svækkes med det meste af beløbet."),
+             explainer_da="Overførslerne øges med ca. 13 mia. kr. i 2030 (godt 0,3 pct. af BNP), og beløbet vokser med økonomien. Pengene går næsten fuldt ud i privat forbrug (+0,7 pct.) og boligpriser; BNP løftes ca. 0,1 pct., mens saldoen svækkes med det meste af beløbet."),
     ShockRun("Grundskyld", "tGrund", "Grundskyldspromille, alle brancher", 1.10, 0.0, "+10 pct. af satsen", 2030, _DREAM_GDP_NORM,
-             channel=("pBolig>qC>qBNP", "pBolig>qI>qBNP", "saldo2bnp"),
-             explainer_da="Højere grundskyld kapitaliseres i lavere bolig- og jordpriser (ca. −0,3 pct.), hvilket dæmper forbrug og investeringer lidt; saldoen forbedres."),
+             channel=("pBolig>qI>qBNP", "qC>qBNP", "saldo2bnp"),
+             explainer_da="Højere grundskyld gør det dyrere at eje boliger og erhvervsejendomme. Boligpriserne falder ca. 0,35 pct. i starten og knap 0,2 pct. på langt sigt, og investeringerne – især erhvervsbyggeriet – falder lidt. Forbruget falder ca. 0,15 pct., fordi skatten tager af husholdningernes indkomst; saldoen forbedres."),
     ShockRun("Vaegtafgift", "utHhVaegt", "Vægtafgift, implicit sats", 1.10, 0.0, "+10 pct. af satsen", 2030, _DREAM_GDP_NORM,
              channel=("qC>qBNP", "saldo2bnp"),
              explainer_da="Højere vægtafgift sænker forbruget marginalt (ca. −0,05 pct.); BNP-effekten er ubetydelig, og saldoen forbedres lidt."),
     ShockRun("Aktieskat", "tAktieTop", "Aktieindkomstskat, topsats", 1.0, 0.01, "+1 pct.-point", 2030,
              "DREAM ændrer både top- og lavsatsen normeret til 1 pct. af BNP; i denne konfiguration er kun topsatsen en variabel.",
-             channel=("saldo2bnp", "qC"),
-             explainer_da="En højere topsats på aktieindkomst har næsten ingen realøkonomisk virkning i MAKRO; provenuet forbedrer saldoen marginalt, og forbruget falder først på langt sigt."),
+             channel=("qC>qBNP", "pBolig", "saldo2bnp"),
+             explainer_da="En højere topsats på aktieindkomst giver et lavere afkast efter skat og gør det mindre attraktivt at spare op. De første år bruger husholdningerne derfor lidt mere, men formuen vokser langsommere, så forbruget og boligpriserne gradvist kommer under grundforløbet – knap 0,2 pct. lavere i 2100. BNP påvirkes meget lidt, og saldoen forbedres kun marginalt (ca. 0,04 pct. af BNP)."),
     ShockRun("Moms_ned", "tMoms_y,tMoms_m", "Momssatser (indenlandsk og importeret)", 0.98, 0.0, "−2 pct. af satsen", 2030,
              _VAT_PROPORTIONAL + " Nedsættelsen er løst som sit eget scenarie i stedet for at spejle forhøjelsen.",
              channel=("pC>qC>qBNP", "pBolig", "saldo2bnp"),
@@ -371,68 +362,63 @@ SHOCK_RUNS: list[ShockRun] = [
              explainer_da="Højere vareafgifter hæver forbrugerpriserne ca. 0,15 pct. og sænker forbruget tilsvarende; BNP-effekten er lille, saldoen forbedres."),
     ShockRun("Afgift_erhverv", "tAfg_y(bol|byg|ene|fre|lan|off|soe|tje|udv,!off,*),tAfg_m(bol|byg|ene|fre|lan|off|soe|tje|udv,!off,*)",
              "Afgifter på private erhvervs materialeinput", 1.10, 0.0, "+10 pct. af satsen", 2030, _DREAM_GDP_NORM,
-             channel=("qI>qBNP", "qC>qBNP", "saldo2bnp"),
-             explainer_da="Dyrere materialeinput hæver virksomhedernes omkostninger marginalt: effekterne på BNP og forbrug er under 0,1 pct., og provenuet forbedrer saldoen."),
+             channel=("qI>qBNP", "vhW>qC>qBNP", "saldo2bnp"),
+             explainer_da="Dyrere materialeinput hæver virksomhedernes omkostninger og presser lønnen ned (godt 0,1 pct.). Det trækker forbruget godt 0,1 pct. ned på langt sigt, mens BNP kun falder ca. 0,04 pct. Provenuet forbedrer saldoen."),
     ShockRun("Produktsubsidier", "rSub_y,rSub_m", "Produktsubsidiesatser", 1.10, 0.0, "+10 pct. af satsen", 2030, _DREAM_GDP_NORM,
-             channel=("pC>qC>qBNP", "saldo2bnp"),
+             channel=("vhW>qC>qBNP", "pC>qC", "saldo2bnp"),
              explainer_da="Højere produktsubsidier sænker priserne marginalt; virkningerne på BNP og forbrug er under 0,1 pct., og saldoen svækkes."),
     ShockRun("Lontilskud", "rSubLoen(!tot,*)", "Løntilskudssatser", 1.10, 0.0, "+10 pct. af satsen", 2030, _DREAM_GDP_NORM,
              channel=("qC>qBNP", "saldo2bnp"),
              explainer_da="Højere løntilskudssatser er et lille beløb i MAKRO: virkningerne på forbrug, BNP og saldo er under 0,05 pct."),
     ShockRun("Produktionssubsidier", "rSubYRest(!tot,*)", "Øvrige produktionssubsidier, sats", 1.10, 0.0, "+10 pct. af satsen", 2030,
              "DREAM hæver subsidiebeløbet (1 pct. af BNP) og endogeniserer satsen; MAKROskop hæver satsen direkte.",
-             channel=("qI>qBNP", "qC>qBNP", "saldo2bnp"),
-             explainer_da="Højere produktionssubsidier sænker virksomhedernes omkostninger: investeringer og forbrug stiger lidt (0,1–0,2 pct.), mens saldoen svækkes."),
+             channel=("qI>qBNP", "vhW>qC>qBNP", "saldo2bnp"),
+             explainer_da="Højere produktionssubsidier sænker virksomhedernes omkostninger: lønnen stiger ca. 0,2 pct., investeringer og forbrug stiger lidt (0,1–0,2 pct.), mens saldoen svækkes."),
     ShockRun("Arbejdsudbud_beskaeftigelse", "snLHh (uDeltag endogen)", "Strukturel beskæftigelse, alle aldre 15-100",
              1.01, 0.0, "+1 pct.", 2030,
              "Samme lukning som DREAMs standardstød: den strukturelle beskæftigelse hæves 1 pct. for hver alder, "
              "og husholdningernes deltagelsesparameter uDeltag frigives alder for alder, så den rammer målet. "
              "(uDeltag er en ulempeparameter — at hæve den direkte sænker deltagelsen.)",
              solver_shock="snLHh", endogenize="uDeltag",
-             channel=("snL>ledighedsgrad>vhW>nL>qBNP", "vhW>qX>qBNP", "nL>saldo2bnp"),
-             explainer_da="Når 1 pct. flere står til rådighed for arbejdsmarkedet, finder de gradvist job: "
-                          "beskæftigelsen er 1 pct. højere efter få år, og BNP vokser med omkring 1 pct. på langt "
-                          "sigt, efterhånden som virksomhedernes kapitalapparat følger med. Lønnen dæmpes i "
-                          "starten, og de offentlige finanser forbedres, fordi flere betaler skat."),
+             channel=("snL>ledighedsgrad>vhW>nL>qBNP", "vhW>qX>qBNP", "nL>qC>qBNP", "nL>saldo2bnp"),
+             explainer_da="Når 1 pct. flere står til rådighed for arbejdsmarkedet, finder de gradvist job: beskæftigelsen er 1 pct. højere efter få år, og BNP vokser med omkring 1 pct. på langt sigt, efterhånden som virksomhedernes kapitalapparat følger med. Lønnen falder knap 1 pct. de første år og ender ca. 0,2 pct. lavere, og de offentlige finanser forbedres, fordi flere betaler skat."),
     ShockRun("Arbejdsudbud_timer", "uh", "Timepræferenceparameter (strukturel arbejdstid = 1/uh)",
              1 / 1.01, 0.0, "+1 pct. strukturel arbejdstid", 2030,
              "Samme virkning som DREAMs standardstød: DREAM hæver den strukturelle arbejdstid shLHh 1 pct. og "
              "endogeniserer uh; i modellen er shLHh = 1/uh eksakt, så MAKROskop sætter uh til 1/1,01 gange "
              "grundforløbets værdi, hvilket giver præcis +1 pct. arbejdstid for alle aldre.",
              channel=("qBNP>saldo2bnp", "vhW>qX>qBNP"),
-             explainer_da="1 pct. længere arbejdstid pr. beskæftiget giver næsten samme BNP-løft som 1 pct. flere "
-                          "beskæftigede — omkring 1 pct. på langt sigt — uden at antallet af beskæftigede ændrer "
-                          "sig. Timelønnen presses lidt ned i begyndelsen, og den offentlige saldo forbedres."),
+             explainer_da="1 pct. længere arbejdstid pr. beskæftiget giver næsten samme BNP-løft som 1 pct. flere beskæftigede — omkring 1 pct. på langt sigt. Antallet af beskæftigede ender uændret, men den offentlige sektor, hvis timetal ligger fast, klarer sig med ca. 1 pct. færre ansatte, som går til private job. Timelønnen falder op mod 1 pct. de første år og ender ca. 0,2 pct. lavere, og den offentlige saldo forbedres."),
     ShockRun("ArbejdsProd", "qProdHh_t,qProdxDK", "Arbejdskraftproduktivitet (trend)", 1.01, 0.0, "+1 pct.", 2030,
              "Samme instrumenter og størrelse som DREAMs standardstød.",
              channel=("qBNP>saldo2bnp", "vhW>qC>qBNP", "qX>qBNP"),
-             explainer_da="Højere produktivitet løfter BNP gradvist mod +1 pct.; reallønnen følger med, og eksporten vinder markedsandele. Beskæftigelsen er uændret, fordi arbejdsudbuddet er strukturelt bestemt."),
+             explainer_da="Højere produktivitet løfter BNP gradvist mod +1 pct.; reallønnen følger med, og eksporten vinder markedsandele. Beskæftigelsen falder kortvarigt lidt, men er uændret på sigt, fordi arbejdsudbuddet er strukturelt bestemt."),
     ShockRun("VirkDisk", "rVirkDiskPrem(!spTot,*)", "Virksomhedernes risikopræmie (hurdle rate)", 1.0, 0.001, "+0,1 pct.-point", 2030,
              "Samme instrument og størrelse som DREAMs standardstød.",
-             channel=("qI>qBNP",),
-             explainer_da="Et højere afkastkrav i virksomhederne sænker investeringerne ca. 0,25 pct. og dermed kapitalapparatet; BNP ender ca. 0,1 pct. lavere."),
+             channel=("qI>qBNP", "vhW>qC>qBNP"),
+             explainer_da="Et højere afkastkrav i virksomhederne sænker investeringerne ca. 0,25 pct. og dermed kapitalapparatet; BNP ender ca. 0,1 pct. lavere. Med mindre kapital pr. medarbejder falder lønnen ca. 0,2 pct., og forbruget ender godt 0,15 pct. lavere."),
     ShockRun("BoligRisiko", "rBoligPrem", "Risikopræmie i boligernes usercost", 1.0, 0.001, "+0,1 pct.-point", 2030,
              "Samme instrument og størrelse som DREAMs standardstød.",
              channel=("pBolig>qC>qBNP", "pBolig>qI"),
-             explainer_da="En højere risikopræmie hæver boligernes usercost: boligpriserne falder ca. 0,5 pct., forbrug og boliginvesteringer lidt; BNP-effekten er lille."),
+             explainer_da="En højere risikopræmie hæver boligernes usercost: boligpriserne falder ca. 0,5 pct. de første år (ca. 0,2 pct. på langt sigt), forbrug og boliginvesteringer lidt; BNP-effekten er lille."),
     ShockRun("AktieAfkast", "rVirkDiskPrem(!spTot,*),rAktieDriftPrem", "Risikopræmie på virksomheder og aktieafkast", 1.0, 0.001, "+0,1 pct.-point", 2030,
              "Samme instrumenter og størrelse som DREAMs standardstød.",
              channel=("qI>qBNP",),
-             explainer_da="Et højere afkastkrav gør investeringer dyrere: investeringerne falder ca. 0,25 pct. og BNP knap 0,1 pct. på langt sigt."),
+             explainer_da="Et højere afkastkrav gør investeringer dyrere: investeringerne falder ca. 0,2 pct. og BNP knap 0,1 pct. på langt sigt."),
     ShockRun("RisikoPraemier", "rVirkDiskPrem(!spTot,*),rAktieDriftPrem,rBoligPrem", "Alle tre risikopræmier", 1.0, 0.001, "+0,1 pct.-point", 2030,
              "Samme instrumenter og størrelse som DREAMs standardstød.",
              channel=("qI>qBNP", "pBolig>qC>qBNP", "pBolig>qI"),
-             explainer_da="Højere risikopræmier på både virksomheder og boliger gør investeringer og boliger dyrere: investeringerne falder ca. 0,4 pct., boligpriserne ca. 0,5 pct. og BNP ca. 0,1 pct."),
+             explainer_da="Højere risikopræmier på både virksomheder og boliger gør investeringer og boliger dyrere: de første år falder investeringerne ca. 0,4 pct. og boligpriserne ca. 0,5 pct.; på langt sigt er faldet mindre. BNP ligger ca. 0,1 pct. lavere."),
     ShockRun("Diskontering", "jfDisk_t", "Husholdningernes diskonteringsfaktor (justering)", 1.0, -0.001, "−0,001", 2030,
              "Samme instrument og størrelse som DREAMs standardstød.",
-             channel=("qC>qBNP", "pBolig>qC"),
+             channel=("qC>qBNP", "pBolig>qC", "pBolig>qI"),
              explainer_da="Mere utålmodige husholdninger sparer mindre op: forbrug og boligpriser stiger på kort sigt, men effekten aftager og vender på langt sigt, når formuen er blevet mindre."),
     ShockRun("Loen", "rLoenNash", "Arbejdsgivernes forhandlingsvægt i lønforhandlingen (Nash)", 1.0, -0.01,
              "−1 pct.-point (lønmodtagerne står stærkere)", 2030,
              "Samme instrument og størrelse som DREAMs standardstød. rLoenNash er arbejdsgivernes vægt i "
              "Nash-forhandlingen, så et fald betyder stærkere lønmodtagere.",
              channel=("vhW>nL", "vhW>qC>qBNP", "nL>saldo2bnp"),
-             explainer_da="Når lønmodtagerne står stærkere i lønforhandlingen, stiger timelønnen (ca. +0,7 pct.), og beskæftigelsen falder lidt (ca. −0,15 pct.); den højere realindkomst løfter forbrug og BNP svagt, mens saldoen svækkes lidt."),
+             explainer_da="Når lønmodtagerne står stærkere i lønforhandlingen, stiger timelønnen (ca. +0,7 pct.), og virksomhederne slår færre stillinger op, så beskæftigelsen falder lidt (ca. −0,15 pct.). Den højere løn løfter forbruget (knap 0,5 pct. på langt sigt). BNP stiger alligevel svagt (ca. 0,2 pct.), fordi færre jobopslag frigør arbejdstid fra rekruttering til produktion. Saldoen svækkes lidt."),
 ]
 
 _UNFINANCED = (
