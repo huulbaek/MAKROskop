@@ -4,4 +4,4 @@
 	let { data } = $props();
 </script>
 
-<ScenarioExplorer meta={data.meta} initialScenario={null} initial={data.card.initial} initialTiles={data.card.tiles} />
+<ScenarioExplorer meta={data.meta} initialScenario={null} initial={data.card.initial} initialTiles={data.card.tiles} initialAnswer={data.card.answer} />

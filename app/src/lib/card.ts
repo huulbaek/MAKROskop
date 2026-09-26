@@ -83,6 +83,8 @@ export interface CardHead {
 	url: string;
 	initial: { name: string; variation: string; scale: number };
 	tiles: CardTile[];
+	/** The view's answer sentence (answer.ts), shown until the scenario JSON has loaded. */
+	answer: { lead: string; body: string };
 }
 
 const MINUS = '−';
@@ -139,7 +141,7 @@ export function changeText(def: Pick<ScenarioDefinition, 'delta' | 'factor' | 'c
 	return `${formatSigned((def.factor - 1) * 100 * scale).replace('-', MINUS)} pct.${suffix}`;
 }
 
-const PROFILE_WORD: Record<string, string> = { _perm: 'varigt', _ufin: 'varigt', _midl: 'midlertidigt', _blip: 'i ét år' };
+export const PROFILE_WORD: Record<string, string> = { _perm: 'varigt', _ufin: 'varigt', _midl: 'midlertidigt', _blip: 'i ét år' };
 const PROFILE_SUBLINE: Record<string, string> = {
 	_perm: 'Varigt stød', _ufin: 'Varigt stød', _midl: 'Midlertidigt stød (AR-profil)', _blip: '1-årigt stød'
 };
@@ -150,7 +152,12 @@ const MAX_INSTRUMENT_CHARS = 24;
  *  numeric sign only holds against the side that moves. A catalog `shortDa` is the proper home. */
 const INSTRUMENT_SHORT: Record<string, string> = { Loen: 'Arbejdsgivernes forhandlingsvægt' };
 
-function closureWord(variation: string): string {
+/** What the headline says moved: the model's own label when it is short, else the catalog name. */
+export function cardSubject(shock: Pick<ShockMeta, 'name' | 'labelDa'>, def: Pick<ScenarioDefinition, 'instrumentDa'>): string {
+	return INSTRUMENT_SHORT[shock.name] ?? (def.instrumentDa.length <= MAX_INSTRUMENT_CHARS ? def.instrumentDa : shock.labelDa);
+}
+
+export function closureWord(variation: string): string {
 	return variation === '_perm' ? 'finansieret via lukkeskat' : 'ufinansieret';
 }
 
@@ -235,7 +242,7 @@ export function buildCard(input: {
 	const tiles = cardTiles({ scenario, definition: def, yearStart, levels, scale });
 	const [persons, bnp, saldo] = tiles;
 
-	const instrument = INSTRUMENT_SHORT[shock.name] ?? (def.instrumentDa.length <= MAX_INSTRUMENT_CHARS ? def.instrumentDa : shock.labelDa);
+	const instrument = cardSubject(shock, def);
 	const change = changeText(def, scale);
 	const headline = `${instrument} ${change}`;
 	/** A scaled catalog-worded shock's full change text ("×0,5 af standardstødet (+10 mia. kr.

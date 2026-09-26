@@ -4,7 +4,8 @@
  *  scenario JSON itself is fetched on the client, as the ?stod= deep links do. */
 import { error } from '@sveltejs/kit';
 import type { EntryGenerator, PageServerLoad } from './$types';
-import { buildCard, parseSkala, scaleSteps, shareViews, splitView, type CardHead } from '$lib/card';
+import { buildAnswerSentence } from '$lib/answer';
+import { buildCard, cardSubject, parseSkala, scaleSteps, shareViews, splitView, type CardHead } from '$lib/card';
 import { levelsAt, maxScales, readBaseline, readMeta, readScenario, scenarioExists } from '$lib/server/scenarios';
 import { SITE_URL } from '$lib/site';
 
@@ -26,9 +27,14 @@ export const load: PageServerLoad = ({ params }): { card: CardHead } => {
 	const scenario = readScenario(params.scenario);
 	const definition = scenario.definition;
 	if (!definition || !scaleSteps(definition.maxScale).includes(scale)) error(404, 'Ukendt scenarie');
+	const baseline = readBaseline();
 	const card = buildCard({
 		shock, scenario, definition, yearStart: meta.yearStart, modelName: meta.model.name,
-		levels: levelsAt(readBaseline(), definition.firstYear), scale
+		levels: levelsAt(baseline, definition.firstYear), scale
+	});
+	const answer = buildAnswerSentence({
+		subject: cardSubject(shock, definition), definition, variation: view.variation, scenario,
+		yearStart: meta.yearStart, levelsAt: (year) => levelsAt(baseline, year), scale
 	});
 	return {
 		card: {
@@ -38,7 +44,8 @@ export const load: PageServerLoad = ({ params }): { card: CardHead } => {
 			image: card.image,
 			url: `${SITE_URL}${card.path}`,
 			initial: { name: view.name, variation: view.variation, scale },
-			tiles: card.tiles
+			tiles: card.tiles,
+			answer
 		}
 	};
 };

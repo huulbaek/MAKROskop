@@ -2,8 +2,9 @@
 	import LineChart from '$lib/components/LineChart.svelte';
 	import StatTile from '$lib/components/StatTile.svelte';
 	import { formatSigned } from '$lib/format';
-	import { ALL_SCALE_STEPS, cardTiles, changeText, formatScale, scaleSteps as stepsFor } from '$lib/card';
+	import { ALL_SCALE_STEPS, cardSubject, cardTiles, changeText, formatScale, scaleSteps as stepsFor } from '$lib/card';
 	import type { CardTile } from '$lib/card';
+	import { buildAnswerSentence, type AnswerSentence } from '$lib/answer';
 	import { defaultVariation, loadBaseline, loadScenario, type Baseline, type Meta, type Scenario, type ShockMeta } from '$lib/data';
 	import { RECOMPUTING } from '$lib/notices';
 	import { page } from '$app/state';
@@ -19,6 +20,7 @@
 		initialScenario,
 		initial = null,
 		initialTiles = null,
+		initialAnswer = null,
 		baseline = null
 	}: {
 		meta: Meta;
@@ -28,6 +30,8 @@
 		initial?: { name: string; variation: string; scale: number } | null;
 		/** The view's tiles as prerendered, shown until the scenario JSON has loaded. */
 		initialTiles?: CardTile[] | null;
+		/** The view's answer sentence as prerendered, shown until the scenario and levels have loaded. */
+		initialAnswer?: AnswerSentence | null;
 		/** Baseline levels for the persons tile when the page loaded them already (prerendered). */
 		baseline?: Baseline | null;
 	} = $props();
@@ -214,6 +218,24 @@
 		return loading ? initialTiles : null;
 	});
 
+	/** The view's answer in plain Danish (persons and kroner), rescaled with the slider; the
+	 *  prerendered sentence bridges the gap until the scenario JSON and the baseline levels load. */
+	const answer = $derived.by((): AnswerSentence | null => {
+		const def = scenario?.definition;
+		if (scenario && def && levelsByYear[def.firstYear]) {
+			return buildAnswerSentence({
+				subject: cardSubject(selectedShock, def), definition: def, variation: scenario.variation, scenario,
+				yearStart: meta.yearStart, scale,
+				levelsAt: (year) => {
+					const at = levelsByYear[year];
+					return at && at.nL != null && at.vBNP != null ? { nL: at.nL, vBNP: at.vBNP } : null;
+				}
+			});
+		}
+		const seededView = !!initial && selectedName === initial.name && selectedVariation === initial.variation && scale === initial.scale;
+		return seededView ? initialAnswer : null;
+	});
+
 	/** The bare page's prerendered default view stays at /scenarier/ until the reader changes something. */
 	const seededUrl = untrack(() => (initialScenario && !initial ? shareUrl : ''));
 
@@ -343,6 +365,9 @@
 		</div>
 		{#if RECOMPUTING[selectedName]}
 			<div class="banner warn" role="note"><strong>Genberegnes.</strong> {RECOMPUTING[selectedName]}</div>
+		{/if}
+		{#if answer}
+			<p class="answer"><strong>{answer.lead}</strong> {answer.body}</p>
 		{/if}
 		{#if scenario?.definition?.explainerDa}
 			<p class="explainer">{scenario.definition.explainerDa}</p>
@@ -540,6 +565,14 @@
 
 	.detail-head h2 {
 		font-size: 30px;
+	}
+
+	.answer {
+		font-size: 18px;
+		line-height: 1.5;
+		color: var(--ink);
+		max-width: 66ch;
+		margin: 0 0 14px;
 	}
 
 	.explainer {
