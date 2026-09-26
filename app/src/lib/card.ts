@@ -223,16 +223,18 @@ export interface TileInput {
 export function cardTiles({ scenario, definition, yearStart, levels, scale, year }: TileInput): CardTile[] {
 	const at = deviationAt(scenario, yearStart, scale);
 	const y1 = definition.firstYear;
-	// The share card's years (år 1 / år 3 / år 1), unless the reader scrubbed to one year.
-	const [yL, yB, yS] = year == null ? [y1, y1 + 2, y1] : [year, year, year];
-	const employment = at('nL', yL);
-	const gdp = at('qBNP', yB);
-	const balance = at('saldo2bnp', yS);
+	// The share card's years (år 1 / år 3), unless the reader scrubbed to one year.
+	const first = year ?? y1;
+	const third = year ?? y1 + 2;
+	const nth = (y: number) => y - y1 + 1;
+	const employment = at('nL', first);
+	const gdp = at('qBNP', third);
+	const balance = at('saldo2bnp', first);
 	return [
-		{ key: 'nL', label: 'Beskæftigelse', year: yL - y1 + 1, unit: 'personer',
+		{ key: 'nL', label: 'Beskæftigelse', year: nth(first), unit: 'personer',
 			value: employment == null || levels == null ? null : formatPersons((employment / 100) * levels.nL * 1000) },
-		{ key: 'qBNP', label: 'BNP', year: yB - y1 + 1, unit: 'pct.', value: gdp == null ? null : formatTileValue(gdp) },
-		{ key: 'saldo2bnp', label: 'Offentlig saldo', year: yS - y1 + 1, unit: 'pct. af BNP', value: balance == null ? null : formatTileValue(balance) }
+		{ key: 'qBNP', label: 'BNP', year: nth(third), unit: 'pct.', value: gdp == null ? null : formatTileValue(gdp) },
+		{ key: 'saldo2bnp', label: 'Offentlig saldo', year: nth(first), unit: 'pct. af BNP', value: balance == null ? null : formatTileValue(balance) }
 	];
 }
 

@@ -88,15 +88,9 @@
 		border-color: var(--makro);
 	}
 
-	.play:focus-visible {
-		outline: 2px solid var(--makro);
-		outline-offset: 2px;
-	}
-
 	input {
 		flex: 1;
 		min-width: 0;
-		accent-color: var(--makro);
 	}
 
 	.readout {

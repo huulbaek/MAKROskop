@@ -1,0 +1,41 @@
+{
+	"columns": ["Finans", "Efterspørgsel", "Produktion", "Arbejdsmarked", "Løn og priser", "Offentlige finanser"],
+	"nodes": [
+		{ "key": "rRenteObl", "label": "Renter", "detail": "obligationsrenten", "column": 0, "row": 1 },
+		{ "key": "pBolig", "label": "Boligpriser", "column": 0, "row": 2 },
+		{ "key": "qC", "label": "Privat forbrug", "column": 1, "row": 0 },
+		{ "key": "qI", "label": "Investeringer", "column": 1, "row": 1 },
+		{ "key": "qG", "label": "Off. forbrug", "detail": "offentligt forbrug", "column": 1, "row": 2 },
+		{ "key": "qX", "label": "Eksport", "column": 1, "row": 3 },
+		{ "key": "qM", "label": "Import", "column": 1, "row": 4 },
+		{ "key": "qBNP", "label": "BNP", "column": 2, "row": 2 },
+		{ "key": "nPop", "label": "Befolkning", "column": 3, "row": 0 },
+		{ "key": "snL", "label": "Arbejdsudbud", "detail": "strukturel beskæftigelse", "column": 3, "row": 1 },
+		{ "key": "nL", "label": "Beskæftigelse", "column": 3, "row": 2 },
+		{ "key": "ledighedsgrad", "label": "Ledighed", "detail": "bruttoledighedsgraden", "column": 3, "row": 3 },
+		{ "key": "vhW", "label": "Løn", "detail": "timelønnen", "column": 4, "row": 1 },
+		{ "key": "pC", "label": "Forbrugerpriser", "column": 4, "row": 2 },
+		{ "key": "saldo2bnp", "label": "Offentlig saldo", "detail": "andel af BNP", "column": 5, "row": 1 },
+		{ "key": "tLukning", "label": "Lukkeskat", "detail": "den beregningstekniske lukkeskat", "column": 5, "row": 2 }
+	],
+	"edges": {
+		"interest rates: housing, investment, consumption, the state's interest bill": [
+			"rRenteObl>pBolig", "rRenteObl>qI", "rRenteObl>qC", "rRenteObl>saldo2bnp"
+		],
+		"housing wealth and housing investment": ["pBolig>qC", "pBolig>qI"],
+		"demand makes output; imports leak": [
+			"qC>qBNP", "qI>qBNP", "qG>qBNP", "qX>qBNP", "qM>qBNP", "qC>qM", "qI>qM", "qX>qM"
+		],
+		"labour demand": ["qBNP>nL", "qG>nL", "vhW>nL"],
+		"labour supply: more people, more workers, unemployment first": [
+			"nPop>snL", "nPop>qC", "nPop>qI", "snL>ledighedsgrad", "snL>nL", "nL>ledighedsgrad", "nL>qBNP", "nL>qC"
+		],
+		"wage bargaining, prices, competitiveness, real income": [
+			"ledighedsgrad>vhW", "vhW>pC", "vhW>qX", "vhW>qC", "pC>qC", "pC>vhW", "pC>qX"
+		],
+		"public finances and the financed closure": [
+			"qBNP>saldo2bnp", "qC>saldo2bnp", "nL>saldo2bnp", "saldo2bnp>tLukning", "tLukning>qC"
+		]
+	},
+	"financedChain": "saldo2bnp>tLukning>qC"
+}

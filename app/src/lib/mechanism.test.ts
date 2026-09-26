@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { channelErrors, FINANCED_CHAIN, MAP_EDGES, MAP_NODES, nodeReading, pathOf } from './mechanism';
+import { channelErrors, FINANCED_CHAIN, MAP_EDGES, MAP_NODES, nodeReading, pathOf, peakOf } from './mechanism';
 import type { Scenario } from './data';
 
 const RENTE = ['rRenteObl>pBolig>qC>qBNP', 'rRenteObl>qI>qBNP', 'qBNP>nL>ledighedsgrad>vhW>pC'];
@@ -65,24 +65,30 @@ describe('the map', () => {
 	});
 });
 
-describe('nodeReading', () => {
+describe('peakOf and nodeReading', () => {
 	const values = [null, 0, -1, -2, -4, -3, -2];
-	const at = { yearStart: 2028, firstYear: 2030, lastYear: 2034 };
+	const horizon = { yearStart: 2028, firstYear: 2030, lastYear: 2034 };
+	const peak = peakOf(values, horizon);
 
-	it('reads the scaled deviation at the year', () => {
-		expect(nodeReading(values, { ...at, year: 2031, scale: 1 }).value).toBe(-2);
-		expect(nodeReading(values, { ...at, year: 2031, scale: -0.5 }).value).toBe(1);
+	it('peaks at the largest deviation from the shock year to the horizon', () => {
+		expect(peak).toBe(4);
+		expect(peakOf(undefined, horizon)).toBe(0);
 	});
 
-	it('measures reach against the largest deviation from the shock year to the horizon', () => {
-		expect(nodeReading(values, { ...at, year: 2031, scale: 1 }).reach).toBe(0.5);
-		expect(nodeReading(values, { ...at, year: 2031, scale: -2 }).reach).toBe(0.5);
-		expect(nodeReading(values, { ...at, year: 2032, scale: 1 }).reach).toBe(1);
+	it('reads the scaled deviation at the year', () => {
+		expect(nodeReading(values, { year: 2031, yearStart: 2028, scale: 1, peak }).value).toBe(-2);
+		expect(nodeReading(values, { year: 2031, yearStart: 2028, scale: -0.5, peak }).value).toBe(1);
+	});
+
+	it('measures reach against the peak, whatever the scale', () => {
+		expect(nodeReading(values, { year: 2031, yearStart: 2028, scale: 1, peak }).reach).toBe(0.5);
+		expect(nodeReading(values, { year: 2031, yearStart: 2028, scale: -2, peak }).reach).toBe(0.5);
+		expect(nodeReading(values, { year: 2032, yearStart: 2028, scale: 1, peak }).reach).toBe(1);
 	});
 
 	it('has no value and no reach where the series is missing or flat', () => {
-		expect(nodeReading(undefined, { ...at, year: 2032, scale: 1 })).toEqual({ value: null, reach: 0 });
-		expect(nodeReading([0, 0, 0, 0, 0, 0, 0], { ...at, year: 2032, scale: 1 })).toEqual({ value: 0, reach: 0 });
+		expect(nodeReading(undefined, { year: 2031, yearStart: 2028, scale: 1, peak: 0 })).toEqual({ value: null, reach: 0 });
+		expect(nodeReading([0, 0, 0, 0, 0, 0, 0], { year: 2031, yearStart: 2028, scale: 1, peak: 0 })).toEqual({ value: 0, reach: 0 });
 	});
 });
 

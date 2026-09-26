@@ -487,6 +487,13 @@ em {
 	color: var(--ink-muted);
 }
 
+/* Range sliders: a finger-sized hit area; the track itself stays thin. */
+input[type='range'] {
+	height: 32px;
+	margin: 0;
+	accent-color: var(--makro);
+}
+
 /* Visually hidden, still read by assistive tech (status messages, table captions, hints). */
 .sr-only {
 	position: absolute;

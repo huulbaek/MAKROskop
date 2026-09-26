@@ -2,7 +2,7 @@
 	import LineChart from '$lib/components/LineChart.svelte';
 	import StatTile from '$lib/components/StatTile.svelte';
 	import { formatSigned } from '$lib/format';
-	import { loadScenario, type Scenario, type ShockMeta } from '$lib/data';
+	import { devUnit, loadScenario, type Scenario, type ShockMeta } from '$lib/data';
 	import { RECOMPUTING } from '$lib/notices';
 	import {
 		financedCostLine,
@@ -218,7 +218,7 @@
 					key,
 					title: info?.labelDa ?? key,
 					unit: pct ? 'afvigelse fra grundforløb, pct.' : 'afvigelse, pct.-point',
-					suffix: pct ? ' pct.' : ' pct.-point',
+					suffix: ` ${devUnit(info?.devMode)}`,
 					values
 				};
 			});
@@ -799,10 +799,6 @@
 
 	.scaler input[type='range'] {
 		width: 100%;
-		/* a finger-sized hit area; the track itself stays thin */
-		height: 32px;
-		margin: 0;
-		accent-color: var(--makro);
 	}
 
 	.scale-readout {

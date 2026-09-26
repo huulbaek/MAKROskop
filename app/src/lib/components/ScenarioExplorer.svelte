@@ -9,7 +9,9 @@
 	import type { CardTile } from '$lib/card';
 	import { buildAnswerSentence, type AnswerSentence } from '$lib/answer';
 	import { compareFilenameVariant, financingLine, partnerVariation } from '$lib/compare';
-	import { defaultVariation, loadBaseline, loadScenario, type Baseline, type Meta, type Scenario, type ShockMeta } from '$lib/data';
+	import {
+		defaultVariation, devUnit, loadBaseline, loadScenario, seriesByKey, type Baseline, type Meta, type Scenario, type ShockMeta
+	} from '$lib/data';
 	import { RECOMPUTING } from '$lib/notices';
 	import { page } from '$app/state';
 	import { replaceState } from '$app/navigation';
@@ -57,6 +59,7 @@
 		);
 	}
 	const scenario = $derived(override === 'unset' ? initialScenario : override);
+	const seriesMeta = $derived(seriesByKey(meta));
 
 	/** Client-side linear rescaling of a solved scenario (1 = as solved).
 	 *  Negative steps mirror the shock: the catalog only holds increases, so a cut is
@@ -161,7 +164,7 @@
 		void tick().then(() => (hydrated = true));
 		const query = new URLSearchParams(location.search);
 		compare = query.has('sammenlign');
-		const aar = Number(query.get('aar'));
+		const aar = query.has('aar') ? Number(query.get('aar')) : NaN;
 		// Baseline levels for the persons tile (55 KB, browser-cached); every solved scenario needs them.
 		if (!baseline) void loadBaseline(fetch).then((b) => (levelsByYear = levelsOf(b)));
 		const wanted = wantedView();
@@ -172,7 +175,7 @@
 			: (defaultVariation(shock) ?? meta.variations[1]?.suffix ?? '_midl');
 		void select(shock.name, variation).then(() => {
 			if (scaleSteps.includes(wanted.scale)) scaleIdx = scaleSteps.indexOf(wanted.scale);
-			if (Number.isInteger(aar) && aar >= yearMin && aar <= toYear) pickYear(aar);
+			if (Number.isInteger(aar)) pickYear(aar);
 		});
 	});
 
@@ -185,7 +188,6 @@
 
 	const charts = $derived.by(() => {
 		if (!scenario) return [];
-		const bySeriesKey = new Map(meta.series.map((s) => [s.key, s]));
 		const scaled = (run: Scenario, key: string) =>
 			scale === 1 ? (run.deviations[key] ?? []) : (run.deviations[key] ?? []).map((v) => (v == null ? null : v * scale));
 		// The shocked instrument itself leads, so the cause is visible next to the effects. In compare
@@ -196,7 +198,7 @@
 		return keys
 			.filter((key) => scenario!.deviations[key]?.some((v) => v != null))
 			.map((key) => {
-				const info = bySeriesKey.get(key);
+				const info = seriesMeta.get(key);
 				const pct = info?.devMode === 'pct';
 				const title = info?.labelDa ?? key;
 				const values = scaled(scenario!, key);
@@ -213,7 +215,7 @@
 					title,
 					isInstrument: key === instrument,
 					unit: pct ? 'afvigelse fra grundforløb, pct.' : 'afvigelse, pct.-point',
-					suffix: pct ? ' pct.' : ' pct.-point',
+					suffix: ` ${devUnit(info?.devMode)}`,
 					values,
 					series
 				};
@@ -267,8 +269,10 @@
 		playing = false;
 	}
 
-	const devModes = $derived(Object.fromEntries(meta.series.map((s) => [s.key, s.devMode])));
 	const mechanismPath = $derived(pathOf(scenario?.definition?.channel ?? [], scenario?.variation ?? ''));
+	const hasMap = $derived(!!scenario?.definition && mechanismPath.nodes.length > 0);
+	/** The year the reader chose, for the tiles and the link; null until they have. */
+	const pickedYear = $derived(scrubbed ? year : null);
 	const years = $derived(Array.from({ length: meta.yearEnd - meta.yearStart + 1 }, (_, i) => meta.yearStart + i));
 
 	// ------------------------------------------------------------------------------------
@@ -282,7 +286,7 @@
 	const shareUrl = $derived(
 		shareable
 			? permalink(page.url.origin, {
-					stod: selectedName, variant: selectedVariation, skala: scale, sammenlign: compare && canCompare, aar: scrubbed ? year : null
+					stod: selectedName, variant: selectedVariation, skala: scale, sammenlign: compare && canCompare, aar: pickedYear
 				})
 			: ''
 	);
@@ -308,10 +312,9 @@
 	 *  values bridge the gap until the scenario JSON has loaded. */
 	const tiles = $derived.by((): CardTile[] | null => {
 		if (scenario && shareable && scenario.definition) {
-			const tileYear = scrubbed ? year : null;
-			const at = levelsByYear[tileYear ?? scenario.definition.firstYear];
+			const at = levelsByYear[pickedYear ?? scenario.definition.firstYear];
 			const levels = at && at.nL != null && at.vBNP != null ? { nL: at.nL, vBNP: at.vBNP } : null;
-			return cardTiles({ scenario, definition: scenario.definition, yearStart: meta.yearStart, levels, scale, year: tileYear });
+			return cardTiles({ scenario, definition: scenario.definition, yearStart: meta.yearStart, levels, scale, year: pickedYear });
 		}
 		return loading ? initialTiles : null;
 	});
@@ -339,7 +342,8 @@
 
 	// Keep the address bar in sync, so the URL a reader copies reproduces the view.
 	$effect(() => {
-		if (!shareable || loading || !hydrated) return;
+		// While playing, the URL is written once, when the play stops (browsers throttle history calls).
+		if (!shareable || loading || !hydrated || playing) return;
 		if (shareUrl === seededUrl && location.pathname === resolve('/scenarier/') && !location.search) return;
 		const url = new URL(shareUrl);
 		if (url.pathname + url.search !== location.pathname + location.search) replaceState(url, {});
@@ -490,7 +494,7 @@
 			<p class="explainer">{scenario.definition.explainerDa}</p>
 		{/if}
 
-		{#if scenario?.definition && mechanismPath.nodes.length > 0}
+		{#if scenario?.definition && hasMap}
 			<!-- A direct child of .detail, so it stays on screen down through the charts. -->
 			<div class="year-bar">
 				<YearScrubber bind:year bind:playing min={yearMin} max={toYear} onscrub={() => (scrubbed = true)} />
@@ -499,13 +503,12 @@
 				shockLabel={`${cardSubject(selectedShock, scenario.definition)} ${scaledChange}`}
 				path={mechanismPath}
 				deviations={scenario.deviations}
-				{devModes}
+				series={seriesMeta}
 				year={shownYear}
 				yearStart={meta.yearStart}
 				firstYear={yearMin}
 				lastYear={toYear}
 				{scale}
-				financed={scenario.variation === '_perm'}
 			/>
 		{/if}
 
@@ -647,7 +650,7 @@
 							zeroLine
 							height={200}
 							suffix={chart.suffix}
-							markerYear={mechanismPath.nodes.length > 0 ? shownYear : null}
+							markerYear={hasMap ? shownYear : null}
 							onhover={(y) => (previewYear = y == null ? null : clampYear(y))}
 							onpick={pickYear}
 							bind:svg={chartSvgs[chart.key]}
@@ -835,10 +838,6 @@
 
 	.scaler input[type='range'] {
 		width: 100%;
-		/* a finger-sized hit area; the track itself stays thin */
-		height: 32px;
-		margin: 0;
-		accent-color: var(--makro);
 	}
 
 	.scale-readout {

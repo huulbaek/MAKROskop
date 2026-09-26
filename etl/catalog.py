@@ -192,7 +192,7 @@ class ShockRun:
     max_scale_da: str | None = None  # why the cap is there, shown next to the slider
     explainer_da: str | None = None  # 2-3 plain-language sentences on the mechanism, for readers
     # The explainer drawn on the mechanism map (makroskop-hkt): chains of series keys "a>b>c" whose
-    # arrows must be edges of the map in app/src/lib/mechanism.ts (the app's data test checks). A
+    # arrows must be edges of the map in app/src/lib/mechanism-map.json (tests/test_channel.py). A
     # chain starting on a node no earlier chain reached is hit by the shock directly.
     channel: tuple[str, ...] = ()
     # The solve-export call itself, where `instrument` is worded for readers: --shock-name

@@ -1,33 +1,31 @@
 <script lang="ts">
 	import { formatTileValue } from '$lib/card';
-	import { MAP_COLUMNS, MAP_NODES, nodeByKey, nodeReading, type MechanismPath, type NodeReading } from '$lib/mechanism';
+	import { devUnit, type SeriesMeta } from '$lib/data';
+	import { MAP_COLUMNS, MAP_NODES, nodeByKey, nodeReading, peakOf, type MechanismPath } from '$lib/mechanism';
 
 	let {
 		shockLabel,
 		path,
 		deviations,
-		devModes,
+		series,
 		year,
 		yearStart,
 		firstYear,
 		lastYear,
-		scale,
-		financed
+		scale
 	}: {
 		/** "ECB-renten +1 pct.-point", scaled with the size slider. */
 		shockLabel: string;
 		path: MechanismPath;
 		deviations: Record<string, (number | null)[]>;
-		/** devMode per series key: pct. or pct.-point. */
-		devModes: Record<string, string>;
+		/** The catalog series by key (for each node's unit). */
+		series: Map<string, SeriesMeta>;
 		year: number;
 		yearStart: number;
 		firstYear: number;
 		/** The horizon the reach bars measure against (the charts' last year). */
 		lastYear: number;
 		scale: number;
-		/** Financed run: the closure-tax node is on the map. */
-		financed: boolean;
 	} = $props();
 
 	/** Below this width the map gives way to the path as a list. */
@@ -43,17 +41,22 @@
 	let width = $state(0);
 	const wide = $derived(width >= MAP_MIN_WIDTH);
 
-	const nodes = $derived(MAP_NODES.filter((n) => financed || n.key !== 'tLukning'));
+	/** The closure tax only moves in a financed run, and then pathOf puts it on the path. */
+	const nodes = $derived(MAP_NODES.filter((n) => n.key !== 'tLukning' || path.nodes.includes(n.key)));
 	const rows = $derived(Math.max(...nodes.map((n) => n.row)) + 1);
 	const gridBottom = $derived(TOP + rows * ROW_STEP - (ROW_STEP - NODE_H));
 	const height = $derived(gridBottom + LANE + 6);
 	const colW = $derived(width / MAP_COLUMNS.length);
 	const nodeW = $derived(Math.min(150, colW - GAP));
 
+	/** Per scenario, not per year: the reach bars' full length. */
+	const peaks = $derived(
+		Object.fromEntries(MAP_NODES.map((n) => [n.key, peakOf(deviations[n.key], { yearStart, firstYear, lastYear })]))
+	);
 	const readings = $derived(
 		Object.fromEntries(
-			nodes.map((n) => [n.key, nodeReading(deviations[n.key], { year, yearStart, firstYear, lastYear, scale })])
-		) as Record<string, NodeReading>
+			MAP_NODES.map((n) => [n.key, nodeReading(deviations[n.key], { year, yearStart, scale, peak: peaks[n.key] })])
+		)
 	);
 
 	function box(key: string) {
@@ -83,7 +86,7 @@
 	/** Arrows never run under a box: neighbours in a column join vertically, neighbouring columns
 	 *  by an S-curve through the corridor between them, and anything longer leaves through a
 	 *  corridor, travels along the lane above or below the grid, and comes in from the side. */
-	function arrow(from: string, to: string, trackNo: number): string {
+	function arrow(from: string, to: string): string {
 		const a = box(from);
 		const b = box(to);
 		const tip = 5;
@@ -104,7 +107,7 @@
 			return `M${sx.toFixed(1)},${a.cy.toFixed(1)} C${mx.toFixed(1)},${a.cy.toFixed(1)} ${mx.toFixed(1)},${b.cy.toFixed(1)} ${ex.toFixed(1)},${b.cy.toFixed(1)}`;
 		}
 		// Long arrows side by side, not on top of each other: each gets its own track.
-		const track = (trackNo % 3) - 1;
+		const track = ((tracks[`${from}>${to}`] ?? 0) % 3) - 1;
 		const upper = Math.min(a.n.row, b.n.row) <= (rows - 1) / 2;
 		const lane = (upper ? TOP - LANE + 5 : gridBottom + LANE - 5) + (upper ? 1 : -1) * track * 4;
 		const out = (forward ? a.right + GAP / 2 : a.left - GAP / 2) + track * 5;
@@ -122,20 +125,16 @@
 		return out;
 	});
 
-	const unitOf = (key: string) => (devModes[key] === 'pct' ? 'pct.' : 'pct.-point');
+	const unitOf = (key: string) => devUnit(series.get(key)?.devMode);
 	const valueText = (key: string) => {
-		const value = readings[key]?.value;
+		const value = readings[key].value;
 		return value == null ? '–' : formatTileValue(value);
 	};
 	const labelOf = (key: string) => nodeByKey(key)?.label ?? key;
 
-	/** What feeds each path node, for the list: "via renter og boligpriser". */
-	const incoming = $derived(
-		Object.fromEntries(path.nodes.map((key) => [key, path.edges.filter(([, b]) => b === key).map(([a]) => labelOf(a).toLowerCase())]))
-	);
-
+	/** For the list: "stødet rammer her · via renter og boligpriser". */
 	function via(key: string): string {
-		const from = incoming[key] ?? [];
+		const from = path.edges.filter(([, b]) => b === key).map(([a]) => labelOf(a).toLowerCase());
 		const parts: string[] = [];
 		if (path.entries.includes(key)) parts.push('stødet rammer her');
 		if (from.length > 0) parts.push(`via ${from.length > 1 ? `${from.slice(0, -1).join(', ')} og ${from.at(-1)}` : from[0]}`);
@@ -161,27 +160,28 @@
 					{#each MAP_COLUMNS as column, i (column)}
 						<text class="column" x={colW * (i + 0.5)} y="11" text-anchor="middle">{column}</text>
 					{/each}
-					{#each path.edges as [from, to], i (`${from}>${to}`)}
-						<path class="edge" d={arrow(from, to, tracks[`${from}>${to}`] ?? i)} marker-end="url(#mechanism-arrow)" />
+					{#each path.edges as [from, to] (`${from}>${to}`)}
+						<path class="edge" d={arrow(from, to)} marker-end="url(#mechanism-arrow)" />
 					{/each}
 				</svg>
 				{#each nodes as node (node.key)}
 					{@const b = box(node.key)}
 					{@const on = path.nodes.includes(node.key)}
+					{@const entry = path.entries.includes(node.key)}
 					<div
 						class="node"
 						class:on
-						class:entry={path.entries.includes(node.key)}
+						class:entry
 						style:left="{b.left}px"
 						style:top="{b.top}px"
 						style:width="{nodeW}px"
 						style:height="{NODE_H}px"
 						title={node.detail ? `${node.label} (${node.detail})` : node.label}
 					>
-						{#if path.entries.includes(node.key)}<span class="entry-tag">stødet</span>{/if}
+						{#if entry}<span class="entry-tag">stødet</span>{/if}
 						<span class="label">{node.label}</span>
 						<span class="value">{valueText(node.key)}<span class="unit">{unitOf(node.key)}</span></span>
-						<span class="reach"><span style:width="{(readings[node.key]?.reach ?? 0) * 100}%"></span></span>
+						<span class="reach"><span style:transform="scaleX({readings[node.key].reach})"></span></span>
 					</div>
 				{/each}
 			</div>
@@ -190,11 +190,12 @@
 		<!-- The path in reading order: the map on phones, and its text version everywhere. -->
 		<ol class="chain" class:sr-only={wide}>
 			{#each path.nodes as key (key)}
+				{@const how = via(key)}
 				<li class:entry={path.entries.includes(key)}>
 					<span class="label">{labelOf(key)}</span>
 					<span class="value">{valueText(key)} <span class="unit">{unitOf(key)}</span></span>
-					{#if via(key)}<span class="via">{via(key)}</span>{/if}
-					<span class="reach" aria-hidden="true"><span style:width="{(readings[key]?.reach ?? 0) * 100}%"></span></span>
+					{#if how}<span class="via">{how}</span>{/if}
+					<span class="reach" aria-hidden="true"><span style:transform="scaleX({readings[key].reach})"></span></span>
 				</li>
 			{/each}
 		</ol>
@@ -341,7 +342,9 @@
 		display: block;
 		height: 100%;
 		background: var(--series-1);
-		transition: width 180ms linear;
+		/* a transform, not a width: playing the years should not re-lay out the page */
+		transform-origin: left;
+		transition: transform 180ms linear;
 	}
 
 	.chain {

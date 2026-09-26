@@ -133,3 +133,9 @@ export function defaultVariation(shock: ShockMeta): string | undefined {
 export function seriesByKey(meta: Meta): Map<string, SeriesMeta> {
 	return new Map(meta.series.map((s) => [s.key, s]));
 }
+
+/** The unit of a series' deviation: percent for quantities and prices, percentage points for
+ *  rates, shares and balances. */
+export function devUnit(devMode: string | undefined): 'pct.' | 'pct.-point' {
+	return devMode === 'pct' ? 'pct.' : 'pct.-point';
+}

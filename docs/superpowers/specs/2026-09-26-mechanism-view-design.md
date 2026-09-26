@@ -21,7 +21,7 @@ series' devMode, scaled with the slider), and a thin *reach bar*: |value now| / 
 firstYear..2060. The bar is what makes propagation visible when playing. Sign is text only (no
 red/green: "higher prices = bad" is editorial); no teal in data.
 
-**Edges are a vocabulary, not a drawing.** `app/src/lib/mechanism.ts` lists the allowed arrows
+**Edges are a vocabulary, not a drawing.** `app/src/lib/mechanism-map.json` lists the allowed arrows
 (MAKRO channels: rente→boligpriser, boligpriser→forbrug, ledighed→løn, løn→eksport, …). Only the
 current shock's path is drawn; the other nodes sit dimmed with their numbers and no lines.
 
@@ -68,9 +68,11 @@ The committed year travels in the URL as `?aar=2035` (only once scrubbed), along
 
 ## Units
 
-- `app/src/lib/mechanism.ts` (pure, unit-tested): nodes, columns, edges, `parseChannel`,
-  `pathOf(channel, variation)` → { nodes in order, edges, entries }, `nodeReading(scenario, key,
-  year, scale, …)` → { value, text, reach }.
+- `app/src/lib/mechanism-map.json`: columns, nodes, allowed arrows, the financed chain; read by
+  mechanism.ts and by `etl/tests/test_channel.py`, so both sides check against one map.
+- `app/src/lib/mechanism.ts` (pure, unit-tested): `pathOf(channel, variation)` → { nodes in
+  order, edges, entries }, `channelErrors`, `peakOf` (per scenario) and `nodeReading(values,
+  {year, yearStart, scale, peak})` → { value, reach }.
 - `app/src/lib/components/MechanismMap.svelte`: SVG map + ordered list.
 - `app/src/lib/components/YearScrubber.svelte`: play button, slider, readout.
 - `LineChart.svelte`: `markerYear`, `onhover`, `onpick` props.
@@ -83,7 +85,7 @@ The committed year travels in the URL as `?aar=2035` (only once scrubbed), along
 - Vitest: mechanism.ts (parsing, entries, financed chain, readings, reach); a data test that every
   shipped scenario's `definition.channel` uses only map nodes and vocabulary edges; cardTiles with
   a year; permalink with aar.
-- ETL pytest: every ShockRun with an explainer has a non-empty channel of well-formed chains whose
-  keys are catalog series.
+- ETL pytest: every ShockRun with an explainer has a channel, and every channel uses only map
+  nodes and map arrows (mechanism-map.json); the map's nodes are catalog series.
 - Browser: map + scrubber + play on Rente, Bundskat (financed), Befolkning; phone width; both
   colour schemes.
