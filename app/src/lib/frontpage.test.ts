@@ -39,6 +39,16 @@ describe('QUESTIONS', () => {
 		}
 	});
 
+	it('the solver ran exactly that move, unfinanced, from the shock year (GDX stamp, makroskop-gnp.1)', () => {
+		for (const q of QUESTIONS) {
+			const scenario = readScenario(q.file);
+			const solved = scenario.solved;
+			expect(solved, q.file).toBeTruthy();
+			expect({ factor: solved!.factor, delta: solved!.delta }, q.file).toEqual(q.solvedMove);
+			expect([solved!.closure, solved!.profile, solved!.fromYear], q.file).toEqual(['none', 'permanent', scenario.definition!.firstYear]);
+		}
+	});
+
 	it('the instrument moved by exactly that much, where the scenario carries its series', () => {
 		const yearStart = readMeta().yearStart;
 		let checked = 0;

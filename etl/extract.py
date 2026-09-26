@@ -27,7 +27,7 @@ import gamspy_base
 
 from catalog import (
     DISPLAY_SCALE, GROWTH, RATIOS, SECTOR_SERIES_TEMPLATES, SECTORS, SERIES, SHOCKS, VARIATIONS, SeriesDef,
-    shock_definition,
+    shock_definition, stamp_mismatches,
 )
 
 YEAR_START = 1985
@@ -248,6 +248,47 @@ def read_solver_meta(container: gt.Container) -> dict[str, str]:
     return {str(row.iloc[0]): str(row.iloc[1]) for _, row in records.iterrows()}
 
 
+def read_stamp(gdx_path: Path) -> dict[str, str]:
+    """The solver stamp alone, without loading the solution; {} for an unstamped file."""
+    container = gt.Container(system_directory=gamspy_base.directory)
+    try:
+        container.read(str(gdx_path), symbols=["makroskop_meta"])
+    except ValueError:  # gams.transfer: the symbol does not exist in the file
+        return {}
+    return read_solver_meta(container)
+
+
+def stamp_errors(found: dict[str, list[tuple[str, Path]]]) -> list[str]:
+    """Every scenario whose solver stamp disagrees with its catalog run (makroskop-gnp.1)."""
+    return [
+        f"{gdx_path.name}: {line}"
+        for shock_name, variants in found.items()
+        for suffix, gdx_path in variants
+        if (stamp := read_stamp(gdx_path))
+        for line in stamp_mismatches(shock_name, suffix, stamp, MODEL_HORIZON_END)
+    ]
+
+
+def solved_spec(solver_meta: dict[str, str]) -> dict | None:
+    """The shock as the solver ran it, for the scenario JSON (the catalog `definition` is the wording).
+
+    Only called after stamp_errors passed, so a stamped file has every field.
+    """
+    if not solver_meta:
+        return None
+    return {
+        "shock": solver_meta["shock"],
+        "factor": float(solver_meta["factor"]),
+        "delta": float(solver_meta["delta"]),
+        "profile": solver_meta["profile"],
+        "closure": solver_meta["closure"],
+        "endogenized": solver_meta["endogenized"],
+        "fromYear": int(solver_meta["from_year"]),
+        "shockYears": solver_meta["shock_years"],
+        "exported": solver_meta.get("exported", ""),
+    }
+
+
 def scenario_model_version(solver_meta: dict[str, str], current: dict[str, str]) -> dict[str, str]:
     """Which MAKRO version a scenario GDX was solved on.
 
@@ -330,6 +371,13 @@ def main() -> None:
     parser.add_argument("--shocks-dir", type=Path, default=Path(__file__).parent / "shock_gdx")
     args = parser.parse_args()
 
+    # Before anything is written: the page copy comes from the catalog, so a scenario solved at
+    # another size, closure or shock year must not be published under the catalog's wording.
+    found = scan_shock_gdx_files(args.shocks_dir)
+    if errors := stamp_errors(found):
+        raise SystemExit("solver stamp disagrees with the catalog (etl/catalog.py SHOCK_RUNS):\n  "
+                         + "\n  ".join(errors))
+
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "shocks").mkdir(exist_ok=True)
 
@@ -353,7 +401,6 @@ def main() -> None:
     print(f"  wrote baseline.json ({len(columns)} series)")
 
     current_version = model_version(args.makro_root)
-    found = scan_shock_gdx_files(args.shocks_dir)
     available: dict[str, list[str]] = {}
     for shock_name, variants in found.items():
         for suffix, gdx_path in variants:
@@ -361,7 +408,9 @@ def main() -> None:
             payload = {"shock": shock_name, "variation": suffix, "synthetic": False,
                        "definition": shock_definition(shock_name, suffix, MODEL_HORIZON_END),
                        **extract_shock(gdx_path, shock_reference, factors)}
-            payload["modelVersion"] = scenario_model_version(payload.pop("solverMeta"), current_version)
+            solver_meta = payload.pop("solverMeta")
+            payload["solved"] = solved_spec(solver_meta)
+            payload["modelVersion"] = scenario_model_version(solver_meta, current_version)
             if payload["modelVersion"]["source"] == "assumed":
                 print(f"  note: {gdx_path.name} carries no solver stamp; assuming {current_version['name']}")
             elif payload["modelVersion"]["fingerprint"] != current_version["fingerprint"]:

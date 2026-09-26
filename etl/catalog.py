@@ -16,6 +16,7 @@ Conventions:
   deviation x100 (DREAM's "pm").
 """
 
+import math
 from dataclasses import dataclass
 
 
@@ -190,6 +191,10 @@ class ShockRun:
     max_scale: float | None = None
     max_scale_da: str | None = None  # why the cap is there, shown next to the slider
     explainer_da: str | None = None  # 2-3 plain-language sentences on the mechanism, for readers
+    # The solve-export call itself, where `instrument` is worded for readers: --shock-name
+    # (None = `instrument`) and --endogenize. extract.py checks both against the GDX stamp.
+    solver_shock: str | None = None
+    endogenize: str = ""
 
 
 # makroskop-gnp.2: tMoms_y/tMoms_m are effective per-cell rates (revenue / base), about zero for
@@ -234,6 +239,7 @@ SHOCK_RUNS: list[ShockRun] = [
              "Samme bundt og størrelse som DREAMs standardstød \"Udenlandske_priser\": alle eksogene "
              "importpriser pM[s] og udenlandske konkurrentpriser pXUdl[x] hæves 1 pct.; aggregaterne "
              "er endogene og følger med.",
+             solver_shock="pM,pXUdl",
              explainer_da="Højere import- og konkurrentpriser gør dansk produktion relativt billigere, så eksport "
                           "og BNP løftes på kort sigt. Over nogle år stiger danske priser og lønninger tilsvarende "
                           "(ca. 1 pct.), og den reale effekt forsvinder: resultatet er et varigt højere prisniveau, "
@@ -339,6 +345,7 @@ SHOCK_RUNS: list[ShockRun] = [
              "Samme lukning som DREAMs standardstød: den strukturelle beskæftigelse hæves 1 pct. for hver alder, "
              "og husholdningernes deltagelsesparameter uDeltag frigives alder for alder, så den rammer målet. "
              "(uDeltag er en ulempeparameter — at hæve den direkte sænker deltagelsen.)",
+             solver_shock="snLHh", endogenize="uDeltag",
              explainer_da="Når 1 pct. flere står til rådighed for arbejdsmarkedet, finder de gradvist job: "
                           "beskæftigelsen er 1 pct. højere efter få år, og BNP vokser med omkring 1 pct. på langt "
                           "sigt, efterhånden som virksomhedernes kapitalapparat følger med. Lønnen dæmpes i "
@@ -402,6 +409,60 @@ VARIATION_DEFINITIONS: dict[str, dict[str, str]] = {
 
 # solve-export --shock-profile value that produces each variation.
 VARIATION_PROFILES: dict[str, str] = {"_blip": "blip", "_midl": "ar", "_perm": "permanent", "_ufin": "permanent"}
+# solve-export --closure value that produces each variation (see VARIATION_DEFINITIONS).
+VARIATION_CLOSURES: dict[str, str] = {"_blip": "none", "_midl": "none", "_perm": "tax-reaction", "_ufin": "none"}
+
+_STAMP_NUMBERS = ("factor", "delta", "from_year", "share")
+
+
+def expected_stamp(shock_name: str, suffix: str, last_year: int) -> dict | None:
+    """The `makroskop_meta` stamp a full solve of this catalog run should carry, or None if uncatalogued.
+
+    Keys as freesolver writes them; factor, delta, from_year and share are numbers (the stamp's
+    text is compared by value). The shock years run from the shock year to the model horizon,
+    and the year before stays at the reference (DREAM's shock_year, makroskop-7cd).
+    """
+    run = next((r for r in SHOCK_RUNS if r.shock == shock_name), None)
+    if run is None or suffix not in VARIATION_PROFILES:
+        return None
+    return {
+        "shock": run.solver_shock or run.instrument,
+        "shock_years": f"{run.first_year}-{last_year}",
+        "factor": run.factor,
+        "delta": run.delta,
+        "profile": VARIATION_PROFILES[suffix],
+        "endogenized": run.endogenize,
+        "closure": VARIATION_CLOSURES[suffix],
+        "from_year": run.first_year,
+        "share": 1.0,
+    }
+
+
+def stamp_mismatches(shock_name: str, suffix: str, stamp: dict[str, str], last_year: int) -> list[str]:
+    """One line per field where the solver's stamp disagrees with the catalog (makroskop-gnp.1).
+
+    The page copy (definition.changeDa etc.) is written from the catalog, so a solve at another
+    size, closure or shock year must stop the ETL instead of shipping the old wording.
+    """
+    expected = expected_stamp(shock_name, suffix, last_year)
+    if expected is None:
+        return [f"{shock_name}{suffix} is not in the catalog"]
+    lines = []
+    for key, want in expected.items():
+        got = stamp.get(key)
+        if got is None:
+            lines.append(f"{key}: solved (missing), catalog {want}")
+            continue
+        if key in _STAMP_NUMBERS:
+            try:
+                same = math.isclose(float(got), float(want), rel_tol=1e-12, abs_tol=1e-15)
+            except ValueError:
+                same = False
+        else:
+            same = got == want
+        if not same:
+            lines.append(f"{key}: solved {got}, catalog {want}")
+    return lines
 
 
 def shock_definition(shock_name: str, suffix: str, last_year: int) -> dict | None:

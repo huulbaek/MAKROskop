@@ -74,6 +74,22 @@ export interface ScenarioModelVersion {
 	source: 'gdx' | 'assumed';
 }
 
+/** The shock as the solver ran it, from the GDX stamp (makroskop_meta). etl/extract.py refuses
+ *  to publish a scenario whose stamp disagrees with the catalog `definition` (makroskop-gnp.1). */
+export interface ScenarioSolved {
+	/** freesolver --shock-name, e.g. "tMoms_y,tMoms_m". */
+	shock: string;
+	factor: number;
+	delta: number;
+	profile: string;
+	closure: string;
+	endogenized: string;
+	fromYear: number;
+	shockYears: string;
+	/** ISO date the solution was exported. */
+	exported: string;
+}
+
 export interface Scenario {
 	shock: string;
 	variation: string;
@@ -81,6 +97,8 @@ export interface Scenario {
 	labelDa?: string;
 	hbi: number | null;
 	definition?: ScenarioDefinition | null;
+	/** null for an unstamped GDX. */
+	solved?: ScenarioSolved | null;
 	modelVersion?: ScenarioModelVersion | null;
 	deviations: Record<string, (number | null)[]>;
 }

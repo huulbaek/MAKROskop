@@ -74,7 +74,11 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
   `lib/card-svg.ts` rendered by `scripts/og-images.ts` during `bun run build`; fonts vendored
   in `app/fonts/`). `bun run verify:build` checks the output. Design: docs/superpowers/specs/2026-09-10-share-cards-design.md.
   Build: `bun run build`.
-- `etl/` — Python (uv). `extract.py` writes `app/static/data/*.json` from GDX files.
+- `etl/` — Python (uv). `extract.py` writes `app/static/data/*.json` from GDX files. It
+  refuses to run when a scenario's solver stamp (`makroskop_meta`: shock, factor, delta,
+  closure, profile, from_year) disagrees with its `catalog.SHOCK_RUNS` entry, so re-solving at
+  a new size means updating the catalog (and its Danish wording) first; the stamp ships as
+  `solved` in each scenario JSON (makroskop-gnp.1). Tests: `uv run --with pytest pytest tests`.
   `freesolver.py` is the license-free solver: parse / check / jacobian / newton /
   oracle / solve-export / export-baseline. Cache in `etl/cache/` (regenerable).
 - Deploy: `Dockerfile` (bun build → nginx), built by a Dockerfile-based PaaS from this repo;

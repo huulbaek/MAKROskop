@@ -15,9 +15,9 @@ export interface Question {
 	/** The scenario's definition.changeDa the wording was written against; a test pins it,
 	 *  so a catalog change of size fails instead of shipping a wrong question. */
 	solvedAs: string;
-	/** The catalog move (definition.factor, delta), pinned by the same test. Both are catalog
-	 *  values, not read from the solve; where the scenario carries the instrument's own series
-	 *  (Rente), a test also checks the solved move itself. */
+	/** The move (factor, delta) the wording was written for. Tests pin it against both the catalog
+	 *  (definition) and the solver's own stamp (scenario.solved, makroskop-gnp.1); where the
+	 *  scenario carries the instrument's series (Rente), also against the solved series itself. */
 	solvedMove: { factor: number; delta: number };
 }
 
