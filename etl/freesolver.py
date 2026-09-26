@@ -593,7 +593,8 @@ def cmd_solve_export(from_year: int, shock_name: str, shock_years: tuple[int, in
     (see find_swap_pairs); the freed parameter is exported at its solved values.
 
     shock_profile scales the change per year (see profile_weight): the instrument becomes
-    level * (1 + (factor - 1) * w(t)) + delta * w(t), with dt counted from the first shock year.
+    level * (1 + (factor - 1) * w(t)) + delta * w(t), with dt counted from the first shock year;
+    a bundle member 'name@weight' has w(t) times its weight (BUNDLE_WEIGHTS).
 
     With export_stages, every converged continuation stage (1 %, 3.5 %, ... of the
     shock) is also written as a compact GDX `<out>_sNNN.gdx` (NNN = share in
@@ -602,9 +603,8 @@ def cmd_solve_export(from_year: int, shock_name: str, shock_years: tuple[int, in
     system = System()
 
     # A comma-separated --shock-name is a bundle (e.g. 'pM,pXUdl' = DREAM's Udenlandske_priser):
-    # every listed instrument gets the same factor/delta/profile.
-    matched = [pair for name in split_bundle(shock_name)
-               for pair in find_shock_variables_with_years(convert_dir, name, shock_years)]
+    # every listed instrument gets the same factor/delta/profile, scaled by its weight if it has one.
+    matched, scale = bundle_instances(convert_dir, shock_name, shock_years, system.levels)
     if endogenize:
         pairs = find_swap_pairs(convert_dir, matched, endogenize)
         system.swap(np.array([s for s, _, _ in pairs]), np.array([e for _, e, _ in pairs]))
@@ -617,7 +617,8 @@ def cmd_solve_export(from_year: int, shock_name: str, shock_years: tuple[int, in
     print(f"window: {len(window.eq_sel):,} equations ({window.n_years} years)")
     shock_vars = np.array([var_id for var_id, _ in matched])
     first_year = min(year for _, year in matched)
-    weights = np.array([profile_weight(shock_profile, year - first_year) for _, year in matched])
+    weights = np.array([profile_weight(shock_profile, year - first_year) * scale.get(var_id, 1.0)
+                        for var_id, year in matched])
     fixed_ok = system.is_fixed[shock_vars]
     if not fixed_ok.any():
         raise SystemExit(f"all {len(shock_vars)} matched shock variables are endogenous")
@@ -1653,6 +1654,46 @@ def split_bundle(spec: str) -> list[str]:
     return [item for item in items if item]
 
 
+def off_share(convert_dir: Path, levels: np.ndarray, years) -> dict[int, float]:
+    """The public sector's share of effective hours, qProd(off)·hL(off) / (qProd(tot)·hL(tot)), at `levels`."""
+    names = {f"{symbol}({sector},{t})" for t in years for symbol in ("qProd", "hL") for sector in ("off", "tot")}
+    ids = variable_ids(convert_dir, names)
+    if len(ids) != len(names):
+        raise SystemExit(f"off_share: {sorted(names - set(ids))[:3]} not in dict.txt")
+    level = {name: levels[i] for name, i in ids.items()}
+    return {t: level[f"qProd(off,{t})"] * level[f"hL(off,{t})"] / (level[f"qProd(tot,{t})"] * level[f"hL(tot,{t})"])
+            for t in years}
+
+
+# Per-year weights a bundle member can carry as 'name@weight' (makroskop-gnp.6), taken at the reference
+# levels. off_share is DREAM's Offentlig_loen correction (standard_shocks.gms): qProdHh_t@off_share and
+# qProdxDK@off_share grow the pool of efficiency units by exactly the public increment, so qProd(spTot)
+# stays put (labor_market.gms:190-191).
+BUNDLE_WEIGHTS = {"off_share": off_share}
+
+
+def bundle_instances(convert_dir: Path, spec: str, years: tuple[int, int] | None,
+                     levels: np.ndarray) -> tuple[list[tuple[int, int]], dict[int, float]]:
+    """(variable id, year) pairs for every member of a shock bundle, and the weight of each weighted
+    ('name@weight') instance by variable id; unweighted instances are absent (weight 1)."""
+    matched: list[tuple[int, int]] = []
+    scale: dict[int, float] = {}
+    weight_cache: dict[tuple[str, frozenset[int]], dict[int, float]] = {}
+    for item in split_bundle(spec):
+        name, _, weight = item.partition("@")
+        pairs = find_shock_variables_with_years(convert_dir, name, years)
+        matched += pairs
+        if not weight:
+            continue
+        if weight not in BUNDLE_WEIGHTS:
+            raise SystemExit(f"unknown bundle weight {weight!r}; choose from {sorted(BUNDLE_WEIGHTS)}")
+        key = (weight, frozenset(year for _, year in pairs))
+        if key not in weight_cache:
+            weight_cache[key] = BUNDLE_WEIGHTS[weight](convert_dir, levels, key[1])
+        scale.update({var_id: weight_cache[key][year] for var_id, year in pairs})
+    return matched, scale
+
+
 def _position_matches(pattern: str, key: str) -> bool:
     """One domain position of a shock pattern: '*', a literal, 'a|b' alternatives, '!a|b' exclusion."""
     if pattern == "*":
@@ -2037,7 +2078,8 @@ def main() -> None:
                                  "structure", "oracle", "solve-export", "export-baseline"])
     parser.add_argument("--shock-name", default="",
                         help="exact instance 'rRenteECB(2124)', symbol 'rRenteECB' with --shock-years, "
-                             "or a comma-separated bundle 'pM,pXUdl' (solve-export)")
+                             "or a comma-separated bundle 'pM,pXUdl' (solve-export); a member 'name@weight' "
+                             "moves by the shock times a per-year weight (BUNDLE_WEIGHTS)")
     parser.add_argument("--shock-years", default="",
                         help="year range for symbol-level shocks, e.g. '2030-2129'")
     parser.add_argument("--shock-factor", type=float, default=1.0)

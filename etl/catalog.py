@@ -316,20 +316,19 @@ SHOCK_RUNS: list[ShockRun] = [
              channel=("qI>qBNP", "saldo2bnp"),
              explainer_da="Højere offentlige investeringer løfter de samlede investeringer ca. 0,15 pct. og BNP marginalt; saldoen svækkes, fordi udgiften ikke er finansieret."),
     ShockRun("Offentlig_loen", "qProd(off,*)", "Lønbestemmende produktivitet i den offentlige sektor", 1.01, 0.0, "+1 pct.", 2030,
-             "DREAM hæver samme variabel (normeret til 1 pct. af BNP) og hæver samtidig husholdningernes og "
-             "grænsegængernes produktivitet, så den private sektors produktivitet er uændret. MAKROskop "
-             "udelader den korrektion, så stødet her flytter produktivitet fra den private til den "
-             "offentlige sektor (privat produktivitet pr. time ca. −0,4 pct.).",
-             # makroskop-gnp.4: the pool of efficiency units (qProdHh·hLHh) is fixed, so qProd(off) +1 pct.
-             # takes them from the private sector: qProd(spTot) −0,38 pct., and vhW (= vhW_DA, which
-             # carries qProd(spTot)) falls although the wage per efficiency unit pW rises slightly.
-             channel=("qG>qBNP", "vhW", "qX>qBNP", "qI>qBNP", "saldo2bnp"),
-             explainer_da="Offentligt ansatte regnes 1 pct. mere produktive og får 1 pct. højere timeløn, så den "
-                          "offentlige produktion stiger ca. 0,6 pct. Men arbejdskraften er den samme, så "
-                          "produktiviteten tages fra den private sektor: den falder ca. 0,4 pct. pr. time, den "
-                          "private timeløn på sigt ca. 0,3 pct., og eksport og erhvervsinvesteringer falder. BNP "
-                          "stiger kortvarigt, men ender knap 0,2 pct. lavere, og saldoen svækkes, fordi "
-                          "lønudgiften ikke er finansieret."),
+             "Samme stød som DREAMs standardstød: den offentlige produktivitet hæves, og husholdningernes og "
+             "grænsegængernes produktivitet hæves med den offentlige andel af de effektive timer, så den "
+             "private sektors produktivitet er uændret. DREAM normerer til 1 pct. af BNP, MAKROskop hæver den "
+             "offentlige produktivitet med 1 pct.",
+             # makroskop-gnp.6 (see freesolver.off_share): qProd(off) alone drained the fixed pool of efficiency
+             # units, qProd(spTot) −0,38 pct.; that run is parked in etl/cache/parked/shock_gdx_offloen_uncorrected.
+             solver_shock="qProd(off,*),qProdHh_t@off_share,qProdxDK@off_share",
+             channel=("qG>qBNP", "qC>qBNP", "pBolig", "saldo2bnp"),
+             explainer_da="Offentligt ansatte bliver 1 pct. mere produktive og får 1 pct. mere i løn pr. time, uden "
+                          "at det tager produktivitet fra den private sektor. Den offentlige produktion stiger godt "
+                          "0,5 pct. og løfter BNP ca. 0,15 pct.; de højere lønindkomster løfter forbruget 0,1-0,2 "
+                          "pct. og boligpriserne lidt. Beskæftigelse og privat løn rører sig næsten ikke, og saldoen "
+                          "svækkes, fordi lønudgiften ikke er finansieret."),
     ShockRun("Ikke_skattepligtig_indkomstoverforsel", "uvOvfSats(boernyd|boligyd|iskatpl|groen|lumpsumovf,*)",
              "Satser for ikke-skattepligtige overførsler", 1.01, 0.0, "+1 pct.", 2030,
              "Samme afgrænsning som DREAMs standardstød (de ubeskattede ydelser); DREAM normerer til 1 pct. af BNP.",

@@ -68,6 +68,12 @@ Bundter: `--shock-name pM,pXUdl` støder flere instrumenter med samme faktor/pro
 kalibrerings-konfigurationen (de priser, olieprisen skulle påvirke, er faste datainput);
 de udenlandske pris-stød er erstatningen.
 
+Vægtede bundter: et medlem `navn@vægt` flyttes med stødet gange en årsvægt fra referencen
+(`BUNDLE_WEIGHTS` i `freesolver.py`). `qProd(off,*),qProdHh_t@off_share,qProdxDK@off_share` er
+DREAMs `Offentlig_loen`: husholdningernes og grænsegængernes produktivitet skaleres med den
+offentlige andel af de effektive timer, så den private produktivitet `qProd(spTot)` er uændret
+(`cloud/run_offentlig_loen.sh`, makroskop-gnp.6).
+
 ## Batch 2: otte finanspolitiske stød
 
 `cloud/run_batch2.sh` (med i bundtet) kører otte stød sekventielt, checkpointet og
