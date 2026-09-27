@@ -685,6 +685,7 @@
 								<button class="png-btn" onclick={() => downloadPng(chart)} disabled={exporting === chart.key}>
 									{exporting === chart.key ? 'Henter …' : 'Hent PNG'}
 								</button>
+								<span class="tool-sep" aria-hidden="true">·</span>
 								<button class="png-btn" onclick={() => (embedKey = chart.key)}>Indlejr</button>
 							</div>
 						{/if}

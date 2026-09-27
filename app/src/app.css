@@ -400,7 +400,15 @@ em {
 .card-tools {
 	display: flex;
 	justify-content: flex-end;
+	align-items: center;
+	gap: 8px;
 	margin-top: 2px;
+}
+
+/* A dot between two tools in the row (Hent PNG · Indlejr). */
+.tool-sep {
+	font-size: 12px;
+	color: var(--ink-muted);
 }
 
 .png-btn {
