@@ -78,6 +78,14 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
   JSON per page at `/oembed/<scenario>/<serie>.json`, the optional host script
   `static/indlejr/resize.js`; wording, URLs and codes in `lib/embed.ts`, the "Indlejr" dialog in
   `EmbedDialog.svelte`. Design: docs/superpowers/specs/2026-09-27-embeds-design.md.
+  Open data (makroskop-gko): `/aabne-data/` documents and links every file; `scripts/data-files.ts`
+  writes `build/data/csv/` (comma), `csv-da/` (semicolon, BOM), `alle-scenarier.csv`,
+  `grundforloeb.csv`, `ordbog*.csv` and the deterministic `makroskop-data-<v>.zip` during
+  `bun run build`; logic in `lib/opendata.ts` + `lib/server/opendata-files.ts`. The committed manifest
+  `static/data/udgivelse.json` pins the data checksums: after an `extract.py` run that changes
+  numbers the guard test fails until `bun run data:release --changelog "…"`; `bun run data:publish`
+  (only with the owner's go-ahead) creates the GitHub Release `data-<v>`. Data licence CC BY 4.0,
+  `CITATION.cff` at the repo root. Design: docs/superpowers/specs/2026-09-27-open-data-design.md.
   Build: `bun run build`.
 - `etl/` — Python (uv). `extract.py` writes `app/static/data/*.json` from GDX files. It
   refuses to run when a scenario's solver stamp (`makroskop_meta`: shock, factor, delta,

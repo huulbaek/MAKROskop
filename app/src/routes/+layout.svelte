@@ -351,7 +351,9 @@
 			flex-basis: 100%;
 			order: 3;
 			margin-left: 0;
-			gap: 18px;
+			gap: 0 18px;
+			/* never wider than the phone: on the narrowest screens the last entry wraps */
+			flex-wrap: wrap;
 		}
 		.tools {
 			margin: 0 0 0 auto;
@@ -366,6 +368,16 @@
 		}
 		footer {
 			margin-top: 64px;
+		}
+	}
+
+	/* Five nav entries on one line down to 360px phones (288px of text at 14.5px). */
+	@media (max-width: 420px) {
+		nav {
+			column-gap: 10px;
+		}
+		nav a {
+			font-size: 13.5px;
 		}
 	}
 </style>

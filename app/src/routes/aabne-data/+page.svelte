@@ -62,6 +62,7 @@
 		<h2 id="scenarier">Pr. scenarie</h2>
 		{#each od.groups as group (group.group)}
 			<h3>{group.group}</h3>
+			<div class="table-wrap">
 			<table class="files">
 				<thead>
 					<tr><th scope="col">Stød</th><th scope="col">Variant</th><th scope="col">Filer</th></tr>
@@ -83,6 +84,7 @@
 					{/each}
 				</tbody>
 			</table>
+			</div>
 		{/each}
 	</section>
 
@@ -191,7 +193,8 @@
 		padding: 10px 16px;
 		border-radius: 4px;
 		background: var(--makro-strong);
-		color: #fff;
+		/* the page colour: light on dark teal, dark on the dark theme's light teal */
+		color: var(--page);
 		font-weight: 500;
 		text-decoration: none;
 	}
