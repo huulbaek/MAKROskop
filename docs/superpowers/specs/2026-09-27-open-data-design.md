@@ -14,8 +14,10 @@ every column without asking, and cite exactly which version of the numbers they 
   stable URLs, and every version is kept as a GitHub Release with a zip. A citation names the
   version. A DOI comes later for free: once the owner switches the repository on in Zenodo
   (sign-in with GitHub), every `data-…` release gets one.
-- **Contents:** the site's series only — all 53 series per scenario as deviations, plus the
-  baseline levels. The solved GDX files (4 GB) are not published.
+- **Contents:** the site's series only — per scenario the 50 series whose deviations are pct. or
+  pct.-point, plus the baseline levels. The three `gdp_pp` series (vSaldo, vPrimSaldo, vOff13Net) are
+  raw level differences ×100 in the JSON and are left out of the CSVs (final review); their ratios
+  to BNP are published. The solved GDX files (4 GB) are not published.
 - **CSV dialects:** both an international one (comma, decimal point, UTF-8) and a Danish one
   (semicolon, decimal comma, UTF-8 with BOM).
 - **Licence:** CC BY 4.0 for the data (the code stays MIT). Credit: MAKROskop; model: DREAM's
@@ -72,7 +74,10 @@ list, the zip builder, the version rule, the citation text, and the manifest typ
   releases, `url` = the GitHub Release page).
 - **Data guard:** an app test recomputes the SHA-256 of the committed data files and fails when
   they differ from the manifest, with "Data er ændret siden version <v>: kør `bun run
-  data:release`". Code and wording changes do not bump the version.
+  data:release`". The same check (`buildProblems`) stops the build step, since the deploy runs
+  no tests. The manifest also pins the zip (`zip`: name, bytes, SHA-256), so any change to the
+  zip's bytes — read-me or citation wording included — needs a new version (final review); the
+  zip's own copy of the manifest leaves out `zip` and `doi`.
 - **Format guard:** `FORMAT_VERSION` in `opendata.ts` must equal the manifest's `format`; changing
   a CSV or zip layout means bumping the constant, which fails the same test until a new release.
 - **`bun run data:release`** (local): computes the checksums and the next version, moves the
