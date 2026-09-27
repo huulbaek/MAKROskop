@@ -60,8 +60,12 @@ export interface ScenarioDefinition {
 	 *  could not cross. null = the UI default. */
 	maxScale: number | null;
 	maxScaleDa: string | null;
-	/** Plain-language mechanism text for readers, when the catalog has one. */
+	/** Plain-language mechanism text for readers, when the catalog has one; written for this
+	 *  variant, since the financed run's lukkeskat can flip the signs (makroskop-gnp.8). */
 	explainerDa?: string | null;
+	/** Financed runs: the lukkeskat's revenue, vtLukning / vBNP in pct. in the shock year (negative
+	 *  = a tax cut). null for unfinanced runs. */
+	lukningShare?: number | null;
 	/** The shock's channel on the mechanism map: chains of series keys, "a>b>c" (mechanism.ts). */
 	channel?: string[] | null;
 }

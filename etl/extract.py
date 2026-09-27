@@ -181,6 +181,15 @@ def read_hbi(container: gt.Container) -> float | None:
     return sig_round(float(records.iloc[0]["level"]))
 
 
+def lukning_share(container: gt.Container, gdp: dict[int, float], year: int) -> float:
+    """vtLukning / vBNP in pct. in `year` of a financed solve (the reference has no lukkeskat, so the
+    level is the effect). tLukning is the same every year; this share drifts a little with the tax base."""
+    revenue = read_records(container, SeriesDef("vtLukning", "vtLukning", ("tot",), "", "", "", "", None, "pp"))
+    if year not in revenue or not gdp.get(year):
+        raise ValueError(f"no vtLukning/vBNP in {year}")
+    return revenue[year] / gdp[year] * 100
+
+
 def extract_shock(
     gdx_path: Path, baseline_detrended: dict[str, dict[int, float]], factors: dict[str, dict[int, float]] | None = None
 ) -> dict:
@@ -209,7 +218,13 @@ def extract_shock(
             deviations[key] = to_column({
                 year: (value - base[year]) * 100 for year, value in shock_detrended[key].items() if year in base
             })
-    return {"deviations": deviations, "hbi": read_hbi(container), "solverMeta": solver_meta}
+    share = None
+    if solver_meta.get("closure") == "tax-reaction":
+        if not solver_meta.get("from_year"):
+            raise SystemExit(f"{gdx_path.name}: financed solve without from_year in its stamp")
+        share = sig_round(lukning_share(container, shock_detrended.get("vBNP", {}), int(solver_meta["from_year"])))
+    return {"deviations": deviations, "hbi": read_hbi(container), "solverMeta": solver_meta,
+            "lukningShare": share}
 
 
 # Data vintage per MAKRO release, as DREAM asks results to be cited ("MAKRO 26-juni baseret på
@@ -405,9 +420,11 @@ def main() -> None:
     for shock_name, variants in found.items():
         for suffix, gdx_path in variants:
             print(f"Reading shock {gdx_path.name} ...")
+            extracted = extract_shock(gdx_path, shock_reference, factors)
             payload = {"shock": shock_name, "variation": suffix, "synthetic": False,
-                       "definition": shock_definition(shock_name, suffix, MODEL_HORIZON_END),
-                       **extract_shock(gdx_path, shock_reference, factors)}
+                       "definition": shock_definition(shock_name, suffix, MODEL_HORIZON_END,
+                                                      lukning_share=extracted.pop("lukningShare")),
+                       **extracted}
             solver_meta = payload.pop("solverMeta")
             payload["solved"] = solved_spec(solver_meta)
             payload["modelVersion"] = scenario_model_version(solver_meta, current_version)

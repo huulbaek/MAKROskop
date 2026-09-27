@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compareFilenameVariant, financingLine, partnerVariation } from './compare';
+import { closureTaxLine, compareFilenameVariant, financingLine, partnerVariation } from './compare';
 import { readMeta, readScenario } from './server/scenarios';
 
 const YEAR_START = 2025;
@@ -59,6 +59,50 @@ describe('financingLine', () => {
 		const p = pair(0.1, 0.1, 1);
 		delete (p.perm.deviations as Record<string, unknown>).tLukning;
 		expect(financingLine({ ...p, ...base })).toBeNull();
+	});
+});
+
+describe('closureTaxLine', () => {
+	const financed = (tLukning: number, lukningShare: number | null) => ({
+		deviations: { tLukning: series({ 2030: tLukning }) },
+		definition: { firstYear: 2030, lukningShare }
+	});
+	const base = { yearStart: YEAR_START, scale: 1 };
+
+	it('states the lukkeskat in the units of the compare line, with its share of BNP', () => {
+		expect(closureTaxLine({ perm: financed(-2.1258, -0.5513), ...base })).toBe(
+			'I denne beregning sænker lukkeskatten husholdningernes direkte skatter med 2,13 pct.-point – ca. 0,55 pct. af BNP i 2030.'
+		);
+	});
+
+	it('scales and mirrors with the slider', () => {
+		const line = closureTaxLine({ perm: financed(-2.1258, -0.5513), ...base, scale: -2 });
+		expect(line).toContain('hæver lukkeskatten husholdningernes direkte skatter med 4,25 pct.-point');
+		expect(line).toContain('ca. 1,1 pct. af BNP');
+	});
+
+	it('says a negligible move as such, as the compare line does', () => {
+		expect(closureTaxLine({ perm: financed(0.003, 0.0008), ...base })).toBe(
+			'I denne beregning kræver finansieringen ingen nævneværdig ændring af lukkeskatten.'
+		);
+	});
+
+	it('says a small share as under 0,01 pct.', () => {
+		expect(closureTaxLine({ perm: financed(0.019, 0.0048), ...base })).toContain('– under 0,01 pct. af BNP i 2030.');
+	});
+
+	it('leaves the share out when the data has none, and is null without the lukkeskat', () => {
+		expect(closureTaxLine({ perm: financed(-2.1258, null), ...base })).toBe(
+			'I denne beregning sænker lukkeskatten husholdningernes direkte skatter med 2,13 pct.-point.'
+		);
+		expect(closureTaxLine({ perm: { deviations: {}, definition: { firstYear: 2030 } }, ...base })).toBeNull();
+	});
+
+	it('agrees with the shipped financed Bundskat', () => {
+		const perm = readScenario('Bundskat_perm');
+		expect(closureTaxLine({ perm, yearStart: readMeta().yearStart, scale: 1 })).toBe(
+			'I denne beregning sænker lukkeskatten husholdningernes direkte skatter med 2,13 pct.-point – ca. 0,55 pct. af BNP i 2030.'
+		);
 	});
 });
 

@@ -1,4 +1,4 @@
-"""Per-shock digest for explainer audits (makroskop-gnp.7): catalog text + _ufin/_perm deviations at key years.
+"""Per-shock digest for explainer audits (makroskop-gnp.7/.8): catalog texts + _ufin/_perm texts and deviations at key years.
 
 Usage (from etl/): uv run python explainer_digest.py <out-dir>  → <out-dir>/<Shock>.txt, one per ShockRun.
 vSaldo/vPrimSaldo/vOff13Net are raw level differences; read saldo2bnp/primsaldo2bnp/nettoformue2bnp instead.
@@ -17,12 +17,15 @@ index = []
 for run in catalog.SHOCK_RUNS:
     lines = [f'# {run.shock}', f'instrument: {run.instrument}  ({run.instrument_da})', f'change: {run.change_da}  factor={run.factor} delta={run.delta}',
              f'solver_shock: {run.solver_shock or run.instrument}  endogenize: {run.endogenize or "-"}',
-             f'dream_da: {run.dream_da}', f'explainer_da: {run.explainer_da}', f'channel: {run.channel}', '']
+             f'dream_da: {run.dream_da}', f'explainer_da: {run.explainer_da}', f'explainer_perm_da: {run.explainer_perm_da}', f'channel: {run.channel}', '']
     for v in ('_ufin', '_perm'):
         f = DATA / 'shocks' / f'{run.shock}{v}.json'
         if not f.exists():
             lines.append(f'({run.shock}{v}: no data)'); continue
-        dev = json.loads(f.read_text())['deviations']
+        scenario = json.loads(f.read_text()); dev = scenario['deviations']
+        lines.append(f'{v} explainer (as shipped): {scenario["definition"].get("explainerDa")}')
+        if scenario['definition'].get('lukningShare') is not None:
+            lines.append(f'{v} lukningShare (vtLukning/vBNP, pct., shock year): {scenario["definition"]["lukningShare"]:+.3f}')
         lines.append(f'## {v}  deviations from reference ({"pct" }; devMode pp = pct.-points). Years: {YEARS}  | min/max over 2030-2100')
         for k in KEYS:
             if k not in dev: continue

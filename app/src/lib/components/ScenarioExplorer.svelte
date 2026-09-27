@@ -8,7 +8,7 @@
 	import { ALL_SCALE_STEPS, cardSubject, cardTiles, changeText, formatScale, scaleSteps as stepsFor } from '$lib/card';
 	import type { CardTile } from '$lib/card';
 	import { buildAnswerSentence, type AnswerSentence } from '$lib/answer';
-	import { compareFilenameVariant, financingLine, partnerVariation } from '$lib/compare';
+	import { closureTaxLine, compareFilenameVariant, financingLine, partnerVariation } from '$lib/compare';
 	import {
 		defaultVariation, devUnit, loadBaseline, loadScenario, seriesByKey, type Baseline, type Meta, type Scenario, type ShockMeta
 	} from '$lib/data';
@@ -229,6 +229,11 @@
 			: null
 	);
 	const exportVariant = $derived(comparing ? compareFilenameVariant : selectedVariation);
+
+	/** A financed run's lukkeskat for the Finansiering row, scaled and mirrored with the slider. */
+	const closureTax = $derived(
+		scenario?.definition?.lukningShare != null ? closureTaxLine({ perm: scenario, yearStart: meta.yearStart, scale }) : null
+	);
 
 	/** The shock size implied by the slider, in the instrument's own units. */
 	const scaledChange = $derived.by(() => {
@@ -490,7 +495,11 @@
 		{#if answer}
 			<p class="answer"><strong>{answer.lead}</strong> {answer.body}</p>
 		{/if}
-		{#if scenario?.definition?.explainerDa}
+		{#if runs?.ufin.definition?.explainerDa && runs.perm.definition?.explainerDa}
+			<!-- Each closure has its own text (makroskop-gnp.8): the lukkeskat can flip the signs. -->
+			<p class="explainer"><strong>Ufinansieret:</strong> {runs.ufin.definition.explainerDa}</p>
+			<p class="explainer"><strong>Finansieret:</strong> {runs.perm.definition.explainerDa}</p>
+		{:else if scenario?.definition?.explainerDa}
 			<p class="explainer">{scenario.definition.explainerDa}</p>
 		{/if}
 
@@ -531,7 +540,7 @@
 					</div>
 					<div>
 						<dt>Finansiering</dt>
-						<dd>{def.closureDa}</dd>
+						<dd>{closureTax ? `${def.closureDa} ${closureTax}` : def.closureDa}</dd>
 					</div>
 					<div>
 						<dt>Beregnet med</dt>
@@ -579,7 +588,8 @@
 							<strong>Negativ skala spejler stødet.</strong> Kataloget indeholder kun forhøjelser,
 							så en lempelse vises ved at vende fortegnet på afvigelserne. Det er en lineær
 							tilnærmelse på den anden side af grundforløbet — retningen er rigtig, men størrelsen
-							er ikke løst i modellen. En rigtig nedsættelse kræver en ny modelkørsel.
+							er ikke løst i modellen. En rigtig nedsættelse kræver en ny modelkørsel. Forklaringen
+							øverst beskriver stødet, som det er beregnet (×1).
 						</p>
 					{/if}
 					{#if def.maxScaleDa}
