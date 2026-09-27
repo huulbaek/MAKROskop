@@ -24,8 +24,8 @@ const EMBED = 'https://makroskop.nodalit.com';
 
 describe('resize.js', () => {
 	it('sets the height of the iframe that sent the message', () => {
-		const a = { src: `${EMBED}/indlejr/Rente_ufin/qBNP/`, contentWindow: {}, style: {} };
-		const b = { src: `${EMBED}/indlejr/Rente_ufin/nL/`, contentWindow: {}, style: {} };
+		const a: Frame = { src: `${EMBED}/indlejr/Rente_ufin/qBNP/`, contentWindow: {}, style: {} };
+		const b: Frame = { src: `${EMBED}/indlejr/Rente_ufin/nL/`, contentWindow: {}, style: {} };
 		const { send } = host([a, b]);
 		send({ origin: EMBED, source: b.contentWindow, data: { type: 'makroskop:height', height: 512.4 } });
 		expect(b.style.height).toBe('512px');
@@ -33,7 +33,7 @@ describe('resize.js', () => {
 	});
 
 	it('clamps the height to 200–1200 px', () => {
-		const a = { src: `${EMBED}/indlejr/x/qBNP/`, contentWindow: {}, style: {} };
+		const a: Frame = { src: `${EMBED}/indlejr/x/qBNP/`, contentWindow: {}, style: {} };
 		const { send } = host([a]);
 		send({ origin: EMBED, source: a.contentWindow, data: { type: 'makroskop:height', height: 5000 } });
 		expect(a.style.height).toBe('1200px');
@@ -42,7 +42,7 @@ describe('resize.js', () => {
 	});
 
 	it('ignores messages from another origin, another window or of another shape', () => {
-		const a = { src: `${EMBED}/indlejr/x/qBNP/`, contentWindow: {}, style: {} };
+		const a: Frame = { src: `${EMBED}/indlejr/x/qBNP/`, contentWindow: {}, style: {} };
 		const { send } = host([a]);
 		send({ origin: 'https://evil.example', source: a.contentWindow, data: { type: 'makroskop:height', height: 500 } });
 		send({ origin: EMBED, source: {}, data: { type: 'makroskop:height', height: 500 } });

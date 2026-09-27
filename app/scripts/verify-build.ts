@@ -1,11 +1,12 @@
 /** Post-build assertions for the share pages: every view has a page and an image, the
  *  sample page carries exactly one of each tag, the bare page keeps the generic ones.
  *  Run after `bun run build` (package.json "verify:build"); exits 1 on any failure. */
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { shareViews } from '../src/lib/card';
 import { QUESTIONS } from '../src/lib/frontpage';
-import { maxScales, readMeta } from '../src/lib/server/scenarios';
+import { embedEntries } from '../src/lib/embed';
+import { maxScales, readMeta, readScenario } from '../src/lib/server/scenarios';
 
 const build = join(process.cwd(), 'build');
 const failures: string[] = [];
@@ -56,8 +57,27 @@ check(grund.includes('Dansk økonomi, beregnet et århundrede frem'), '/grundfor
 check(grund.includes('<title>Grundforløb · MAKROskop</title>'), '/grundforloeb/: <title> is not the page name');
 check(grund.includes('MAKROs grundforløb for dansk økonomi'), '/grundforloeb/: lost the baseline description');
 
+const embeds = embedEntries(meta, readScenario);
+for (const embed of embeds) {
+	const page = join(build, 'indlejr', embed.scenario, embed.serie, 'index.html');
+	check(existsSync(page), `missing embed page ${page}`);
+}
+const builtEmbeds = readdirSync(join(build, 'indlejr'), { withFileTypes: true })
+	.filter((d) => d.isDirectory())
+	.flatMap((d) => readdirSync(join(build, 'indlejr', d.name)));
+check(builtEmbeds.length === embeds.length, `embed pages: ${builtEmbeds.length} built, ${embeds.length} expected`);
+
+const embedPage = readFileSync(join(build, 'indlejr', 'Rente_ufin', 'qBNP', 'index.html'), 'utf8');
+check(count(embedPage, /<title>/g) === 1, 'embed: not exactly one <title>');
+check(embedPage.includes('<meta name="robots" content="noindex"'), 'embed: noindex missing');
+check(embedPage.includes('<link rel="canonical" href="https://makroskop.nodalit.com/scenarier/Rente_ufin/"'), 'embed: canonical missing');
+check(embedPage.includes('href="https://makroskop.nodalit.com/oembed/Rente_ufin/qBNP.json"'), 'embed: oEmbed discovery link missing');
+check(!embedPage.includes('Hovednavigation') && !embedPage.includes('property="og:title"'), 'embed: carries the site chrome or share tags');
+check(embedPage.includes('ECB-renten +1 pct.-point, varigt og ufinansieret'), 'embed: prerendered headline missing');
+check(existsSync(join(build, 'indlejr', 'resize.js')), 'embed: resize.js missing');
+
 if (failures.length) {
 	console.error(`verify-build: ${failures.length} problem(s)\n` + failures.slice(0, 20).join('\n'));
 	process.exit(1);
 }
-console.log(`verify-build: ${views.length} views, pages and images present, tags correct`);
+console.log(`verify-build: ${views.length} views and ${embeds.length} embeds, pages and images present, tags correct`);

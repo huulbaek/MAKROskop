@@ -56,6 +56,8 @@
 		return data && page.url.pathname === new URL(data.url).pathname ? data : undefined;
 	});
 	const current = $derived(links.find((link) => isActive(link.href)));
+	/** Embeds (makroskop-64y) render inside other sites' articles: no header, nav, footer or share tags. */
+	const bare = $derived(page.route.id?.startsWith('/indlejr/') ?? false);
 	/** The front page passes its own title and description (the default answer's numbers). */
 	const head = $derived(page.data.head as PageHead | undefined);
 	const description = $derived(card?.description ?? head?.description ?? current?.description ?? SITE_DESCRIPTION);
@@ -81,74 +83,80 @@
 </script>
 
 <svelte:head>
-	<title>{title}</title>
-	<meta name="description" content={description} />
-	<meta property="og:type" content="website" />
-	<meta property="og:site_name" content="MAKROskop" />
-	<meta property="og:title" content={ogTitle} />
-	<meta property="og:description" content={description} />
-	<meta property="og:image" content={ogImage} />
-	<meta property="og:image:width" content="1200" />
-	<meta property="og:image:height" content="630" />
-	<meta property="og:image:alt" content={ogImageAlt} />
-	{#if card}
-		<link rel="canonical" href={card.url} />
-		<meta property="og:url" content={card.url} />
+	{#if !bare}
+		<title>{title}</title>
+		<meta name="description" content={description} />
+		<meta property="og:type" content="website" />
+		<meta property="og:site_name" content="MAKROskop" />
+		<meta property="og:title" content={ogTitle} />
+		<meta property="og:description" content={description} />
+		<meta property="og:image" content={ogImage} />
+		<meta property="og:image:width" content="1200" />
+		<meta property="og:image:height" content="630" />
+		<meta property="og:image:alt" content={ogImageAlt} />
+		{#if card}
+			<link rel="canonical" href={card.url} />
+			<meta property="og:url" content={card.url} />
+		{/if}
+		<meta property="og:locale" content="da_DK" />
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="theme-color" content="#14AFA6" />
 	{/if}
-	<meta property="og:locale" content="da_DK" />
-	<meta name="twitter:card" content="summary_large_image" />
-	<meta name="theme-color" content="#14AFA6" />
 </svelte:head>
 
-<a class="skip-link" href="#indhold" onclick={skipToContent}>Spring til indhold</a>
-
-<div class="shell">
-	<header>
-		<a class="wordmark" href="/">MAKRO<span>skop</span></a>
-		<nav aria-label="Hovednavigation">
-			{#each links as link (link.href)}
-				<a href={link.href} class:active={isActive(link.href)} aria-current={isActive(link.href) ? 'page' : undefined}>
-					{link.label}
+{#if bare}
+	{@render children()}
+{:else}
+	<a class="skip-link" href="#indhold" onclick={skipToContent}>Spring til indhold</a>
+	
+	<div class="shell">
+		<header>
+			<a class="wordmark" href="/">MAKRO<span>skop</span></a>
+			<nav aria-label="Hovednavigation">
+				{#each links as link (link.href)}
+					<a href={link.href} class:active={isActive(link.href)} aria-current={isActive(link.href) ? 'page' : undefined}>
+						{link.label}
+					</a>
+				{/each}
+			</nav>
+			<div class="tools">
+				<ThemeToggle />
+				<a class="repo" href={REPO_URL} rel="external" aria-label="Kildekode på GitHub">
+					<svg viewBox="0 0 16 16" width="20" height="20" aria-hidden="true" focusable="false">
+						<path
+							d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"
+						/>
+					</svg>
 				</a>
-			{/each}
-		</nav>
-		<div class="tools">
-			<ThemeToggle />
-			<a class="repo" href={REPO_URL} rel="external" aria-label="Kildekode på GitHub">
-				<svg viewBox="0 0 16 16" width="20" height="20" aria-hidden="true" focusable="false">
-					<path
-						d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"
-					/>
-				</svg>
-			</a>
-		</div>
-	</header>
-
-	<main id="indhold" tabindex="-1" bind:this={main}>
-		{@render children()}
-	</main>
-
-	<footer>
-		<p class="about">
-			Bygget på <a href="https://github.com/DREAM-DK/MAKRO" rel="external">MAKRO</a>, den makroøkonomiske
-			model udviklet af DREAM-gruppen til Finansministeriet m.fl. Grundforløbet er stiliseret og egner sig
-			kun til marginale eksperimenter, ikke som prognose. MAKROskop er en uafhængig prototype og ikke et
-			produkt fra DREAM eller Finansministeriet.
-		</p>
-		<dl class="stamp">
-			<dt>Model</dt>
-			<dd class="mono">{data.meta.model.name} {data.meta.model.commit}</dd>
-			{#if data.meta.model.dataBasisDa}
-				<dt>Datagrundlag</dt>
-				<dd class="mono">{data.meta.model.dataBasisDa}</dd>
-			{/if}
-			<dt>Sidste dataår</dt>
-			<dd class="mono">{data.meta.lastDataYear}</dd>
-			<dt>MAKROskop</dt>
-			<dd class="mono">{__APP_COMMIT__ ? `${__APP_COMMIT__}, ` : ''}bygget {__BUILD_DATE__}</dd>
-		</dl>
-	</footer>
-</div>
+			</div>
+		</header>
+	
+		<main id="indhold" tabindex="-1" bind:this={main}>
+			{@render children()}
+		</main>
+	
+		<footer>
+			<p class="about">
+				Bygget på <a href="https://github.com/DREAM-DK/MAKRO" rel="external">MAKRO</a>, den makroøkonomiske
+				model udviklet af DREAM-gruppen til Finansministeriet m.fl. Grundforløbet er stiliseret og egner sig
+				kun til marginale eksperimenter, ikke som prognose. MAKROskop er en uafhængig prototype og ikke et
+				produkt fra DREAM eller Finansministeriet.
+			</p>
+			<dl class="stamp">
+				<dt>Model</dt>
+				<dd class="mono">{data.meta.model.name} {data.meta.model.commit}</dd>
+				{#if data.meta.model.dataBasisDa}
+					<dt>Datagrundlag</dt>
+					<dd class="mono">{data.meta.model.dataBasisDa}</dd>
+				{/if}
+				<dt>Sidste dataår</dt>
+				<dd class="mono">{data.meta.lastDataYear}</dd>
+				<dt>MAKROskop</dt>
+				<dd class="mono">{__APP_COMMIT__ ? `${__APP_COMMIT__}, ` : ''}bygget {__BUILD_DATE__}</dd>
+			</dl>
+		</footer>
+	</div>
+{/if}
 
 <style>
 	.shell {
