@@ -13,6 +13,7 @@
 		defaultVariation, devUnit, loadBaseline, loadScenario, seriesByKey, type Baseline, type Meta, type Scenario, type ShockMeta
 	} from '$lib/data';
 	import { RECOMPUTING } from '$lib/notices';
+	import { DATA_PAGE, DATA_VERSION } from '$lib/release';
 	import { SITE_URL } from '$lib/site';
 	import { EMBED_SERIES, chartUnit, embedHeadline, embedHeight, embedTarget, embedUrl } from '$lib/embed';
 	import EmbedDialog from '$lib/components/EmbedDialog.svelte';
@@ -404,6 +405,7 @@
 				scenarioLine,
 				'Afvigelser fra grundforløbet: pct. for mængder og priser, pct.-point for satser og saldi',
 				provenance,
+				`Dataversion ${DATA_VERSION} · alle tal: ${page.url.origin}${DATA_PAGE}`,
 				`Kilde: ${shareUrl}`
 			]
 		});
@@ -694,6 +696,7 @@
 			</div>
 			{#if shareable}
 				<p class="kilde">Kilde: {provenance} · <a href={shareUrl}>{shareUrl}</a></p>
+				<p class="kilde">Alle tallene kan hentes under <a href={DATA_PAGE}>Data</a> (dataversion {DATA_VERSION}).</p>
 			{/if}
 		{:else if loading}
 			<div class="card loading-card">
