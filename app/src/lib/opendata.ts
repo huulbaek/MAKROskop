@@ -1,7 +1,8 @@
 /** Open data (makroskop-gko): the downloadable files behind /aabne-data/. This module is pure and
  *  browser-safe (the page imports it); file I/O, checksums and the zip live in
  *  server/opendata-files.ts. Design: docs/superpowers/specs/2026-09-27-open-data-design.md. */
-import { devUnit, type SeriesMeta } from './data';
+import { devUnit, type Meta, type SeriesMeta } from './data';
+import { SITE_URL } from './site';
 
 /** 'intl': comma, decimal point, UTF-8. 'da': semicolon, decimal comma, UTF-8 with BOM (Danish Excel). */
 export type Dialect = 'intl' | 'da';
@@ -74,4 +75,171 @@ export function dictionaryCsv(series: SeriesMeta[], dialect: Dialect): string {
 			: ['nøgle', 'betegnelse', 'betegnelse_en', 'gruppe', 'enhed', 'afvigelsesenhed'];
 	const rows = series.map((s) => [s.key, s.labelDa, s.labelEn, s.group, s.unit, devUnit(s.devMode)]);
 	return csv([header, ...rows], dialect);
+}
+
+/** Bumped whenever a CSV or zip layout changes, so a published version's zip never changes. */
+export const FORMAT_VERSION = 1;
+export const DATA_LICENSE = 'CC-BY-4.0';
+export const REPO_URL = 'https://github.com/huulbaek/makroskop';
+
+export interface ReleaseRef {
+	version: string;
+	date: string;
+	changelog: string;
+	url: string;
+}
+
+/** static/data/udgivelse.json: what the current data is, its checksums, and the earlier versions. */
+export interface Manifest {
+	version: string;
+	date: string;
+	format: number;
+	model: Meta['model'];
+	license: string;
+	doi?: string;
+	changelog: string;
+	/** SHA-256 of each committed data file, by path under static/data/. */
+	files: Record<string, string>;
+	earlier: ReleaseRef[];
+}
+
+export function manifestText(m: Manifest): string {
+	return JSON.stringify(m, null, '\t') + '\n';
+}
+
+export function releaseTag(version: string): string {
+	return `data-${version}`;
+}
+
+export function releaseUrl(version: string): string {
+	return `${REPO_URL}/releases/tag/${releaseTag(version)}`;
+}
+
+/** `YYYY.MM.DD` from the release date; a second release that day is `.2`, then `.3`, … */
+export function nextVersion(date: string, current: string | null): string {
+	const base = date.replaceAll('-', '.');
+	if (!current || (current !== base && !current.startsWith(`${base}.`))) return base;
+	const n = current === base ? 1 : Number(current.slice(base.length + 1));
+	return `${base}.${n + 1}`;
+}
+
+export function changedFiles(before: Record<string, string>, after: Record<string, string>): string[] {
+	const paths = new Set([...Object.keys(before), ...Object.keys(after)]);
+	return [...paths].filter((p) => before[p] !== after[p]).sort();
+}
+
+/** The next manifest, or why there is none. */
+export function planRelease(p: {
+	current: Manifest | null;
+	files: Record<string, string>;
+	model: Meta['model'];
+	date: string;
+	changelog: string;
+}): { manifest: Manifest } | { refused: string } {
+	const { current } = p;
+	if (current && changedFiles(current.files, p.files).length === 0 && current.format === FORMAT_VERSION) {
+		return { refused: `Ingen ændringer i data eller format siden version ${current.version}.` };
+	}
+	if (!p.changelog.trim()) return { refused: 'Skriv hvad der er ændret: bun run data:release --changelog "…"' };
+	return {
+		manifest: {
+			version: nextVersion(p.date, current?.version ?? null),
+			date: p.date,
+			format: FORMAT_VERSION,
+			model: p.model,
+			license: DATA_LICENSE,
+			changelog: p.changelog.trim(),
+			files: p.files,
+			earlier: current
+				? [{ version: current.version, date: current.date, changelog: current.changelog, url: releaseUrl(current.version) }, ...current.earlier]
+				: []
+		}
+	};
+}
+
+function modelLine(m: Manifest): string {
+	const version = m.model.commit ? `${m.model.name} (${m.model.commit})` : m.model.name;
+	return m.model.dataBasisDa ? `${version}, ${m.model.dataBasisDa}` : version;
+}
+
+export function citation(m: Manifest, lang: 'da' | 'en'): string {
+	const year = m.date.slice(0, 4);
+	const title =
+		lang === 'da'
+			? `Scenarieberegninger med MAKRO, dataversion ${m.version} [datasæt]`
+			: `Scenario calculations with MAKRO, data version ${m.version} [dataset]`;
+	const doi = m.doi ? ` https://doi.org/${m.doi}` : '';
+	return `MAKROskop (${year}). ${title}. Model: ${modelLine(m)}. ${SITE_URL}/aabne-data/${doi}`;
+}
+
+/** LAES-MIG.md in the zip. */
+export function readme(m: Manifest, scenarioCount: number): string {
+	return `# MAKROskop – data, version ${m.version}
+
+Version ${m.version} (${m.date}) · ${modelLine(m)} · ${scenarioCount} scenarier.
+${m.changelog}
+
+## Hvad tallene er
+
+Hvert scenarie er ét stød til MAKRO – DREAM-gruppens makroøkonomiske model af Danmark – løst med
+MAKROskops frie løser over hele modellens horisont (til 2129; filerne går til 2100). Tallene er
+afvigelser fra modellens kalibrerede referenceforløb: pct. for mængder og priser, pct.-point for
+satser, andele og saldi (se \`ordbog.csv\`). Stødet sættes ind i 2030. Varianterne:
+_ufin = permanent og ufinansieret; _perm = permanent og finansieret med den beregningstekniske
+lukkeskat, så den offentlige nettoformue i 2129 udgør samme andel af BNP som i grundforløbet.
+Løseren er efterprøvet mod GAMS: ${SITE_URL}/validering/
+
+## Filer
+
+- \`shocks/<scenarie>.json\`, \`meta.json\`, \`baseline.json\`: de samme filer som hjemmesiden bruger.
+- \`csv/\`: kommasepareret, decimalpunktum, UTF-8 (R, Python, Stata).
+- \`csv-da/\`: semikolonsepareret, decimalkomma, UTF-8 med BOM (dansk Excel).
+- \`csv*/<scenarie>.csv\`: én række pr. år, én kolonne pr. serie.
+- \`csv*/alle-scenarier.csv\`: alle scenarier i langt format (scenarie, stød, variant, serie, år, værdi).
+- \`csv*/grundforloeb.csv\`: grundforløbets niveauer.
+- \`ordbog.csv\`, \`ordbog-da.csv\`: seriernes betegnelser, enheder og afvigelsesenheder.
+- \`udgivelse.json\`: version, model og SHA-256 for hver datafil.
+
+## Citér
+
+${citation(m, 'da')}
+
+${citation(m, 'en')}
+
+## Licens
+
+Data: CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/) – kreditér MAKROskop.
+Modellen er DREAM-gruppens MAKRO (https://github.com/DREAM-DK/MAKRO, MIT). MAKROskop er en
+uafhængig prototype og ikke et produkt fra DREAM eller Finansministeriet.
+
+## English
+
+Scenario results from DREAM's MAKRO model of Denmark, solved with MAKROskop's free solver.
+Values are deviations from the calibrated reference path (pct. or pct.-points, see \`ordbog.csv\`),
+shock year 2030. Licence CC BY 4.0; please cite as above.
+`;
+}
+
+/** CITATION.cff at the repository root (GitHub's "Cite this repository"). */
+export function citationCff(m: Manifest): string {
+	return `cff-version: 1.2.0
+message: "Brug gerne tallene – citér dem sådan. / Please cite the data as below."
+type: dataset
+title: "MAKROskop: scenarieberegninger med MAKRO"
+authors:
+  - given-names: Thomas
+    family-names: Titanium
+version: "${m.version}"
+date-released: "${m.date}"
+url: "${SITE_URL}/aabne-data/"
+repository-code: "${REPO_URL}"
+license: ${DATA_LICENSE}
+${m.doi ? `doi: "${m.doi}"\n` : ''}references:
+  - type: software
+    title: "MAKRO"
+    authors:
+      - name: "DREAM"
+    url: "https://github.com/DREAM-DK/MAKRO"
+    license: MIT
+`;
 }

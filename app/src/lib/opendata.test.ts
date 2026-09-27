@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { SeriesMeta } from './data';
-import { BOM, csvNumber, dictionaryCsv, longCsv, wideCsv } from './opendata';
+import {
+	BOM, FORMAT_VERSION, changedFiles, citation, citationCff, csvNumber, dictionaryCsv, longCsv, manifestText, nextVersion, planRelease,
+	readme, wideCsv, type Manifest
+} from './opendata';
 
 const series: SeriesMeta[] = [
 	{ key: 'qBNP', labelDa: 'BNP (realt)', labelEn: 'GDP (real)', group: 'Nationalregnskab', unit: 'mia. 2020-kr.', devMode: 'pct', sector: null },
@@ -68,5 +71,105 @@ describe('dictionaryCsv', () => {
 		const lines = dictionaryCsv(series, 'da').split('\n');
 		expect(lines[0]).toBe(`${BOM}nøgle;betegnelse;betegnelse_en;gruppe;enhed;afvigelsesenhed`);
 		expect(lines[1]).toBe('qBNP;BNP (realt);GDP (real);Nationalregnskab;mia. 2020-kr.;pct.');
+	});
+});
+
+const model = { name: 'MAKRO 2026-June', commit: '01f2a43', fingerprint: '7ef41d4943c0', dataBasisDa: 'Nationalregnskabsdata fra marts 2026' };
+const manifest = (over: Partial<Manifest> = {}): Manifest => ({
+	version: '2026.09.27', date: '2026-09-27', format: FORMAT_VERSION, model, license: 'CC-BY-4.0',
+	changelog: 'Første udgivelse', files: { 'meta.json': 'aa', 'shocks/Rente_ufin.json': 'bb' }, earlier: [], ...over
+});
+
+describe('nextVersion', () => {
+	it('is the date, then .2, .3 on the same day', () => {
+		expect(nextVersion('2026-09-27', null)).toBe('2026.09.27');
+		expect(nextVersion('2026-09-27', '2026.09.20')).toBe('2026.09.27');
+		expect(nextVersion('2026-09-27', '2026.09.27')).toBe('2026.09.27.2');
+		expect(nextVersion('2026-09-27', '2026.09.27.2')).toBe('2026.09.27.3');
+	});
+});
+
+describe('changedFiles', () => {
+	it('lists changed, added and removed files', () => {
+		expect(changedFiles({ a: '1', b: '2', c: '3' }, { a: '1', b: '9', d: '4' })).toEqual(['b', 'c', 'd']);
+	});
+});
+
+describe('planRelease', () => {
+	const files = { 'meta.json': 'aa', 'shocks/Rente_ufin.json': 'cc' };
+
+	it('makes the first release', () => {
+		const plan = planRelease({ current: null, files, model, date: '2026-09-27', changelog: 'Første udgivelse' });
+		expect(plan).toEqual({ manifest: manifest({ files }) });
+	});
+
+	it('moves the current version into the earlier ones', () => {
+		const plan = planRelease({ current: manifest(), files, model, date: '2026-10-02', changelog: 'Moms genberegnet' });
+		if (!('manifest' in plan)) throw new Error(plan.refused);
+		expect(plan.manifest.version).toBe('2026.10.02');
+		expect(plan.manifest.earlier).toEqual([
+			{ version: '2026.09.27', date: '2026-09-27', changelog: 'Første udgivelse', url: 'https://github.com/huulbaek/makroskop/releases/tag/data-2026.09.27' }
+		]);
+	});
+
+	it('refuses when nothing changed', () => {
+		const current = manifest();
+		expect(planRelease({ current, files: current.files, model, date: '2026-10-02', changelog: 'x' })).toEqual({
+			refused: 'Ingen ændringer i data eller format siden version 2026.09.27.'
+		});
+	});
+
+	it('releases when only the format changed', () => {
+		const current = manifest({ format: FORMAT_VERSION - 1 });
+		expect('manifest' in planRelease({ current, files: current.files, model, date: '2026-10-02', changelog: 'Nyt CSV-format' })).toBe(true);
+	});
+
+	it('refuses without a changelog line', () => {
+		expect(planRelease({ current: null, files, model, date: '2026-09-27', changelog: '  ' })).toEqual({
+			refused: 'Skriv hvad der er ændret: bun run data:release --changelog "…"'
+		});
+	});
+});
+
+describe('manifestText', () => {
+	it('is stable, indented JSON with a final newline', () => {
+		expect(manifestText(manifest())).toBe(JSON.stringify(manifest(), null, '\t') + '\n');
+	});
+});
+
+describe('citation', () => {
+	it('names the version, the model and the page', () => {
+		expect(citation(manifest(), 'da')).toBe(
+			'MAKROskop (2026). Scenarieberegninger med MAKRO, dataversion 2026.09.27 [datasæt]. ' +
+				'Model: MAKRO 2026-June (01f2a43), Nationalregnskabsdata fra marts 2026. https://makroskop.nodalit.com/aabne-data/'
+		);
+		expect(citation(manifest(), 'en')).toBe(
+			'MAKROskop (2026). Scenario calculations with MAKRO, data version 2026.09.27 [dataset]. ' +
+				'Model: MAKRO 2026-June (01f2a43), Nationalregnskabsdata fra marts 2026. https://makroskop.nodalit.com/aabne-data/'
+		);
+	});
+
+	it('adds the DOI when there is one', () => {
+		expect(citation(manifest({ doi: '10.5281/zenodo.123' }), 'da')).toMatch(/ https:\/\/doi\.org\/10\.5281\/zenodo\.123$/);
+	});
+});
+
+describe('readme and CITATION.cff', () => {
+	it('carries the version, the licence, the credit and the citation', () => {
+		const text = readme(manifest(), 78);
+		expect(text).toContain('Version 2026.09.27');
+		expect(text).toContain('CC BY 4.0');
+		expect(text).toContain('DREAM');
+		expect(text).toContain('78 scenarier');
+		expect(text).toContain(citation(manifest(), 'da'));
+	});
+
+	it('writes a CITATION.cff for the version', () => {
+		const cff = citationCff(manifest());
+		expect(cff).toContain('cff-version: 1.2.0');
+		expect(cff).toContain('version: "2026.09.27"');
+		expect(cff).toContain('date-released: "2026-09-27"');
+		expect(cff).toContain('license: CC-BY-4.0');
+		expect(cff).toContain('url: "https://github.com/DREAM-DK/MAKRO"');
 	});
 });
