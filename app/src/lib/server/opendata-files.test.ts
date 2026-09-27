@@ -1,6 +1,6 @@
 import { unzipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
-import { BOM, FORMAT_VERSION, type Manifest } from '../opendata';
+import { BOM, FORMAT_VERSION, publishedSeries, type Manifest } from '../opendata';
 import { dataChecksums, derivedFiles, loadDataSet, releaseZip, zipEntries, zipName } from './opendata-files';
 
 const ds = loadDataSet();
@@ -52,14 +52,14 @@ describe('derivedFiles', () => {
 
 	it('writes one long row per non-null value over all scenarios', () => {
 		const values = ds.scenarios.reduce(
-			(sum, s) => sum + ds.meta.series.reduce((n, se) => n + (s.deviations[se.key] ?? []).filter((v) => v != null).length, 0), 0
+			(sum, s) => sum + publishedSeries(ds.meta.series).reduce((n, se) => n + (s.deviations[se.key] ?? []).filter((v) => v != null).length, 0), 0
 		);
 		expect(files['csv/alle-scenarier.csv'].trimEnd().split('\n')).toHaveLength(values + 1);
 	});
 
 	it('explains every series in the data', () => {
 		const keys = new Set(parse(files['ordbog.csv'], ',').slice(1).map((r) => r[0]));
-		for (const s of ds.scenarios) for (const key of Object.keys(s.deviations)) expect(keys.has(key), key).toBe(true);
+		for (const se of publishedSeries(ds.meta.series)) expect(keys.has(se.key), se.key).toBe(true);
 	});
 });
 
@@ -82,6 +82,11 @@ describe('releaseZip', { timeout: 30_000 }, () => {
 		}
 	});
 
+	it('does not change when the DOI or the zip checksum is added to the manifest', () => {
+		const later = { ...manifest, doi: '10.5281/zenodo.1', zip: { name: 'x.zip', bytes: 1, sha256: 'ab' } };
+		expect(same(releaseZip(ds, manifest), releaseZip(ds, later))).toBe(true);
+	});
+
 	it('holds exactly the data, the CSVs, the manifest and the read-me', () => {
 		const names = Object.keys(unzipSync(releaseZip(ds, manifest)));
 		const folder = zipName('2026.09.27').replace('.zip', '');
@@ -89,5 +94,21 @@ describe('releaseZip', { timeout: 30_000 }, () => {
 		expect(zipEntries(ds)).toEqual(
 			[...Object.keys(dataChecksums(ds)), ...Object.keys(files), 'udgivelse.json', 'LAES-MIG.md'].sort()
 		);
+	});
+});
+
+describe('published series', () => {
+	it('publishes only series whose deviations are pct. or pct.-point', () => {
+		// vSaldo, vPrimSaldo, vOff13Net ('gdp_pp') are raw ×100 level differences, not pct.-points;
+		// their ratio series (saldo2bnp, primsaldo2bnp, nettoformue2bnp) are the published ones.
+		const dictionary = parse(files['ordbog.csv'], ',').slice(1).map((r) => r[0]);
+		const header = parse(files['csv/Rente_ufin.csv'], ',')[0];
+		const long = new Set(parse(files['csv/alle-scenarier.csv'], ',').slice(1).map((r) => r[3]));
+		for (const s of ds.meta.series.filter((s) => s.devMode === 'gdp_pp')) {
+			expect(dictionary, s.key).not.toContain(s.key);
+			expect(header, s.key).not.toContain(s.key);
+			expect(long.has(s.key), s.key).toBe(false);
+		}
+		expect(dictionary).toContain('saldo2bnp');
 	});
 });

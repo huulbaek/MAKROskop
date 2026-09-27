@@ -28,6 +28,13 @@ function csv(rows: string[][], dialect: Dialect): string {
 	return dialect === 'da' ? BOM + body : body;
 }
 
+/** The series the open data publishes: those whose deviations are pct. or pct.-point. The 'gdp_pp'
+ *  series (vSaldo, vPrimSaldo, vOff13Net) are raw level differences ×100 in the scenario JSON, which
+ *  no unit describes; their ratios to BNP (saldo2bnp, primsaldo2bnp, nettoformue2bnp) are published. */
+export function publishedSeries(series: SeriesMeta[]): SeriesMeta[] {
+	return series.filter((s) => s.devMode === 'pct' || s.devMode === 'pp');
+}
+
 /** One scenario (or the baseline) as one row per year and one column per series. */
 export function wideCsv(p: {
 	years: number[];
@@ -101,6 +108,16 @@ export interface Manifest {
 	/** SHA-256 of each committed data file, by path under static/data/. */
 	files: Record<string, string>;
 	earlier: ReleaseRef[];
+	/** The release zip as data:release built it; every later build must give the same bytes. Not in
+	 *  the zip's own copy of the manifest (zipManifest). */
+	zip?: { name: string; bytes: number; sha256: string };
+}
+
+/** The manifest inside the zip: without the zip's own checksum and without the DOI, which Zenodo
+ *  mints after the release, so adding either never changes a published zip. */
+export function zipManifest(m: Manifest): Manifest {
+	const { doi: _doi, zip: _zip, ...rest } = m;
+	return rest;
 }
 
 export function manifestText(m: Manifest): string {
@@ -131,16 +148,23 @@ export function changedFiles(before: Record<string, string>, after: Record<strin
 /** The next manifest, or why there is none. */
 export function planRelease(p: {
 	current: Manifest | null;
+	/** The current version has a GitHub Release (earlier versions link there, and its zip leaves the site). */
+	currentPublished: boolean;
+	/** Rebuilding the current version's zip gives other bytes than it was released with (wording, format). */
+	zipChanged?: boolean;
 	files: Record<string, string>;
 	model: Meta['model'];
 	date: string;
 	changelog: string;
 }): { manifest: Manifest } | { refused: string } {
 	const { current } = p;
-	if (current && changedFiles(current.files, p.files).length === 0 && current.format === FORMAT_VERSION) {
-		return { refused: `Ingen ændringer i data eller format siden version ${current.version}.` };
+	if (current && changedFiles(current.files, p.files).length === 0 && current.format === FORMAT_VERSION && !p.zipChanged) {
+		return { refused: `Ingen ændringer i data, format eller zip siden version ${current.version}.` };
 	}
 	if (!p.changelog.trim()) return { refused: 'Skriv hvad der er ændret: bun run data:release --changelog "…"' };
+	if (current && !p.currentPublished) {
+		return { refused: `Version ${current.version} er ikke udgivet på GitHub endnu: kør bun run data:publish først.` };
+	}
 	return {
 		manifest: {
 			version: nextVersion(p.date, current?.version ?? null),
@@ -192,6 +216,8 @@ Løseren er efterprøvet mod GAMS: ${SITE_URL}/validering/
 ## Filer
 
 - \`shocks/<scenarie>.json\`, \`meta.json\`, \`baseline.json\`: de samme filer som hjemmesiden bruger.
+  JSON-filerne indeholder også vSaldo, vPrimSaldo og vOff13Net som interne niveauforskelle ×100;
+  brug i stedet saldo2bnp, primsaldo2bnp og nettoformue2bnp (pct.-point af BNP), som CSV-filerne har.
 - \`csv/\`: kommasepareret, decimalpunktum, UTF-8 (R, Python, Stata).
 - \`csv-da/\`: semikolonsepareret, decimalkomma, UTF-8 med BOM (dansk Excel).
 - \`csv*/<scenarie>.csv\`: én række pr. år, én kolonne pr. serie.
@@ -252,6 +278,8 @@ export function publishProblems(p: {
 	changed: string[];
 	/** Commits not on the upstream; null when there is no upstream to compare with. */
 	unpushed: number | null;
+	/** Uncommitted changes to the manifest, the data or CITATION.cff (git status --porcelain). */
+	uncommitted: string[];
 }): string[] {
 	const problems: string[] = [];
 	if (!p.manifest) problems.push('Ingen udgivelse: kør bun run data:release først.');
@@ -259,6 +287,7 @@ export function publishProblems(p: {
 	if (p.manifest && p.tagExists) problems.push(`${releaseTag(p.manifest.version)} findes allerede på GitHub.`);
 	if (p.manifest && p.changed.length)
 		problems.push(`Data er ændret siden version ${p.manifest.version} (${p.changed.join(', ')}): kør bun run data:release.`);
+	if (p.uncommitted.length) problems.push(`Ikke committet: ${p.uncommitted.join(', ')} — commit og push først.`);
 	if (p.unpushed === null) problems.push('Grenen har ingen upstream: push den først, så tagget peger på manifestet.');
 	else if (p.unpushed > 0) problems.push(`${p.unpushed} commit(s) er ikke pushet: push først, så tagget peger på manifestet.`);
 	return problems;
@@ -266,4 +295,29 @@ export function publishProblems(p: {
 
 export function releaseNotes(m: Manifest): string {
 	return `${m.changelog}\n\n${modelLine(m)}\n\nCitér: ${citation(m, 'da')}\n\nLicens: CC BY 4.0 – ${SITE_URL}/aabne-data/`;
+}
+
+/** Why a build must not ship: the committed data, files, format or zip differ from the released version. */
+export function buildProblems(p: {
+	manifest: Manifest | null;
+	checksums: Record<string, string>;
+	onDisk: string[];
+	zipSha: string;
+}): string[] {
+	const m = p.manifest;
+	if (!m) return ['static/data/udgivelse.json mangler: kør bun run data:release.'];
+	const problems: string[] = [];
+	const changed = changedFiles(m.files, p.checksums);
+	if (changed.length) problems.push(`Data er ændret siden version ${m.version} (${changed.join(', ')}): kør bun run data:release.`);
+	const listed = new Set(Object.keys(m.files));
+	const unlisted = p.onDisk.filter((f) => !listed.has(f));
+	if (unlisted.length)
+		problems.push(`Datafilerne på disken er ikke dem i udgivelse.json (${unlisted.join(', ')}): kør bun run data:release.`);
+	if (m.format !== FORMAT_VERSION) problems.push(`Filformatet er ændret (${m.format} → ${FORMAT_VERSION}): kør bun run data:release.`);
+	if (!m.zip) problems.push('udgivelse.json har ingen zip-kontrolsum: kør bun run data:release.');
+	else if (!problems.length && m.zip.sha256 !== p.zipSha)
+		problems.push(
+			`Zip-filen for version ${m.version} er ikke den udgivne (SHA-256 ${p.zipSha}, udgivet ${m.zip.sha256}): tekst eller format er ændret — kør bun run data:release.`
+		);
+	return problems;
 }

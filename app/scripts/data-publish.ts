@@ -14,12 +14,15 @@ const ok = (cmd: string, args: string[]) => spawnSync(cmd, args, { stdio: 'ignor
 const revList = spawnSync('git', ['rev-list', '--count', '@{u}..HEAD'], { encoding: 'utf8' });
 const unpushed = revList.status === 0 ? Number(revList.stdout.trim()) : null;
 const head = spawnSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).stdout.trim();
+const status = spawnSync('git', ['status', '--porcelain', '--', 'static/data', '../CITATION.cff'], { encoding: 'utf8' });
+const uncommitted = status.stdout.split('\n').filter(Boolean).map((line) => line.slice(3));
 const problems = publishProblems({
 	manifest,
 	ghAuthed: ok('gh', ['auth', 'status']),
 	tagExists: manifest ? ok('gh', ['release', 'view', releaseTag(manifest.version)]) : false,
 	changed: manifest ? changedFiles(manifest.files, dataChecksums(ds)) : [],
-	unpushed
+	unpushed,
+	uncommitted
 });
 if (problems.length || !manifest) {
 	console.error(`data:publish:\n  ${problems.join('\n  ')}`);

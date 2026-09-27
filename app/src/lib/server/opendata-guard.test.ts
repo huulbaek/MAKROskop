@@ -2,8 +2,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { FORMAT_VERSION, changedFiles } from '../opendata';
-import { dataChecksums, dataFilesOnDisk, loadDataSet, readManifest } from './opendata-files';
+import { FORMAT_VERSION, buildProblems, changedFiles } from '../opendata';
+import { dataChecksums, dataFilesOnDisk, loadDataSet, readManifest, releaseZip, sha256 } from './opendata-files';
 
 const manifest = readManifest();
 
@@ -23,6 +23,12 @@ describe('the released data', () => {
 
 	it('was built with the current file format', () => {
 		expect(manifest!.format, `Filformatet er ændret (FORMAT_VERSION ${FORMAT_VERSION}): kør bun run data:release`).toBe(FORMAT_VERSION);
+	});
+
+	it('builds the zip that was released, as the build step checks too', { timeout: 30_000 }, () => {
+		const ds = loadDataSet();
+		const zipSha = sha256(releaseZip(ds, manifest!));
+		expect(buildProblems({ manifest, checksums: dataChecksums(ds), onDisk: dataFilesOnDisk(), zipSha })).toEqual([]);
 	});
 
 	it('is the version CITATION.cff cites', () => {

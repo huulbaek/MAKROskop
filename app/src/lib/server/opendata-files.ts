@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { strToU8, zipSync, type Zippable } from 'fflate';
 import { solvedScenarios } from '../card';
 import type { Baseline, Meta } from '../data';
-import { dictionaryCsv, longCsv, manifestText, readme, wideCsv, type Dialect, type Manifest, type ScenarioRef } from '../opendata';
+import { dictionaryCsv, longCsv, manifestText, publishedSeries, readme, wideCsv, zipManifest, type Dialect, type Manifest, type ScenarioRef } from '../opendata';
 
 export const DATA_DIR = join(process.cwd(), 'static', 'data');
 const MANIFEST = 'udgivelse.json';
@@ -43,7 +43,7 @@ export function dataChecksums(ds: DataSet): Record<string, string> {
 /** The CSVs and dictionaries, by path under /data/. */
 export function derivedFiles(ds: DataSet): Record<string, string> {
 	const years = Array.from({ length: ds.meta.yearEnd - ds.meta.yearStart + 1 }, (_, i) => ds.meta.yearStart + i);
-	const series = ds.meta.series;
+	const series = publishedSeries(ds.meta.series);
 	const out: Record<string, string> = {};
 	for (const dialect of ['intl', 'da'] as const) {
 		const dir = DIALECT_DIR[dialect];
@@ -72,8 +72,8 @@ export function releaseZip(ds: DataSet, m: Manifest): Uint8Array {
 	const contents: Record<string, string> = {
 		...ds.raw,
 		...derivedFiles(ds),
-		[MANIFEST]: manifestText(m),
-		'LAES-MIG.md': readme(m, ds.scenarios.length)
+		[MANIFEST]: manifestText(zipManifest(m)),
+		'LAES-MIG.md': readme(zipManifest(m), ds.scenarios.length)
 	};
 	const folder = zipName(m.version).replace('.zip', '');
 	const entries: Zippable = {};

@@ -92,5 +92,10 @@
 		"shocks/VirkDisk_perm.json": "99087d18bec3c122dd49691e144872f3661d5e04545c3db1ed2df3daefcd5bb9",
 		"shocks/VirkDisk_ufin.json": "2bd301f890f39797d874da5e24a90fb6571f1b593c99cb9255e4eaea8487b137"
 	},
-	"earlier": []
+	"earlier": [],
+	"zip": {
+		"name": "makroskop-data-2026.09.27.zip",
+		"bytes": 5630136,
+		"sha256": "127ab6ce4b053423453ca9e2944a2dba617964b2e506a89eb1782617abdbc0e4"
+	}
 }

@@ -338,7 +338,8 @@
 		}
 	}
 
-	@media (max-width: 700px) {
+	/* 800px: with five nav entries the one-row header overflows below ~760px (makroskop-gko). */
+	@media (max-width: 800px) {
 		/* two rows: wordmark + tools, then the nav on its own line */
 		header {
 			height: auto;

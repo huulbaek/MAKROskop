@@ -2,7 +2,7 @@
  *  the same builder as scripts/data-files.ts, so the page states the zip it links to. */
 import type { PageServerLoad } from './$types';
 import { devUnit } from '$lib/data';
-import { citation, type Manifest } from '$lib/opendata';
+import { citation, publishedSeries, type Manifest } from '$lib/opendata';
 import { loadDataSet, readManifest, releaseZip, sha256, zipName } from '$lib/server/opendata-files';
 
 export const prerender = true;
@@ -40,7 +40,7 @@ export const load: PageServerLoad = (): { opendata: OpenDataPage } => {
 			zip: { name: zipName(manifest.version), bytes: zip.length, sha256: sha256(zip) },
 			scenarioCount: ds.scenarios.length,
 			groups,
-			series: ds.meta.series.map((s) => ({ key: s.key, labelDa: s.labelDa, group: s.group, unit: s.unit, deviationUnit: devUnit(s.devMode) })),
+			series: publishedSeries(ds.meta.series).map((s) => ({ key: s.key, labelDa: s.labelDa, group: s.group, unit: s.unit, deviationUnit: devUnit(s.devMode) })),
 			citationDa: citation(manifest, 'da'),
 			citationEn: citation(manifest, 'en')
 		}

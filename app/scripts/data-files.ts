@@ -3,7 +3,8 @@
  *  JSON; only static/data/udgivelse.json is committed. */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { derivedFiles, loadDataSet, readManifest, releaseZip, zipName } from '../src/lib/server/opendata-files';
+import { buildProblems } from '../src/lib/opendata';
+import { dataChecksums, dataFilesOnDisk, derivedFiles, loadDataSet, readManifest, releaseZip, sha256, zipName } from '../src/lib/server/opendata-files';
 
 const out = join(process.cwd(), 'build', 'data');
 const manifest = readManifest();
@@ -12,12 +13,18 @@ if (!manifest) {
 	process.exit(1);
 }
 const ds = loadDataSet();
+const zip = releaseZip(ds, manifest);
+// The deploy runs no tests: stop here rather than ship changed numbers or a changed zip under an old version.
+const problems = buildProblems({ manifest, checksums: dataChecksums(ds), onDisk: dataFilesOnDisk(), zipSha: sha256(zip) });
+if (problems.length) {
+	console.error(`data-files:\n  ${problems.join('\n  ')}`);
+	process.exit(1);
+}
 const files = derivedFiles(ds);
 for (const [path, text] of Object.entries(files)) {
 	mkdirSync(dirname(join(out, path)), { recursive: true });
 	writeFileSync(join(out, path), text);
 }
-const zip = releaseZip(ds, manifest);
 writeFileSync(join(out, zipName(manifest.version)), zip);
 writeFileSync(join(out, 'makroskop-data.zip'), zip);
 console.log(`data-files: ${Object.keys(files).length} CSV files and ${zipName(manifest.version)} (${(zip.length / 1e6).toFixed(1)} MB) → build/data/`);
