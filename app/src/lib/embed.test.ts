@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
 	EMBED_HEIGHT, RESIZE_SCRIPT, embedCode, embedHeight, embedPath, embedTarget, embedUrl, escapeHtml, oembedJson,
-	readEmbedQuery, scaleNote
+	readEmbedQuery, scaleNote, EMBED_SERIES, chartUnit, embedEntries, embedHead, embedHeadline, embedSeries, embeddableSeries
 } from './embed';
+import { readMeta, readScenario } from './server/scenarios';
 
 const SITE = 'https://makroskop.nodalit.com';
 
@@ -100,5 +101,94 @@ describe('scaleNote', () => {
 		expect(scaleNote(1)).toBeNull();
 		expect(scaleNote(0.5)).toBe('×0,5 af det beregnede stød, lineær tilnærmelse');
 		expect(scaleNote(-1)).toBe('×−1 af det beregnede stød, spejlet');
+	});
+});
+
+describe('embeddableSeries', () => {
+	const scenario = (keys: string[], seriesKey: string | null = null) => ({
+		deviations: Object.fromEntries(keys.map((k) => [k, [null, 0.1]])),
+		definition: { seriesKey } as never
+	});
+
+	it('leads with the instrument and closes with the lukkeskat for a financed run', () => {
+		const all = [...EMBED_SERIES, 'rRenteECB', 'tLukning'];
+		expect(embeddableSeries(scenario(all, 'rRenteECB'), '_perm')).toEqual(['rRenteECB', ...EMBED_SERIES, 'tLukning']);
+		expect(embeddableSeries(scenario(all, 'rRenteECB'), '_ufin')).toEqual(['rRenteECB', ...EMBED_SERIES]);
+	});
+
+	it('skips series without data and does not list the instrument twice', () => {
+		const keys = embeddableSeries({ deviations: { qBNP: [0.1], nL: [null, null] }, definition: { seriesKey: 'qBNP' } as never }, '_ufin');
+		expect(keys).toEqual(['qBNP']);
+	});
+});
+
+describe('chartUnit', () => {
+	it('names the deviation unit as the page does', () => {
+		expect(chartUnit('pct')).toBe('afvigelse fra grundforløb, pct.');
+		expect(chartUnit('pp')).toBe('afvigelse, pct.-point');
+	});
+});
+
+describe('embedSeries', () => {
+	const ufin = { deviations: { qBNP: [1, 2], rRenteECB: [1, 1] } };
+	const perm = { deviations: { qBNP: [3, 4], rRenteECB: [1, 1] } };
+	const base = { key: 'qBNP', label: 'BNP (realt)', instrument: 'rRenteECB', scale: 1 };
+
+	it('draws one line for a single run, scaled', () => {
+		expect(embedSeries({ ...base, main: ufin, partner: null, variation: '_ufin', scale: 0.5 })).toEqual([
+			{ key: 'qBNP', label: 'BNP (realt)', values: [0.5, 1] }
+		]);
+	});
+
+	it('draws unfinanced then financed in compare mode, whichever run the embed is on', () => {
+		const fromPerm = embedSeries({ ...base, main: perm, partner: ufin, variation: '_perm' });
+		expect(fromPerm.map((s) => [s.label, s.values])).toEqual([['Ufinansieret', [1, 2]], ['Finansieret', [3, 4]]]);
+	});
+
+	it('keeps the instrument as one line even in compare mode', () => {
+		expect(embedSeries({ ...base, key: 'rRenteECB', main: ufin, partner: perm, variation: '_ufin' })).toHaveLength(1);
+	});
+});
+
+describe('shipped data', () => {
+	const meta = readMeta();
+
+	it('lists one embed per series with data, lukkeskat only for financed runs', () => {
+		const entries = embedEntries(meta, readScenario);
+		expect(entries.length).toBeGreaterThan(900);
+		expect(entries).toContainEqual({ scenario: 'Rente_ufin', serie: 'qBNP' });
+		expect(entries).toContainEqual({ scenario: 'Rente_perm', serie: 'tLukning' });
+		expect(entries).not.toContainEqual({ scenario: 'Rente_ufin', serie: 'tLukning' });
+		expect(new Set(entries.map((e) => `${e.scenario}/${e.serie}`)).size).toBe(entries.length);
+	});
+
+	it('words the headline as the share cards do, scaled, mirrored and compared', () => {
+		const shock = meta.shocks.find((s) => s.name === 'Rente')!;
+		const definition = readScenario('Rente_ufin').definition!;
+		const headline = (scale: number, variation = '_ufin', compare = false) =>
+			embedHeadline({ shock, definition, variation, scale, compare });
+		expect(headline(1)).toBe('ECB-renten +1 pct.-point, varigt og ufinansieret');
+		expect(headline(0.5)).toBe('ECB-renten +0,5 pct.-point, varigt og ufinansieret');
+		expect(headline(-1)).toBe('ECB-renten −1 pct.-point, varigt og ufinansieret');
+		expect(headline(1, '_perm')).toBe('ECB-renten +1 pct.-point, varigt og finansieret via lukkeskat');
+		expect(headline(1, '_ufin', true)).toBe('ECB-renten +1 pct.-point, varigt, finansieret og ufinansieret');
+	});
+
+	it('builds the head of the Rente BNP embed', () => {
+		const shock = meta.shocks.find((s) => s.name === 'Rente')!;
+		const head = embedHead({
+			series: meta.series, shock, scenario: 'Rente_ufin', variation: '_ufin', serie: 'qBNP',
+			definition: readScenario('Rente_ufin').definition!
+		});
+		expect(head).toMatchObject({
+			scenario: 'Rente_ufin', name: 'Rente', variation: '_ufin', serie: 'qBNP',
+			headline: 'ECB-renten +1 pct.-point, varigt og ufinansieret',
+			chartTitle: 'BNP (realt)',
+			title: 'ECB-renten +1 pct.-point, varigt og ufinansieret — BNP (realt)',
+			url: 'https://makroskop.nodalit.com/indlejr/Rente_ufin/qBNP/',
+			height: 430,
+			canonical: 'https://makroskop.nodalit.com/scenarier/Rente_ufin/',
+			oembed: 'https://makroskop.nodalit.com/oembed/Rente_ufin/qBNP.json'
+		});
 	});
 });

@@ -13,6 +13,7 @@
 		defaultVariation, devUnit, loadBaseline, loadScenario, seriesByKey, type Baseline, type Meta, type Scenario, type ShockMeta
 	} from '$lib/data';
 	import { RECOMPUTING } from '$lib/notices';
+	import { EMBED_SERIES, chartUnit } from '$lib/embed';
 	import { page } from '$app/state';
 	import { replaceState } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -179,12 +180,7 @@
 		});
 	});
 
-	const chartKeys = [
-		'qBNP', 'nL', 'ledighedsgrad',
-		'qC', 'qX', 'qM',
-		'qI', 'vhW', 'pC',
-		'pBolig', 'saldo2bnp', 'primsaldo2bnp'
-	];
+	const chartKeys = EMBED_SERIES;
 
 	const charts = $derived.by(() => {
 		if (!scenario) return [];
@@ -199,7 +195,6 @@
 			.filter((key) => scenario!.deviations[key]?.some((v) => v != null))
 			.map((key) => {
 				const info = seriesMeta.get(key);
-				const pct = info?.devMode === 'pct';
 				const title = info?.labelDa ?? key;
 				const values = scaled(scenario!, key);
 				// The instrument moves identically in both runs: one line says that best.
@@ -214,7 +209,7 @@
 					key,
 					title,
 					isInstrument: key === instrument,
-					unit: pct ? 'afvigelse fra grundforløb, pct.' : 'afvigelse, pct.-point',
+					unit: chartUnit(info?.devMode),
 					suffix: ` ${devUnit(info?.devMode)}`,
 					values,
 					series

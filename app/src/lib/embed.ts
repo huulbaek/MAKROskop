@@ -2,7 +2,8 @@
  *  iframe, the code that embeds it, its oEmbed JSON and the prerender list. Pure and alias-free
  *  (relative imports only) like card.ts, because scripts/verify-build.ts imports it.
  *  Design: docs/superpowers/specs/2026-09-27-embeds-design.md. */
-import { formatScale } from './card';
+import { cardSubject, changeText, closureWord, formatScale, PROFILE_WORD, solvedScenarios } from './card';
+import type { Meta, Scenario, ScenarioDefinition, ShockMeta } from './data';
 import { SITE_URL } from './site';
 
 /** The code's default iframe heights; the optional resize script fits them exactly. */
@@ -93,4 +94,109 @@ export function readEmbedQuery(params: URLSearchParams, steps: number[], hasPart
 export function scaleNote(scale: number): string | null {
 	if (scale === 1) return null;
 	return `×${formatScale(scale)} af det beregnede stød, ${scale < 0 ? 'spejlet' : 'lineær tilnærmelse'}`;
+}
+
+/** The scenario page's charts after the instrument, in page order. The page imports this list,
+ *  so the page and the embeds cannot drift apart. */
+export const EMBED_SERIES = [
+	'qBNP', 'nL', 'ledighedsgrad',
+	'qC', 'qX', 'qM',
+	'qI', 'vhW', 'pC',
+	'pBolig', 'saldo2bnp', 'primsaldo2bnp'
+];
+
+/** The charts of one scenario that can be embedded: the instrument first, the lukkeskat last for a
+ *  financed run, each only when the series has data. */
+export function embeddableSeries(scenario: Pick<Scenario, 'deviations' | 'definition'>, variation: string): string[] {
+	const instrument = scenario.definition?.seriesKey;
+	const keys = instrument && !EMBED_SERIES.includes(instrument) ? [instrument, ...EMBED_SERIES] : [...EMBED_SERIES];
+	if (variation === '_perm') keys.push('tLukning');
+	return keys.filter((key) => scenario.deviations[key]?.some((v) => v != null));
+}
+
+/** The prerender list for the embed pages and their oEmbed files. */
+export function embedEntries(
+	meta: Pick<Meta, 'shocks'>, read: (file: string) => Pick<Scenario, 'deviations' | 'definition'>
+): { scenario: string; serie: string }[] {
+	return solvedScenarios(meta).flatMap(({ file, variation }) =>
+		embeddableSeries(read(file), variation).map((serie) => ({ scenario: file, serie }))
+	);
+}
+
+/** A chart's unit line, as on the scenario page. */
+export function chartUnit(devMode: string | undefined): string {
+	return devMode === 'pct' ? 'afvigelse fra grundforløb, pct.' : 'afvigelse, pct.-point';
+}
+
+/** "ECB-renten +0,5 pct.-point, varigt og ufinansieret" — the share cards' subject and change. */
+export function embedHeadline(p: {
+	shock: Pick<ShockMeta, 'name' | 'labelDa'>;
+	definition: Pick<ScenarioDefinition, 'instrumentDa' | 'delta' | 'factor' | 'changeDa'>;
+	variation: string;
+	scale: number;
+	compare: boolean;
+}): string {
+	const closure = p.compare ? ', finansieret og ufinansieret' : ` og ${closureWord(p.variation)}`;
+	return `${cardSubject(p.shock, p.definition)} ${changeText(p.definition, p.scale)}, ${PROFILE_WORD[p.variation] ?? ''}${closure}`;
+}
+
+/** The chart's lines: one for a single run or the instrument, unfinanced then financed in compare mode. */
+export function embedSeries(p: {
+	key: string;
+	label: string;
+	instrument: string | null | undefined;
+	main: Pick<Scenario, 'deviations'>;
+	partner: Pick<Scenario, 'deviations'> | null;
+	variation: string;
+	scale: number;
+}): { key: string; label: string; values: (number | null)[] }[] {
+	const scaled = (run: Pick<Scenario, 'deviations'>) => (run.deviations[p.key] ?? []).map((v) => (v == null ? null : v * p.scale));
+	if (!p.partner || p.key === p.instrument) return [{ key: p.key, label: p.label, values: scaled(p.main) }];
+	const [ufin, perm] = p.variation === '_ufin' ? [p.main, p.partner] : [p.partner, p.main];
+	return [
+		{ key: 'ufin', label: 'Ufinansieret', values: scaled(ufin) },
+		{ key: 'perm', label: 'Finansieret', values: scaled(perm) }
+	];
+}
+
+/** What the prerendered embed page knows before the data loads: head tags and the ×1 headline. */
+export interface EmbedHead {
+	scenario: string;
+	name: string;
+	variation: string;
+	serie: string;
+	headline: string;
+	chartTitle: string;
+	/** `<headline> — <chart title>`: the tab title, the iframe title and the oEmbed title. */
+	title: string;
+	/** The ×1 embed URL. */
+	url: string;
+	height: number;
+	canonical: string;
+	oembed: string;
+}
+
+export function embedHead(p: {
+	series: Meta['series'];
+	shock: Pick<ShockMeta, 'name' | 'labelDa'>;
+	scenario: string;
+	variation: string;
+	serie: string;
+	definition: ScenarioDefinition;
+}): EmbedHead {
+	const headline = embedHeadline({ shock: p.shock, definition: p.definition, variation: p.variation, scale: 1, compare: false });
+	const chartTitle = p.series.find((s) => s.key === p.serie)?.labelDa ?? p.serie;
+	return {
+		scenario: p.scenario,
+		name: p.shock.name,
+		variation: p.variation,
+		serie: p.serie,
+		headline,
+		chartTitle,
+		title: `${headline} — ${chartTitle}`,
+		url: embedUrl({ scenario: p.scenario, serie: p.serie, scale: 1, compare: false }),
+		height: embedHeight(false),
+		canonical: `${SITE_URL}/scenarier/${p.scenario}/`,
+		oembed: `${SITE_URL}/oembed/${p.scenario}/${p.serie}.json`
+	};
 }
