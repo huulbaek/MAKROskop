@@ -5,7 +5,7 @@
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev",
-		"build": "vite build && bun run scripts/og-images.ts",
+		"build": "vite build && bun run scripts/og-images.ts && bun run scripts/data-files.ts",
 		"og": "bun run scripts/og-images.ts",
 		"verify:build": "bun run scripts/verify-build.ts",
 		"data:release": "bun run scripts/data-release.ts",

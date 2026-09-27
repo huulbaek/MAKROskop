@@ -5,6 +5,8 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { shareViews } from '../src/lib/card';
 import { QUESTIONS } from '../src/lib/frontpage';
+import { unzipSync } from 'fflate';
+import { derivedFiles, loadDataSet, readManifest, zipEntries, zipName } from '../src/lib/server/opendata-files';
 import { embedEntries } from '../src/lib/embed';
 import { maxScales, readMeta, readScenario } from '../src/lib/server/scenarios';
 
@@ -86,8 +88,26 @@ check(oembed.version === '1.0' && oembed.type === 'rich', 'oEmbed: not a 1.0 ric
 check(String(oembed.html).includes('src="https://makroskop.nodalit.com/indlejr/Rente_ufin/qBNP/"'), 'oEmbed: html does not embed its page');
 check(typeof oembed.width === 'number' && typeof oembed.height === 'number', 'oEmbed: width/height missing');
 
+const release = readManifest();
+check(release != null, 'open data: static/data/udgivelse.json missing');
+const dataSet = loadDataSet();
+const derived = Object.keys(derivedFiles(dataSet));
+for (const path of derived) check(existsSync(join(build, 'data', path)), `open data: missing build/data/${path}`);
+if (release) {
+	const zipPath = join(build, 'data', zipName(release.version));
+	check(existsSync(zipPath), `open data: missing ${zipPath}`);
+	if (existsSync(zipPath)) {
+		const zipBytes = readFileSync(zipPath);
+		const folder = zipName(release.version).replace('.zip', '');
+		const names = Object.keys(unzipSync(new Uint8Array(zipBytes)));
+		check(JSON.stringify(names) === JSON.stringify(zipEntries(dataSet).map((p) => `${folder}/${p}`)), 'open data: zip entries differ from zipEntries()');
+		const latest = join(build, 'data', 'makroskop-data.zip');
+		check(existsSync(latest) && readFileSync(latest).equals(zipBytes), 'open data: makroskop-data.zip is not the current zip');
+	}
+}
+
 if (failures.length) {
 	console.error(`verify-build: ${failures.length} problem(s)\n` + failures.slice(0, 20).join('\n'));
 	process.exit(1);
 }
-console.log(`verify-build: ${views.length} views and ${embeds.length} embeds, pages and images present, tags correct`);
+console.log(`verify-build: ${views.length} views, ${embeds.length} embeds and ${derived.length} data files, pages and images present, tags correct`);
