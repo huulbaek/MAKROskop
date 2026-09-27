@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	EMBED_HEIGHT, RESIZE_SCRIPT, embedCode, embedHeight, embedPath, embedTarget, embedUrl, escapeHtml, oembedJson,
-	readEmbedQuery, scaleNote, EMBED_SERIES, chartUnit, embedEntries, embedHead, embedHeadline, embedSeries, embeddableSeries
+	readEmbedQuery, scaleNote, EMBED_SERIES, chartUnit, embedEntries, embedHead, embedHeadline, embedSeries, embeddableSeries, loadEmbedRuns
 } from './embed';
 import { readMeta, readScenario } from './server/scenarios';
 
@@ -192,5 +192,42 @@ describe('shipped data', () => {
 			canonical: 'https://makroskop.nodalit.com/scenarier/Rente_ufin/',
 			oembed: 'https://makroskop.nodalit.com/oembed/Rente_ufin/qBNP.json'
 		});
+	});
+});
+
+describe('loadEmbedRuns', () => {
+	const run = (shock: string) => ({ shock, definition: { firstYear: 2030 }, deviations: {} }) as never;
+	const loader = (table: Record<string, 'ok' | 'missing' | 'reject'>) => {
+		const calls: string[] = [];
+		const load = async (file: string) => {
+			calls.push(file);
+			if (table[file] === 'reject') throw new TypeError('Failed to fetch');
+			return table[file] === 'ok' ? run(file) : null;
+		};
+		return { load, calls };
+	};
+
+	it('returns the run and its partner', async () => {
+		const { load } = loader({ Rente_ufin: 'ok', Rente_perm: 'ok' });
+		const runs = await loadEmbedRuns({ load, scenario: 'Rente_ufin', partner: 'Rente_perm' });
+		expect(runs?.main.shock).toBe('Rente_ufin');
+		expect(runs?.partner?.shock).toBe('Rente_perm');
+	});
+
+	it('fails, rather than hanging, when the run cannot be fetched or read', async () => {
+		expect(await loadEmbedRuns({ ...loader({ Rente_ufin: 'reject' }), scenario: 'Rente_ufin', partner: null })).toBeNull();
+		expect(await loadEmbedRuns({ ...loader({ Rente_ufin: 'missing' }), scenario: 'Rente_ufin', partner: null })).toBeNull();
+	});
+
+	it('draws one line when the partner cannot be fetched', async () => {
+		const runs = await loadEmbedRuns({ ...loader({ Rente_ufin: 'ok', Rente_perm: 'reject' }), scenario: 'Rente_ufin', partner: 'Rente_perm' });
+		expect(runs?.main.shock).toBe('Rente_ufin');
+		expect(runs?.partner).toBeNull();
+	});
+
+	it('does not fetch a partner nobody asked for', async () => {
+		const { load, calls } = loader({ Rente_ufin: 'ok' });
+		await loadEmbedRuns({ load, scenario: 'Rente_ufin', partner: null });
+		expect(calls).toEqual(['Rente_ufin']);
 	});
 });

@@ -7,7 +7,7 @@
 	import { scaleSteps } from '$lib/card';
 	import { financingLine, partnerVariation } from '$lib/compare';
 	import { devUnit, loadScenario, seriesByKey, type Meta, type Scenario } from '$lib/data';
-	import { chartUnit, embedHeadline, embedSeries, readEmbedQuery, scaleNote, type EmbedHead } from '$lib/embed';
+	import { chartUnit, embedHeadline, embedSeries, loadEmbedRuns, readEmbedQuery, scaleNote, type EmbedHead } from '$lib/embed';
 	import { permalink, provenanceLine } from '$lib/export';
 	import { SITE_URL } from '$lib/site';
 
@@ -63,20 +63,19 @@
 	onMount(() => {
 		let stale = false;
 		void (async () => {
-			const loaded = await loadScenario(fetch, head.scenario);
+			const params = new URL(location.href).searchParams;
+			const partnerVar = partnerVariation(head.variation);
+			const hasPartner = !!partnerVar && !!shock?.available.includes(partnerVar);
+			const wanted = hasPartner && params.has('sammenlign') ? `${head.name}${partnerVar}` : null;
+			const runs = await loadEmbedRuns({ load: (file) => loadScenario(fetch, file), scenario: head.scenario, partner: wanted });
 			if (stale) return;
-			if (!loaded?.definition) {
+			if (!runs?.main.definition) {
 				failed = true;
 				return;
 			}
-			const partnerVar = partnerVariation(head.variation);
-			const hasPartner = !!partnerVar && !!shock?.available.includes(partnerVar);
-			const query = readEmbedQuery(new URL(location.href).searchParams, scaleSteps(loaded.definition.maxScale), hasPartner);
-			const other = query.compare && partnerVar ? await loadScenario(fetch, `${head.name}${partnerVar}`) : null;
-			if (stale) return;
-			scale = query.scale;
-			partner = other;
-			main = loaded;
+			scale = readEmbedQuery(params, scaleSteps(runs.main.definition.maxScale), hasPartner).scale;
+			partner = runs.partner;
+			main = runs.main;
 		})();
 
 		const post = () => {

@@ -201,3 +201,17 @@ export function embedHead(p: {
 		oembed: `${SITE_URL}/oembed/${p.scenario}/${p.serie}.json`
 	};
 }
+
+/** The embed's data: its run and, in compare mode, the partner run. A run that cannot be fetched
+ *  or read gives null (the embed says so instead of waiting forever); a partner that cannot be
+ *  fetched leaves one line. */
+export async function loadEmbedRuns(p: {
+	load: (file: string) => Promise<Scenario | null>;
+	scenario: string;
+	partner: string | null;
+}): Promise<{ main: Scenario; partner: Scenario | null } | null> {
+	const main = await p.load(p.scenario).catch(() => null);
+	if (!main?.definition) return null;
+	const partner = p.partner ? await p.load(p.partner).catch(() => null) : null;
+	return { main, partner };
+}
