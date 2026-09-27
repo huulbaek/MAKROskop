@@ -1,11 +1,11 @@
 <script lang="ts">
+	import { modelLine } from '$lib/opendata';
+
 	let { data } = $props();
 	const od = $derived(data.opendata);
 	const m = $derived(od.manifest);
 	const megabytes = $derived(`${(od.zip.bytes / 1e6).toFixed(1).replace('.', ',')} MB`);
-	const modelLine = $derived(
-		[m.model.commit ? `${m.model.name} (${m.model.commit})` : m.model.name, m.model.dataBasisDa].filter(Boolean).join(' · ')
-	);
+	const model = $derived(modelLine(m));
 	let copied = $state('');
 
 	async function copy(text: string, which: string) {
@@ -28,13 +28,13 @@
 
 	<section class="card download" aria-labelledby="hele">
 		<h2 id="hele">Hele datasættet</h2>
-		<a class="button" href={`/data/${od.zip.name}`} download>Hent {od.zip.name} ({megabytes})</a>
-		<p class="version">Version {m.version} · {modelLine} · {od.scenarioCount} scenarier</p>
+		<a class="button" href={`/data/${od.zip.name}`} download rel="external">Hent {od.zip.name} ({megabytes})</a>
+		<p class="version">Version {m.version} · {model} · {od.scenarioCount} scenarier</p>
 		<p class="changelog">{m.changelog}</p>
 		<details>
 			<summary>Kontrolsum og manifest</summary>
 			<p>SHA-256: <code class="mono sum">{od.zip.sha256}</code></p>
-			<p><a href="/data/udgivelse.json">udgivelse.json</a> – version, model og SHA-256 for hver datafil.</p>
+			<p><a href="/data/udgivelse.json" rel="external">udgivelse.json</a> – version, model og SHA-256 for hver datafil.</p>
 		</details>
 	</section>
 
@@ -74,9 +74,9 @@
 								{#if i === 0}<th scope="row" rowspan={shock.variants.length}>{shock.labelDa}</th>{/if}
 								<td>{variant.labelDa}</td>
 								<td class="links">
-									<a href={`/data/shocks/${variant.file}.json`}>JSON</a> ·
-									<a href={`/data/csv/${variant.file}.csv`}>CSV</a> ·
-									<a href={`/data/csv-da/${variant.file}.csv`}>CSV (dansk)</a> ·
+									<a href={`/data/shocks/${variant.file}.json`} rel="external">JSON</a> ·
+									<a href={`/data/csv/${variant.file}.csv`} rel="external">CSV</a> ·
+									<a href={`/data/csv-da/${variant.file}.csv`} rel="external">CSV (dansk)</a> ·
 									<a href={`/scenarier/${variant.file}/`}>vis</a>
 								</td>
 							</tr>
@@ -91,13 +91,13 @@
 	<section aria-labelledby="samlet">
 		<h2 id="samlet">Alt i én fil</h2>
 		<p>
-			<a href="/data/csv/alle-scenarier.csv">alle-scenarier.csv</a> ·
-			<a href="/data/csv-da/alle-scenarier.csv">dansk</a> – langt format med kolonnerne scenarie, stød,
+			<a href="/data/csv/alle-scenarier.csv" rel="external">alle-scenarier.csv</a> ·
+			<a href="/data/csv-da/alle-scenarier.csv" rel="external">dansk</a> – langt format med kolonnerne scenarie, stød,
 			variant, serie, år og værdi; nemt at filtrere i R, Python eller en pivottabel.
 		</p>
 		<p>
-			Grundforløbets niveauer: <a href="/data/csv/grundforloeb.csv">grundforloeb.csv</a> ·
-			<a href="/data/csv-da/grundforloeb.csv">dansk</a>.
+			Grundforløbets niveauer: <a href="/data/csv/grundforloeb.csv" rel="external">grundforloeb.csv</a> ·
+			<a href="/data/csv-da/grundforloeb.csv" rel="external">dansk</a>.
 		</p>
 		<p class="note">
 			CSV: kommasepareret med decimalpunktum. CSV (dansk): semikolon og decimalkomma – åbner direkte i dansk Excel.
@@ -106,7 +106,7 @@
 
 	<section aria-labelledby="ordbog">
 		<h2 id="ordbog">Dataordbog</h2>
-		<p><a href="/data/ordbog.csv">ordbog.csv</a> · <a href="/data/ordbog-da.csv">dansk</a></p>
+		<p><a href="/data/ordbog.csv" rel="external">ordbog.csv</a> · <a href="/data/ordbog-da.csv" rel="external">dansk</a></p>
 		<div class="table-wrap">
 			<table class="dictionary">
 				<thead>

@@ -13,14 +13,14 @@ if (!manifest) {
 	process.exit(1);
 }
 const ds = loadDataSet();
-const zip = releaseZip(ds, manifest);
+const files = derivedFiles(ds);
+const zip = releaseZip(ds, manifest, files);
 // The deploy runs no tests: stop here rather than ship changed numbers or a changed zip under an old version.
 const problems = buildProblems({ manifest, checksums: dataChecksums(ds), onDisk: dataFilesOnDisk(), zipSha: sha256(zip) });
 if (problems.length) {
 	console.error(`data-files:\n  ${problems.join('\n  ')}`);
 	process.exit(1);
 }
-const files = derivedFiles(ds);
 for (const [path, text] of Object.entries(files)) {
 	mkdirSync(dirname(join(out, path)), { recursive: true });
 	writeFileSync(join(out, path), text);

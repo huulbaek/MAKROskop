@@ -63,19 +63,19 @@ describe('derivedFiles', () => {
 	});
 });
 
-// Each zip compresses ~45 MB of files (about 2 s).
+// Each zip compresses ~43 MB of CSV and JSON (about 1.5 s); the CSVs are derived once, above.
 describe('releaseZip', { timeout: 30_000 }, () => {
 	it('is byte-identical when built twice', () => {
-		expect(same(releaseZip(ds, manifest), releaseZip(ds, manifest))).toBe(true);
+		expect(same(releaseZip(ds, manifest, files), releaseZip(ds, manifest, files))).toBe(true);
 	});
 
 	it('is byte-identical in another time zone', () => {
 		const tz = process.env.TZ;
 		try {
 			process.env.TZ = 'UTC';
-			const utc = releaseZip(ds, manifest);
+			const utc = releaseZip(ds, manifest, files);
 			process.env.TZ = 'Pacific/Auckland';
-			const nz = releaseZip(ds, manifest);
+			const nz = releaseZip(ds, manifest, files);
 			expect(same(utc, nz)).toBe(true);
 		} finally {
 			process.env.TZ = tz;
@@ -84,14 +84,15 @@ describe('releaseZip', { timeout: 30_000 }, () => {
 
 	it('does not change when the DOI or the zip checksum is added to the manifest', () => {
 		const later = { ...manifest, doi: '10.5281/zenodo.1', zip: { name: 'x.zip', bytes: 1, sha256: 'ab' } };
-		expect(same(releaseZip(ds, manifest), releaseZip(ds, later))).toBe(true);
+		expect(same(releaseZip(ds, manifest, files), releaseZip(ds, later, files))).toBe(true);
 	});
 
 	it('holds exactly the data, the CSVs, the manifest and the read-me', () => {
-		const names = Object.keys(unzipSync(releaseZip(ds, manifest)));
+		const names = Object.keys(unzipSync(releaseZip(ds, manifest, files)));
 		const folder = zipName('2026.09.27').replace('.zip', '');
-		expect(names).toEqual(zipEntries(ds).map((p) => `${folder}/${p}`));
-		expect(zipEntries(ds)).toEqual(
+		const entries = zipEntries(ds, files);
+		expect(names).toEqual(entries.map((p) => `${folder}/${p}`));
+		expect(entries).toEqual(
 			[...Object.keys(dataChecksums(ds)), ...Object.keys(files), 'udgivelse.json', 'LAES-MIG.md'].sort()
 		);
 	});

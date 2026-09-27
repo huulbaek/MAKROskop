@@ -4,6 +4,7 @@ declare global {
 	/** Injected by vite.config.ts `define` at build time. */
 	const __APP_COMMIT__: string;
 	const __BUILD_DATE__: string;
+	const __DATA_VERSION__: string;
 
 	namespace App {
 		// interface Error {}

@@ -2,6 +2,7 @@ import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 import { execSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 
 /** Short commit for the footer stamp: APP_COMMIT build arg (Docker) → git → '' (unknown). */
 function gitShort(): string {
@@ -16,7 +17,9 @@ function gitShort(): string {
 export default defineConfig({
 	define: {
 		__APP_COMMIT__: JSON.stringify(gitShort()),
-		__BUILD_DATE__: JSON.stringify(new Date().toISOString().slice(0, 10))
+		__BUILD_DATE__: JSON.stringify(new Date().toISOString().slice(0, 10)),
+		// The released data version (makroskop-gko), without shipping the manifest to the client.
+		__DATA_VERSION__: JSON.stringify(JSON.parse(readFileSync('static/data/udgivelse.json', 'utf8')).version)
 	},
 	plugins: [
 		sveltekit({
@@ -26,16 +29,7 @@ export default defineConfig({
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
 
-			adapter: adapter({ fallback: undefined }),
-
-			prerender: {
-				// /aabne-data/ links the open-data files that scripts/data-files.ts writes after vite build
-				// (makroskop-gko); verify-build checks that every one of them exists.
-				handleHttpError: ({ path, message }) => {
-					if (/^\/data\/(csv\/|csv-da\/|ordbog|makroskop-data)/.test(path)) return;
-					throw new Error(message);
-				}
-			}
+			adapter: adapter({ fallback: undefined })
 		})
 	]
 });

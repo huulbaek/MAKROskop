@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { solvedScenarios, type CardLevels } from '../card';
 import type { Baseline, Meta, Scenario } from '../data';
 
-const DATA_DIR = join(process.cwd(), 'static', 'data');
+export const DATA_DIR = join(process.cwd(), 'static', 'data');
 const cache = new Map<string, unknown>();
 
 function readJson<T>(relative: string): T {

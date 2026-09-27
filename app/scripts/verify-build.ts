@@ -1,13 +1,12 @@
 /** Post-build assertions for the share pages: every view has a page and an image, the
  *  sample page carries exactly one of each tag, the bare page keeps the generic ones.
  *  Run after `bun run build` (package.json "verify:build"); exits 1 on any failure. */
-import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { shareViews } from '../src/lib/card';
 import { QUESTIONS } from '../src/lib/frontpage';
 import { unzipSync } from 'fflate';
-import { derivedFiles, loadDataSet, readManifest, zipEntries, zipName } from '../src/lib/server/opendata-files';
+import { derivedFiles, loadDataSet, readManifest, sha256, zipEntries, zipName } from '../src/lib/server/opendata-files';
 import { embedEntries } from '../src/lib/embed';
 import { maxScales, readMeta, readScenario } from '../src/lib/server/scenarios';
 
@@ -92,19 +91,18 @@ check(typeof oembed.width === 'number' && typeof oembed.height === 'number', 'oE
 const release = readManifest();
 check(release != null, 'open data: static/data/udgivelse.json missing');
 const dataSet = loadDataSet();
-const derived = Object.keys(derivedFiles(dataSet));
+const derivedData = derivedFiles(dataSet);
+const derived = Object.keys(derivedData);
 for (const path of derived) check(existsSync(join(build, 'data', path)), `open data: missing build/data/${path}`);
-if (release) {
-	const zipPath = join(build, 'data', zipName(release.version));
-	check(existsSync(zipPath), `open data: missing ${zipPath}`);
-	if (existsSync(zipPath)) {
-		const zipBytes = readFileSync(zipPath);
-		const folder = zipName(release.version).replace('.zip', '');
-		const names = Object.keys(unzipSync(new Uint8Array(zipBytes)));
-		check(JSON.stringify(names) === JSON.stringify(zipEntries(dataSet).map((p) => `${folder}/${p}`)), 'open data: zip entries differ from zipEntries()');
-		const latest = join(build, 'data', 'makroskop-data.zip');
-		check(existsSync(latest) && readFileSync(latest).equals(zipBytes), 'open data: makroskop-data.zip is not the current zip');
-	}
+const zipPath = release ? join(build, 'data', zipName(release.version)) : null;
+const zipBytes = zipPath && existsSync(zipPath) ? readFileSync(zipPath) : null;
+check(zipBytes != null, `open data: missing ${zipPath}`);
+if (release && zipBytes) {
+	const folder = zipName(release.version).replace('.zip', '');
+	const names = Object.keys(unzipSync(new Uint8Array(zipBytes)));
+	check(JSON.stringify(names) === JSON.stringify(zipEntries(dataSet, derivedData).map((p) => `${folder}/${p}`)), 'open data: zip entries differ from zipEntries()');
+	const latest = join(build, 'data', 'makroskop-data.zip');
+	check(existsSync(latest) && readFileSync(latest).equals(zipBytes), 'open data: makroskop-data.zip is not the current zip');
 }
 
 const dataPagePath = join(build, 'aabne-data', 'index.html');
@@ -115,11 +113,7 @@ if (existsSync(dataPagePath) && release) {
 	for (const href of new Set(hrefs)) check(existsSync(join(build, href)), `open data page: link to missing ${href}`);
 	const perScenario = hrefs.filter((h) => /^\/data\/(shocks|csv|csv-da)\/(?!alle-scenarier|grundforloeb)[^/]+\.(json|csv)$/.test(h));
 	check(new Set(perScenario).size === dataSet.scenarios.length * 3, `open data page: ${new Set(perScenario).size} per-scenario links, expected ${dataSet.scenarios.length * 3}`);
-	const zipPath = join(build, 'data', zipName(release.version));
-	if (existsSync(zipPath)) {
-		const shown = createHash('sha256').update(readFileSync(zipPath)).digest('hex');
-		check(dataPage.includes(shown), 'open data page: the SHA-256 shown is not the built zip\'s');
-	}
+	if (zipBytes) check(dataPage.includes(sha256(zipBytes)), 'open data page: the SHA-256 shown is not the built zip\'s');
 	check(count(dataPage, /<title>/g) === 1 && dataPage.includes('<title>Data · MAKROskop</title>'), 'open data page: <title>');
 }
 

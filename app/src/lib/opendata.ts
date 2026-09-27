@@ -88,6 +88,8 @@ export function dictionaryCsv(series: SeriesMeta[], dialect: Dialect): string {
 export const FORMAT_VERSION = 1;
 export const DATA_LICENSE = 'CC-BY-4.0';
 export const REPO_URL = 'https://github.com/huulbaek/makroskop';
+/** The download page (/aabne-data/). */
+export const DATA_PAGE = '/aabne-data/';
 
 export interface ReleaseRef {
 	version: string;
@@ -181,7 +183,8 @@ export function planRelease(p: {
 	};
 }
 
-function modelLine(m: Manifest): string {
+/** "MAKRO 2026-June (01f2a43), Nationalregnskabsdata fra marts 2026" */
+export function modelLine(m: Pick<Manifest, 'model'>): string {
 	const version = m.model.commit ? `${m.model.name} (${m.model.commit})` : m.model.name;
 	return m.model.dataBasisDa ? `${version}, ${m.model.dataBasisDa}` : version;
 }
@@ -193,7 +196,7 @@ export function citation(m: Manifest, lang: 'da' | 'en'): string {
 			? `Scenarieberegninger med MAKRO, dataversion ${m.version} [datasæt]`
 			: `Scenario calculations with MAKRO, data version ${m.version} [dataset]`;
 	const doi = m.doi ? ` https://doi.org/${m.doi}` : '';
-	return `MAKROskop (${year}). ${title}. Model: ${modelLine(m)}. ${SITE_URL}/aabne-data/${doi}`;
+	return `MAKROskop (${year}). ${title}. Model: ${modelLine(m)}. ${SITE_URL}${DATA_PAGE}${doi}`;
 }
 
 /** LAES-MIG.md in the zip. */
@@ -257,7 +260,7 @@ authors:
     family-names: Titanium
 version: "${m.version}"
 date-released: "${m.date}"
-url: "${SITE_URL}/aabne-data/"
+url: "${SITE_URL}${DATA_PAGE}"
 repository-code: "${REPO_URL}"
 license: ${DATA_LICENSE}
 ${m.doi ? `doi: "${m.doi}"\n` : ''}references:
@@ -294,7 +297,7 @@ export function publishProblems(p: {
 }
 
 export function releaseNotes(m: Manifest): string {
-	return `${m.changelog}\n\n${modelLine(m)}\n\nCitér: ${citation(m, 'da')}\n\nLicens: CC BY 4.0 – ${SITE_URL}/aabne-data/`;
+	return `${m.changelog}\n\n${modelLine(m)}\n\nCitér: ${citation(m, 'da')}\n\nLicens: CC BY 4.0 – ${SITE_URL}${DATA_PAGE}`;
 }
 
 /** Why a build must not ship: the committed data, files, format or zip differ from the released version. */

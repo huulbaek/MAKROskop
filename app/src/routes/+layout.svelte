@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import { SITE_URL } from '$lib/site';
+	import { DATA_PAGE, REPO_URL } from '$lib/opendata';
 	import type { CardHead } from '$lib/card';
 	import type { PageHead } from '$lib/frontpage';
 
@@ -36,14 +37,13 @@
 				'Kan man stole på tallene? MAKROskops frie løser er efterprøvet mod GAMS/IPOPT på de samme stød og ved at genfinde løsningen for alle modellens ligninger.'
 		},
 		{
-			href: '/aabne-data/',
+			href: DATA_PAGE,
 			label: 'Data',
 			description:
 				'Hent alle MAKROskops scenarier som CSV og JSON – afvigelser fra MAKROs referenceforløb, versioneret, med dataordbog og licens CC BY 4.0.'
 		}
 	];
 
-	const REPO_URL = 'https://github.com/huulbaek/makroskop';
 
 	const SITE_DESCRIPTION =
 		'MAKROskop er en fri, licensløs udgave af MAKRO – den makroøkonomiske model bag Finansministeriets regnestykker: grundforløb, stød-scenarier og politikpakker.';

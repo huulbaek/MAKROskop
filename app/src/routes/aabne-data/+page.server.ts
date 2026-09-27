@@ -1,9 +1,9 @@
-/** /aabne-data/ (makroskop-gko): the download page. Zip size and checksum are computed here with
- *  the same builder as scripts/data-files.ts, so the page states the zip it links to. */
+/** /aabne-data/ (makroskop-gko): the download page. Zip size and checksum come from the manifest;
+ *  the build step (buildProblems) and verify-build check that the built zip is that zip. */
 import type { PageServerLoad } from './$types';
 import { devUnit } from '$lib/data';
 import { citation, publishedSeries, type Manifest } from '$lib/opendata';
-import { loadDataSet, readManifest, releaseZip, sha256, zipName } from '$lib/server/opendata-files';
+import { loadDataSet, readManifest } from '$lib/server/opendata-files';
 
 export const prerender = true;
 
@@ -19,9 +19,8 @@ export interface OpenDataPage {
 
 export const load: PageServerLoad = (): { opendata: OpenDataPage } => {
 	const manifest = readManifest();
-	if (!manifest) throw new Error('static/data/udgivelse.json mangler: kør bun run data:release');
+	if (!manifest?.zip) throw new Error('static/data/udgivelse.json mangler eller har ingen zip: kør bun run data:release');
 	const ds = loadDataSet();
-	const zip = releaseZip(ds, manifest);
 	const variationLabel = new Map(ds.meta.variations.map((v) => [v.suffix, v.labelDa]));
 	const groups: OpenDataPage['groups'] = [];
 	for (const shock of ds.meta.shocks) {
@@ -37,7 +36,7 @@ export const load: PageServerLoad = (): { opendata: OpenDataPage } => {
 	return {
 		opendata: {
 			manifest,
-			zip: { name: zipName(manifest.version), bytes: zip.length, sha256: sha256(zip) },
+			zip: manifest.zip,
 			scenarioCount: ds.scenarios.length,
 			groups,
 			series: publishedSeries(ds.meta.series).map((s) => ({ key: s.key, labelDa: s.labelDa, group: s.group, unit: s.unit, deviationUnit: devUnit(s.devMode) })),

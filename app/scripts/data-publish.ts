@@ -6,7 +6,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { changedFiles, publishProblems, releaseNotes, releaseTag } from '../src/lib/opendata';
-import { dataChecksums, loadDataSet, readManifest, releaseZip, zipName } from '../src/lib/server/opendata-files';
+import { dataChecksums, loadDataSet, readManifest, releaseExists, releaseZip, zipName } from '../src/lib/server/opendata-files';
 
 const manifest = readManifest();
 const ds = loadDataSet();
@@ -19,7 +19,7 @@ const uncommitted = status.stdout.split('\n').filter(Boolean).map((line) => line
 const problems = publishProblems({
 	manifest,
 	ghAuthed: ok('gh', ['auth', 'status']),
-	tagExists: manifest ? ok('gh', ['release', 'view', releaseTag(manifest.version)]) : false,
+	tagExists: manifest ? releaseExists(manifest.version) : false,
 	changed: manifest ? changedFiles(manifest.files, dataChecksums(ds)) : [],
 	unpushed,
 	uncommitted

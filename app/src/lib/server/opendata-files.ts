@@ -4,11 +4,13 @@ import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { strToU8, zipSync, type Zippable } from 'fflate';
+import { spawnSync } from 'node:child_process';
 import { solvedScenarios } from '../card';
 import type { Baseline, Meta } from '../data';
-import { dictionaryCsv, longCsv, manifestText, publishedSeries, readme, wideCsv, zipManifest, type Dialect, type Manifest, type ScenarioRef } from '../opendata';
+import { DATA_DIR } from './scenarios';
+import { dictionaryCsv, longCsv, manifestText, publishedSeries, readme, releaseTag, wideCsv, zipManifest, type Dialect, type Manifest, type ScenarioRef } from '../opendata';
 
-export const DATA_DIR = join(process.cwd(), 'static', 'data');
+export { DATA_DIR };
 const MANIFEST = 'udgivelse.json';
 const DIALECT_DIR: Record<Dialect, string> = { intl: 'csv', da: 'csv-da' };
 
@@ -60,18 +62,19 @@ export function zipName(version: string): string {
 	return `makroskop-data-${version}.zip`;
 }
 
-export function zipEntries(ds: DataSet): string[] {
-	return [...Object.keys(ds.raw), ...Object.keys(derivedFiles(ds)), MANIFEST, 'LAES-MIG.md'].sort();
+/** `derived`: pass derivedFiles(ds) when it is already built (≈1 s and 43 MB of text per call). */
+export function zipEntries(ds: DataSet, derived: Record<string, string> = derivedFiles(ds)): string[] {
+	return [...Object.keys(ds.raw), ...Object.keys(derived), MANIFEST, 'LAES-MIG.md'].sort();
 }
 
 /** The release zip: fixed entry order and a fixed timestamp (local noon of the release date, which
  *  DOS time stores as local fields), so every build of a version, in any time zone, is identical. */
-export function releaseZip(ds: DataSet, m: Manifest): Uint8Array {
+export function releaseZip(ds: DataSet, m: Manifest, derived: Record<string, string> = derivedFiles(ds)): Uint8Array {
 	const [y, mo, d] = m.date.split('-').map(Number);
 	const mtime = new Date(y, mo - 1, d, 12, 0, 0);
 	const contents: Record<string, string> = {
 		...ds.raw,
-		...derivedFiles(ds),
+		...derived,
 		[MANIFEST]: manifestText(zipManifest(m)),
 		'LAES-MIG.md': readme(zipManifest(m), ds.scenarios.length)
 	};
@@ -91,4 +94,9 @@ export function readManifest(dir: string = DATA_DIR): Manifest | null {
 export function dataFilesOnDisk(dir: string = DATA_DIR): string[] {
 	const shocks = readdirSync(join(dir, 'shocks')).filter((f) => f.endsWith('.json')).map((f) => `shocks/${f}`);
 	return ['meta.json', 'baseline.json', ...shocks].sort();
+}
+
+/** Whether GitHub has the release data-<version> (gh CLI; false when gh is missing or logged out). */
+export function releaseExists(version: string): boolean {
+	return spawnSync('gh', ['release', 'view', releaseTag(version)], { stdio: 'ignore' }).status === 0;
 }
