@@ -76,6 +76,15 @@ check(!embedPage.includes('Hovednavigation') && !embedPage.includes('property="o
 check(embedPage.includes('ECB-renten +1 pct.-point, varigt og ufinansieret'), 'embed: prerendered headline missing');
 check(existsSync(join(build, 'indlejr', 'resize.js')), 'embed: resize.js missing');
 
+for (const embed of embeds) {
+	const file = join(build, 'oembed', embed.scenario, `${embed.serie}.json`);
+	check(existsSync(file), `missing oEmbed file ${file}`);
+}
+const oembed = JSON.parse(readFileSync(join(build, 'oembed', 'Rente_ufin', 'qBNP.json'), 'utf8'));
+check(oembed.version === '1.0' && oembed.type === 'rich', 'oEmbed: not a 1.0 rich response');
+check(String(oembed.html).includes('src="https://makroskop.nodalit.com/indlejr/Rente_ufin/qBNP/"'), 'oEmbed: html does not embed its page');
+check(typeof oembed.width === 'number' && typeof oembed.height === 'number', 'oEmbed: width/height missing');
+
 if (failures.length) {
 	console.error(`verify-build: ${failures.length} problem(s)\n` + failures.slice(0, 20).join('\n'));
 	process.exit(1);
