@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "Brug gerne tallene – citér dem sådan. / Please cite the data as below."
+type: dataset
+title: "MAKROskop: scenarieberegninger med MAKRO"
+authors:
+  - given-names: Thomas
+    family-names: Titanium
+version: "2026.09.27"
+date-released: "2026-09-27"
+url: "https://makroskop.nodalit.com/aabne-data/"
+repository-code: "https://github.com/huulbaek/makroskop"
+license: CC-BY-4.0
+references:
+  - type: software
+    title: "MAKRO"
+    authors:
+      - name: "DREAM"
+    url: "https://github.com/DREAM-DK/MAKRO"
+    license: MIT
