@@ -10,6 +10,7 @@ const manifest: Manifest = {
 	changelog: 'Test', files: dataChecksums(ds), earlier: []
 };
 
+const same = (a: Uint8Array, b: Uint8Array) => a.length === b.length && a.every((byte, i) => byte === b[i]);
 const parse = (text: string, sep: string) => text.replace(BOM, '').trimEnd().split('\n').map((line) => line.split(sep));
 
 describe('loadDataSet and checksums', () => {
@@ -65,7 +66,7 @@ describe('derivedFiles', () => {
 // Each zip compresses ~45 MB of files (about 2 s).
 describe('releaseZip', { timeout: 30_000 }, () => {
 	it('is byte-identical when built twice', () => {
-		expect(Buffer.from(releaseZip(ds, manifest)).equals(Buffer.from(releaseZip(ds, manifest)))).toBe(true);
+		expect(same(releaseZip(ds, manifest), releaseZip(ds, manifest))).toBe(true);
 	});
 
 	it('is byte-identical in another time zone', () => {
@@ -75,7 +76,7 @@ describe('releaseZip', { timeout: 30_000 }, () => {
 			const utc = releaseZip(ds, manifest);
 			process.env.TZ = 'Pacific/Auckland';
 			const nz = releaseZip(ds, manifest);
-			expect(Buffer.from(utc).equals(Buffer.from(nz))).toBe(true);
+			expect(same(utc, nz)).toBe(true);
 		} finally {
 			process.env.TZ = tz;
 		}
