@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { SeriesMeta } from './data';
 import {
 	BOM, FORMAT_VERSION, changedFiles, citation, citationCff, csvNumber, dictionaryCsv, longCsv, manifestText, nextVersion, planRelease,
-	readme, wideCsv, type Manifest
+	publishProblems, readme, releaseNotes, wideCsv, type Manifest
 } from './opendata';
 
 const series: SeriesMeta[] = [
@@ -171,5 +171,36 @@ describe('readme and CITATION.cff', () => {
 		expect(cff).toContain('date-released: "2026-09-27"');
 		expect(cff).toContain('license: CC-BY-4.0');
 		expect(cff).toContain('url: "https://github.com/DREAM-DK/MAKRO"');
+	});
+});
+
+describe('publishProblems', () => {
+	const ok = { manifest: manifest(), ghAuthed: true, tagExists: false, changed: [] as string[], unpushed: 0 };
+
+	it('has none when everything is in place', () => {
+		expect(publishProblems(ok)).toEqual([]);
+	});
+
+	it('names every reason to stop', () => {
+		expect(publishProblems({ manifest: null, ghAuthed: false, tagExists: false, changed: [], unpushed: 0 })).toEqual([
+			'Ingen udgivelse: kør bun run data:release først.',
+			'gh er ikke logget ind: kør gh auth login.'
+		]);
+		expect(publishProblems({ ...ok, tagExists: true })).toEqual(['data-2026.09.27 findes allerede på GitHub.']);
+		expect(publishProblems({ ...ok, changed: ['shocks/Moms_perm.json'] })).toEqual([
+			'Data er ændret siden version 2026.09.27 (shocks/Moms_perm.json): kør bun run data:release.'
+		]);
+		expect(publishProblems({ ...ok, unpushed: 2 })).toEqual(['2 commit(s) er ikke pushet: push først, så tagget peger på manifestet.']);
+		// no upstream (git rev-list @{u}..HEAD fails): unknown is not zero
+		expect(publishProblems({ ...ok, unpushed: null })).toEqual(['Grenen har ingen upstream: push den først, så tagget peger på manifestet.']);
+	});
+});
+
+describe('releaseNotes', () => {
+	it('has the changelog, the citation and the licence', () => {
+		const notes = releaseNotes(manifest());
+		expect(notes).toContain('Første udgivelse');
+		expect(notes).toContain(citation(manifest(), 'da'));
+		expect(notes).toContain('CC BY 4.0');
 	});
 });

@@ -9,6 +9,7 @@
 		"og": "bun run scripts/og-images.ts",
 		"verify:build": "bun run scripts/verify-build.ts",
 		"data:release": "bun run scripts/data-release.ts",
+		"data:publish": "bun run scripts/data-publish.ts",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",

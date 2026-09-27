@@ -243,3 +243,27 @@ ${m.doi ? `doi: "${m.doi}"\n` : ''}references:
     license: MIT
 `;
 }
+
+/** Why data:publish must not create the GitHub Release; empty when it may. */
+export function publishProblems(p: {
+	manifest: Manifest | null;
+	ghAuthed: boolean;
+	tagExists: boolean;
+	changed: string[];
+	/** Commits not on the upstream; null when there is no upstream to compare with. */
+	unpushed: number | null;
+}): string[] {
+	const problems: string[] = [];
+	if (!p.manifest) problems.push('Ingen udgivelse: kør bun run data:release først.');
+	if (!p.ghAuthed) problems.push('gh er ikke logget ind: kør gh auth login.');
+	if (p.manifest && p.tagExists) problems.push(`${releaseTag(p.manifest.version)} findes allerede på GitHub.`);
+	if (p.manifest && p.changed.length)
+		problems.push(`Data er ændret siden version ${p.manifest.version} (${p.changed.join(', ')}): kør bun run data:release.`);
+	if (p.unpushed === null) problems.push('Grenen har ingen upstream: push den først, så tagget peger på manifestet.');
+	else if (p.unpushed > 0) problems.push(`${p.unpushed} commit(s) er ikke pushet: push først, så tagget peger på manifestet.`);
+	return problems;
+}
+
+export function releaseNotes(m: Manifest): string {
+	return `${m.changelog}\n\n${modelLine(m)}\n\nCitér: ${citation(m, 'da')}\n\nLicens: CC BY 4.0 – ${SITE_URL}/aabne-data/`;
+}
