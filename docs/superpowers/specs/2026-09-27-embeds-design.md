@@ -32,7 +32,9 @@ view. This is how the product spreads beyond share cards.
   the share cards).
 - No frozen/versioned embeds, no embeds of the baseline (Grundforløb) or package (Pakker) pages,
   no whole-view summary embed. Each is a possible follow-up.
-- No change to the solver, the ETL or nginx.
+- No change to the solver or the ETL. (nginx gained one header after the final review: CORS
+  `Access-Control-Allow-Origin *`, because oEmbed consumers such as WordPress sandbox the iframe,
+  which makes the embed's own scripts and data cross-origin requests.)
 
 ## Routes and files
 
@@ -120,7 +122,8 @@ posts `{ type: 'makroskop:height', height }` to `parent` after each render and o
   `makroskop:height`, and `event.source` is the `contentWindow` of an iframe marked
   `data-makroskop-embed`; it then sets that iframe's `style.height`, clamped to 200–1200 px.
 - The embed posts to `parent` with target `*`; the message carries only a height.
-- nginx sends neither `X-Frame-Options` nor `frame-ancestors`; framing works without changes.
+- nginx sends neither `X-Frame-Options` nor `frame-ancestors`; framing works without changes. It
+  sends `Access-Control-Allow-Origin *` (public, cookie-free site) so sandboxed embeds can load.
 
 ## Errors
 
