@@ -92,7 +92,7 @@
 	});
 </script>
 
-<article class="embed" bind:this={root}>
+<main class="embed" bind:this={root}>
 	<h1>{headline}</h1>
 	{#if main}
 		<LineChart
@@ -118,7 +118,7 @@
 		<p class="source">Kilde: {source}</p>
 		<a class="back" href={link} target="_blank" rel="noopener">Se hele scenariet på MAKROskop →</a>
 	</footer>
-</article>
+</main>
 
 <style>
 	:global(body) {

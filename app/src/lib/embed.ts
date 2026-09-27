@@ -6,8 +6,9 @@ import { cardSubject, changeText, closureWord, formatScale, PROFILE_WORD, solved
 import type { Meta, Scenario, ScenarioDefinition, ShockMeta } from './data';
 import { SITE_URL } from './site';
 
-/** The code's default iframe heights; the optional resize script fits them exactly. */
-export const EMBED_HEIGHT = { single: 430, compare: 470 } as const;
+/** The code's default iframe heights: the tallest embeds at 375 px width (phones), so nothing is cut
+ *  off without the resize script; wider columns get some space below. The script fits them exactly. */
+export const EMBED_HEIGHT = { single: 510, compare: 640 } as const;
 export const OEMBED_WIDTH = 640;
 export const RESIZE_SCRIPT = `${SITE_URL}/indlejr/resize.js`;
 /** A day: the embed shows live data, so consumers may refetch the oEmbed JSON daily. */

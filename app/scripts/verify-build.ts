@@ -74,6 +74,7 @@ check(embedPage.includes('<link rel="canonical" href="https://makroskop.nodalit.
 check(embedPage.includes('href="https://makroskop.nodalit.com/oembed/Rente_ufin/qBNP.json"'), 'embed: oEmbed discovery link missing');
 check(!embedPage.includes('Hovednavigation') && !embedPage.includes('property="og:title"'), 'embed: carries the site chrome or share tags');
 check(embedPage.includes('ECB-renten +1 pct.-point, varigt og ufinansieret'), 'embed: prerendered headline missing');
+check(/<main[ >]/.test(embedPage), 'embed: no <main> landmark');
 check(existsSync(join(build, 'indlejr', 'resize.js')), 'embed: resize.js missing');
 
 for (const embed of embeds) {

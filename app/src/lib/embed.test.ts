@@ -59,6 +59,8 @@ describe('embedHeight', () => {
 		expect(embedHeight(false)).toBe(EMBED_HEIGHT.single);
 		expect(embedHeight(true)).toBe(EMBED_HEIGHT.compare);
 		expect(EMBED_HEIGHT.compare).toBeGreaterThan(EMBED_HEIGHT.single);
+		// the largest embeds measured at 375 px width, rounded up (2026-09-27): 508 and 636 px
+		expect(EMBED_HEIGHT).toEqual({ single: 510, compare: 640 });
 	});
 });
 
@@ -186,7 +188,7 @@ describe('shipped data', () => {
 			chartTitle: 'BNP (realt)',
 			title: 'ECB-renten +1 pct.-point, varigt og ufinansieret — BNP (realt)',
 			url: 'https://makroskop.nodalit.com/indlejr/Rente_ufin/qBNP/',
-			height: 430,
+			height: 510,
 			canonical: 'https://makroskop.nodalit.com/scenarier/Rente_ufin/',
 			oembed: 'https://makroskop.nodalit.com/oembed/Rente_ufin/qBNP.json'
 		});

@@ -73,6 +73,11 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
   (`src/routes/scenarier/[scenario]/[[skala]]/`, copy in `lib/card.ts`, image in
   `lib/card-svg.ts` rendered by `scripts/og-images.ts` during `bun run build`; fonts vendored
   in `app/fonts/`). `bun run verify:build` checks the output. Design: docs/superpowers/specs/2026-09-10-share-cards-design.md.
+  Embeds (makroskop-64y): one prerendered, bare, light page per scenario and series at
+  `/indlejr/<scenario>/<serie>/` (`?skala=`, `?sammenlign` read on the client), a static oEmbed
+  JSON per page at `/oembed/<scenario>/<serie>.json`, the optional host script
+  `static/indlejr/resize.js`; wording, URLs and codes in `lib/embed.ts`, the "Indlejr" dialog in
+  `EmbedDialog.svelte`. Design: docs/superpowers/specs/2026-09-27-embeds-design.md.
   Build: `bun run build`.
 - `etl/` — Python (uv). `extract.py` writes `app/static/data/*.json` from GDX files. It
   refuses to run when a scenario's solver stamp (`makroskop_meta`: shock, factor, delta,
