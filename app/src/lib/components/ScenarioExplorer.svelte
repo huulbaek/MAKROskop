@@ -13,7 +13,9 @@
 		defaultVariation, devUnit, loadBaseline, loadScenario, seriesByKey, type Baseline, type Meta, type Scenario, type ShockMeta
 	} from '$lib/data';
 	import { RECOMPUTING } from '$lib/notices';
-	import { EMBED_SERIES, chartUnit } from '$lib/embed';
+	import { SITE_URL } from '$lib/site';
+	import { EMBED_SERIES, chartUnit, embedHeadline, embedHeight, embedTarget, embedUrl } from '$lib/embed';
+	import EmbedDialog from '$lib/components/EmbedDialog.svelte';
 	import { page } from '$app/state';
 	import { replaceState } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -215,6 +217,24 @@
 					series
 				};
 			});
+	});
+
+	/** The chart whose embed dialog is open (makroskop-64y). */
+	let embedKey = $state<string | null>(null);
+	const embed = $derived.by(() => {
+		const chart = charts.find((c) => c.key === embedKey);
+		const def = scenario?.definition;
+		if (!chart || !def) return null;
+		const target = embedTarget({ name: selectedName, variation: selectedVariation, serie: chart.key });
+		const title = `${embedHeadline({ shock: selectedShock, definition: def, variation: target.variation, scale, compare: comparing })} — ${chart.title}`;
+		return {
+			title,
+			url: embedUrl({ scenario: target.scenario, serie: chart.key, scale, compare: comparing }),
+			baseUrl: embedUrl({ scenario: target.scenario, serie: chart.key, scale: 1, compare: false }),
+			fallback: `${SITE_URL}/scenarier/${target.scenario}/`,
+			height: embedHeight(comparing),
+			scaled: scale !== 1 || comparing
+		};
 	});
 
 	/** The one line under the compare toggle: what the financing does, scaled with the slider. */
@@ -665,6 +685,7 @@
 								<button class="png-btn" onclick={() => downloadPng(chart)} disabled={exporting === chart.key}>
 									{exporting === chart.key ? 'Henter …' : 'Hent PNG'}
 								</button>
+								<button class="png-btn" onclick={() => (embedKey = chart.key)}>Indlejr</button>
 							</div>
 						{/if}
 					</div>
@@ -711,6 +732,10 @@
 		</div>
 	</div>
 </div>
+
+{#if embed}
+	<EmbedDialog {...embed} onclose={() => (embedKey = null)} />
+{/if}
 
 <style>
 	.detail-head {
