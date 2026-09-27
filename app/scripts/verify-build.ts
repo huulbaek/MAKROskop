@@ -1,6 +1,7 @@
 /** Post-build assertions for the share pages: every view has a page and an image, the
  *  sample page carries exactly one of each tag, the bare page keeps the generic ones.
  *  Run after `bun run build` (package.json "verify:build"); exits 1 on any failure. */
+import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { shareViews } from '../src/lib/card';
@@ -104,6 +105,22 @@ if (release) {
 		const latest = join(build, 'data', 'makroskop-data.zip');
 		check(existsSync(latest) && readFileSync(latest).equals(zipBytes), 'open data: makroskop-data.zip is not the current zip');
 	}
+}
+
+const dataPagePath = join(build, 'aabne-data', 'index.html');
+check(existsSync(dataPagePath), 'open data: missing build/aabne-data/index.html');
+if (existsSync(dataPagePath) && release) {
+	const dataPage = readFileSync(dataPagePath, 'utf8');
+	const hrefs = [...dataPage.matchAll(/href="(\/data\/[^"]+)"/g)].map((m) => m[1]);
+	for (const href of new Set(hrefs)) check(existsSync(join(build, href)), `open data page: link to missing ${href}`);
+	const perScenario = hrefs.filter((h) => /^\/data\/(shocks|csv|csv-da)\/(?!alle-scenarier|grundforloeb)[^/]+\.(json|csv)$/.test(h));
+	check(new Set(perScenario).size === dataSet.scenarios.length * 3, `open data page: ${new Set(perScenario).size} per-scenario links, expected ${dataSet.scenarios.length * 3}`);
+	const zipPath = join(build, 'data', zipName(release.version));
+	if (existsSync(zipPath)) {
+		const shown = createHash('sha256').update(readFileSync(zipPath)).digest('hex');
+		check(dataPage.includes(shown), 'open data page: the SHA-256 shown is not the built zip\'s');
+	}
+	check(count(dataPage, /<title>/g) === 1 && dataPage.includes('<title>Data · MAKROskop</title>'), 'open data page: <title>');
 }
 
 if (failures.length) {

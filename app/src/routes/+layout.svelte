@@ -34,6 +34,12 @@
 			label: 'Validering',
 			description:
 				'Kan man stole på tallene? MAKROskops frie løser er efterprøvet mod GAMS/IPOPT på de samme stød og ved at genfinde løsningen for alle modellens ligninger.'
+		},
+		{
+			href: '/aabne-data/',
+			label: 'Data',
+			description:
+				'Hent alle MAKROskops scenarier som CSV og JSON – afvigelser fra MAKROs referenceforløb, versioneret, med dataordbog og licens CC BY 4.0.'
 		}
 	];
 

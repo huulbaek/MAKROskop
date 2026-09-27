@@ -26,7 +26,16 @@ export default defineConfig({
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
 
-			adapter: adapter({ fallback: undefined })
+			adapter: adapter({ fallback: undefined }),
+
+			prerender: {
+				// /aabne-data/ links the open-data files that scripts/data-files.ts writes after vite build
+				// (makroskop-gko); verify-build checks that every one of them exists.
+				handleHttpError: ({ path, message }) => {
+					if (/^\/data\/(csv\/|csv-da\/|ordbog|makroskop-data)/.test(path)) return;
+					throw new Error(message);
+				}
+			}
 		})
 	]
 });
