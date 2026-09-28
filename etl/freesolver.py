@@ -14,7 +14,9 @@ numbers, xN variable references, and the intrinsics sqr/tanh/exp.
 """
 
 import argparse
+import math
 import os
+from dataclasses import dataclass
 from typing import Callable
 import datetime
 import re
@@ -581,27 +583,13 @@ def export_solution_gdx(convert_dir: Path, x: np.ndarray, out_path: Path,
     print(f"wrote {out_path} ({written:,} symbols, {sum(len(v) for v in records.values()):,} records)")
 
 
-def cmd_solve_export(from_year: int, shock_name: str, shock_years: tuple[int, int] | None,
-                     shock_factor: float, shock_delta: float, out_path: Path,
-                     convert_dir: Path, tol: float, export_stages: bool = False,
-                     shock_profile: str = "permanent", endogenize: str = "",
-                     closure: str = "none") -> None:
-    """Solve a (possibly multi-year) shock with continuation and export the solution as GDX.
-
-    With `endogenize`, the shock targets an endogenous variable (e.g. snLHh) and the named
-    parameter (uDeltag) is freed instance-for-instance to hit it — DREAM's exo/endo swap
-    (see find_swap_pairs); the freed parameter is exported at its solved values.
-
-    shock_profile scales the change per year (see profile_weight): the instrument becomes
-    level * (1 + (factor - 1) * w(t)) + delta * w(t), with dt counted from the first shock year;
-    a bundle member 'name@weight' has w(t) times its weight (BUNDLE_WEIGHTS).
-
-    With export_stages, every converged continuation stage (1 %, 3.5 %, ... of the
-    shock) is also written as a compact GDX `<out>_sNNN.gdx` (NNN = share in
-    permille, ETL symbols only) — free data for measuring how linear the response is.
-    """
-    system = System()
-
+def single_shock_targets(convert_dir: Path, system: "System", shock_name: str,
+                         shock_years: tuple[int, int] | None, shock_factor: float, shock_delta: float,
+                         shock_profile: str, endogenize: str) -> tuple[np.ndarray, np.ndarray]:
+    """Today's single-shock (--shock-name) setup, unchanged: bundle_instances, the exo/endo swap,
+    per-year profile x bundle weight, and the fixed_ok filter (exogenous instances only), applying
+    `system.swap` before returning so the caller's Window sees it. Moved out of cmd_solve_export
+    verbatim so solve-export --package can share the same machinery via package_targets."""
     # A comma-separated --shock-name is a bundle (e.g. 'pM,pXUdl' = DREAM's Udenlandske_priser):
     # every listed instrument gets the same factor/delta/profile, scaled by its weight if it has one.
     matched, scale = bundle_instances(convert_dir, shock_name, shock_years, system.levels)
@@ -612,9 +600,6 @@ def cmd_solve_export(from_year: int, shock_name: str, shock_years: tuple[int, in
         print(f"swap: {len(pairs)} instances of {shock_name} fixed at their targets, "
               f"the matching {endogenize} instances freed", flush=True)
 
-    extra = tax_reaction_closure(system, convert_dir, from_year) if closure == "tax-reaction" else None
-    window = Window(system, convert_dir, from_year, extra)
-    print(f"window: {len(window.eq_sel):,} equations ({window.n_years} years)")
     shock_vars = np.array([var_id for var_id, _ in matched])
     first_year = min(year for _, year in matched)
     weights = np.array([profile_weight(shock_profile, year - first_year) * scale.get(var_id, 1.0)
@@ -634,11 +619,49 @@ def cmd_solve_export(from_year: int, shock_name: str, shock_years: tuple[int, in
     print(f"shock: {shock_name} x {len(shock_vars)} instances (years {shock_years}), "
           f"factor {shock_factor}, delta {shock_delta}, profile {shock_profile} "
           f"({len(active)} instances actually moved)")
+    return shock_vars, targets
+
+
+def cmd_solve_export(from_year: int, shock_name: str, shock_years: tuple[int, int] | None,
+                     shock_factor: float, shock_delta: float, out_path: Path,
+                     convert_dir: Path, tol: float, export_stages: bool = False,
+                     shock_profile: str = "permanent", endogenize: str = "",
+                     closure: str = "none", package: str = "") -> None:
+    """Solve a (possibly multi-year) shock with continuation and export the solution as GDX.
+
+    With `endogenize`, the shock targets an endogenous variable (e.g. snLHh) and the named
+    parameter (uDeltag) is freed instance-for-instance to hit it — DREAM's exo/endo swap
+    (see find_swap_pairs); the freed parameter is exported at its solved values.
+
+    shock_profile scales the change per year (see profile_weight): the instrument becomes
+    level * (1 + (factor - 1) * w(t)) + delta * w(t), with dt counted from the first shock year;
+    a bundle member 'name@weight' has w(t) times its weight (BUNDLE_WEIGHTS).
+
+    With `package`, a /pakke/ query ('Topskat=-0.8&Offentligt_forbrug=-0.3') is solved as one
+    joint run instead of --shock-name's single instrument (package_members/package_targets).
+
+    With export_stages, every converged continuation stage (1 %, 3.5 %, ... of the
+    shock) is also written as a compact GDX `<out>_sNNN.gdx` (NNN = share in
+    permille, ETL symbols only) — free data for measuring how linear the response is.
+    """
+    system = System()
+
+    if package:
+        members = package_members(package)
+        shock_vars, targets = package_targets(convert_dir, system, members, shock_years, shock_profile)
+        print(f"shock: package {package} x {len(shock_vars)} instances (years {shock_years})", flush=True)
+    else:
+        shock_vars, targets = single_shock_targets(convert_dir, system, shock_name, shock_years,
+                                                   shock_factor, shock_delta, shock_profile, endogenize)
+    extra = tax_reaction_closure(system, convert_dir, from_year) if closure == "tax-reaction" else None
+    window = Window(system, convert_dir, from_year, extra)
+    print(f"window: {len(window.eq_sel):,} equations ({window.n_years} years)")
 
     meta = {
         "fingerprint": model_fingerprint(convert_dir),
         "solver": "makroskop-freesolver",
-        "shock": shock_name,
+        "shock": "package" if package else shock_name,
+        "package": package,
         "shock_years": f"{shock_years[0]}-{shock_years[1]}" if shock_years else "",
         "factor": repr(shock_factor),
         "delta": repr(shock_delta),
@@ -1672,6 +1695,80 @@ def off_share(convert_dir: Path, levels: np.ndarray, years) -> dict[int, float]:
 BUNDLE_WEIGHTS = {"off_share": off_share}
 
 
+@dataclass(frozen=True)
+class PackageMember:
+    """One catalog shock of a /pakke/ query, as solve-export --package applies it (makroskop-48o)."""
+    name: str
+    solver_shock: str
+    factor: float
+    delta: float
+    endogenize: str
+    scale: float
+
+
+def package_members(query: str) -> list[PackageMember]:
+    """'Topskat=-0.8&Offentligt_forbrug=-0.3' → the catalog runs with their scales, in query order.
+    The closure is solve-export's --closure, so a 'variant' parameter is refused rather than ignored."""
+    from urllib.parse import parse_qsl
+    import catalog
+
+    members: list[PackageMember] = []
+    for name, raw in parse_qsl(query, keep_blank_values=True):
+        if name == "variant":
+            raise SystemExit("--package: pass the closure with --closure, not variant=")
+        run = next((r for r in catalog.SHOCK_RUNS if r.shock == name), None)
+        if run is None:
+            raise SystemExit(f"--package: {name!r} is not a catalog shock")
+        try:
+            scale = float(raw)
+        except ValueError:
+            raise SystemExit(f"--package: {name}={raw!r} is not a number") from None
+        if not math.isfinite(scale) or scale == 0:
+            raise SystemExit(f"--package: {name} needs a finite, non-zero scale")
+        if any(m.name == name for m in members):
+            raise SystemExit(f"--package: {name} appears twice")
+        members.append(PackageMember(name, run.solver_shock or run.instrument, run.factor, run.delta,
+                                     run.endogenize, scale))
+    if not members:
+        raise SystemExit("--package is empty")
+    return members
+
+
+def package_targets(convert_dir: Path, system, members: list[PackageMember],
+                    years: tuple[int, int] | None, profile: str) -> tuple[np.ndarray, np.ndarray]:
+    """Shock variable ids and targets for a whole package. Each member moves its instances by
+    level·(factor−1)·w + delta·w with w = profile weight × bundle weight × scale — the rule a single
+    run uses at weight 1 — and members that share an instance add their increments (the package is
+    a linear combination of instruments). Exo/endo swaps are applied here; a swapped member may not
+    share instances with any other member."""
+    increments: dict[int, float] = {}
+    owner: dict[int, str] = {}
+    for member in members:
+        matched, bundle_scale = bundle_instances(convert_dir, member.solver_shock, years, system.levels)
+        if member.endogenize:
+            pairs = find_swap_pairs(convert_dir, matched, member.endogenize)
+            system.swap(np.array([s for s, _, _ in pairs]), np.array([e for _, e, _ in pairs]))
+            matched = [(s, year) for s, _, year in pairs]
+        first_year = min(year for _, year in matched)
+        for var_id, year in matched:
+            if var_id in owner and (member.endogenize or _run_endogenizes(members, owner[var_id])):
+                raise SystemExit(f"--package: {member.name} and {owner[var_id]} overlap on a swapped instance")
+            if not system.is_fixed[var_id]:
+                continue  # aggregates of a symbol-level shock (e.g. nPop), as in the single-run path
+            w = profile_weight(profile, year - first_year) * bundle_scale.get(var_id, 1.0) * member.scale
+            level = system.levels[var_id]
+            increments[var_id] = increments.get(var_id, 0.0) + level * (member.factor - 1.0) * w + member.delta * w
+            owner.setdefault(var_id, member.name)
+    if not increments:
+        raise SystemExit("--package: no exogenous instance to shock")
+    ids = np.array(sorted(increments))
+    return ids, system.levels[ids] + np.array([increments[i] for i in ids])
+
+
+def _run_endogenizes(members: list[PackageMember], name: str) -> bool:
+    return any(m.name == name and m.endogenize for m in members)
+
+
 def bundle_instances(convert_dir: Path, spec: str, years: tuple[int, int] | None,
                      levels: np.ndarray) -> tuple[list[tuple[int, int]], dict[int, float]]:
     """(variable id, year) pairs for every member of a shock bundle, and the weight of each weighted
@@ -2107,6 +2204,9 @@ def main() -> None:
                              "(permanent | ar = 0.9^dt | linear = 1-0.25dt | blip = first year only)")
     parser.add_argument("--export-stages", action="store_true",
                         help="solve-export: also write each converged continuation stage as <out>_sNNN.gdx")
+    parser.add_argument("--package", default="",
+                        help="solve-export: a /pakke/ query 'Topskat=-0.8&Offentligt_forbrug=-0.3' solved as "
+                             "one run (catalog runs, scales as weights; makroskop-48o). Use with --shock-years.")
     parsed = parser.parse_args()
     if parsed.command == "parse":
         cmd_parse(parsed.convert_dir)
@@ -2132,6 +2232,8 @@ def main() -> None:
             "exported": datetime.date.today().isoformat(),
         })
     elif parsed.command == "solve-export":
+        if parsed.package and parsed.shock_name:
+            raise SystemExit("solve-export: --package and --shock-name are mutually exclusive")
         years = None
         if parsed.shock_years:
             lo, _, hi = parsed.shock_years.partition("-")
@@ -2139,7 +2241,7 @@ def main() -> None:
         cmd_solve_export(parsed.from_year, parsed.shock_name, years, parsed.shock_factor,
                          parsed.shock_delta, parsed.out, parsed.convert_dir, parsed.tol,
                          export_stages=parsed.export_stages, shock_profile=parsed.shock_profile,
-                         endogenize=parsed.endogenize, closure=parsed.closure)
+                         endogenize=parsed.endogenize, closure=parsed.closure, package=parsed.package)
     else:
         cmd_newton(parsed.perturb, parsed.max_iter, parsed.tol, parsed.from_year, parsed.convert_dir)
 
