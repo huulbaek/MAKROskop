@@ -2,16 +2,26 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import type { Meta } from '$lib/data';
-	import { formatSigned, formatValue } from '$lib/format';
-	import { MAX_GAP_PCT, proposalDateDa } from '$lib/proposal';
+	import { formatValue } from '$lib/format';
+	import { formatPctDa, MAX_GAP_PCT, proposalDateDa } from '$lib/proposal';
 	import { PROPOSALS } from '$lib/proposals';
 
 	const meta = $derived(page.data.meta as Meta);
 	const sizing = $derived(meta.sizing);
 	const shockRows = $derived(sizing ? Object.entries(sizing.staticSaldoPct) : []);
-	/** " = 31.437 personer" appended after "2030"; Svelte trims a bare space next to {#if}, so the
+	/** " = 30.643 personer" appended after "2030"; Svelte trims a bare space next to {#if}, so the
 	 *  leading space is built into the string itself. */
-	const structuralNote = $derived(sizing ? ` = ${formatValue(sizing.snL2030 * 10)} personer` : '');
+	const structuralNote = $derived(sizing ? ` = ${formatValue(sizing.snLHh2030 * 10)} personer` : '');
+	/** Nominal GDP for the price years the shipped proposals use, so kr → pct. of GDP can be checked. */
+	const daGdp = new Intl.NumberFormat('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+	const gdpRows = $derived.by(() => {
+		if (!sizing) return [];
+		const years = new Set(PROPOSALS.flatMap((p) => [...p.elements, ...p.financing].map((e) => e.priceYear)));
+		return [...years]
+			.sort((a, b) => a - b)
+			.filter((y) => sizing.vBNP[String(y)] != null)
+			.map((y) => [y, sizing.vBNP[String(y)]] as const);
+	});
 	const revised = $derived(PROPOSALS.filter((p) => p.revisions.length > 0));
 
 	function shockLabel(name: string): string {
@@ -43,6 +53,13 @@
 			</li>
 		</ol>
 		<p>
+			Afvigelsen måles for hver af fem hovedserier – BNP, beskæftigelse, den offentlige saldo, privat
+			forbrug og timelønnen – som den største forskel mellem den samlede modelkørsel og den lineære
+			sum i årene 2030-2060, i procent af den samlede kørsels største afvigelse fra grundforløbet i
+			samme periode. Det er en relativ afvigelse, ikke pct. af BNP; forslagets kort viser den største
+			af de fem.
+		</p>
+		<p>
 			Alle kan bede om, at et forslag kommer med; anmodninger behandles i den rækkefølge, de
 			kommer, og et afslag begrundes med den betingelse, forslaget ikke opfylder.
 			<a href="https://github.com/huulbaek/makroskop/issues" rel="external">Bed om et forslag på GitHub</a>.
@@ -71,7 +88,22 @@
 					</thead>
 					<tbody>
 						{#each shockRows as [name, value] (name)}
-							<tr><td>{shockLabel(name)}</td><td>{formatSigned(value)} pct. af BNP ved ×1</td></tr>
+							<tr><td>{shockLabel(name)}</td><td>{formatPctDa(value)} pct. af BNP ved ×1</td></tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		{/if}
+		{#if gdpRows.length}
+			<p>BNP i løbende priser i de prisår, forslagenes tal er opgjort i:</p>
+			<div class="table-wrap">
+				<table>
+					<thead>
+						<tr><th scope="col">Prisår</th><th scope="col">BNP</th></tr>
+					</thead>
+					<tbody>
+						{#each gdpRows as [year, gdp] (year)}
+							<tr><td>{year}</td><td>{daGdp.format(gdp)} mia. kr.</td></tr>
 						{/each}
 					</tbody>
 				</table>
@@ -83,7 +115,18 @@
 		</p>
 		<p>
 			Beskæftigelsesfradraget trækkes fra det skattepligtige indkomstgrundlag, så en ændring af
-			fradraget er kommune- og kirkeskatten af beløbet værd.
+			fradraget er kommune- og kirkeskatten af beløbet værd:
+		</p>
+		<p class="formula">
+			<code>
+				statisk provenuvirkning = −vBeskFradrag · Δt / t · (tKommune · ftKommune + tKirke · ftKirke ·
+				rtKirke) / BNP, alt i 2030
+			</code>
+		</p>
+		<p>
+			Her er <code>vBeskFradrag = tBeskFradrag · vWHh</code> fradragets samlede beløb (sats gange husholdningernes lønindkomst), <code>Δt / t</code>
+			stødets relative ændring af fradragssatsen og parentesen den gennemsnitlige kommune- og kirkeskat af
+			et fradraget beløb.
 		</p>
 		<p>
 			Offentligt forbrug, offentlige varekøb og offentlig beskæftigelse er stød til det offentliges
@@ -111,8 +154,13 @@
 		</p>
 		<p class="formula">
 			<code>
-				skala = fuldtidspersoner / (1 pct. af den strukturelle beskæftigelse i 2030{structuralNote})
+				skala = fuldtidspersoner / (1 pct. af husholdningernes strukturelle beskæftigelse i
+				2030{structuralNote})
 			</code>
+		</p>
+		<p>
+			Grundlaget er husholdningernes strukturelle beskæftigelse (<code>snLHh</code>) – det grundlag,
+			stødet Arbejdsudbud (beskæftigelse) selv flytter med 1 pct. ved ×1.
 		</p>
 	</section>
 

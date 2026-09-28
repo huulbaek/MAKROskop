@@ -28,8 +28,9 @@ export interface Sizing {
 	year: number;
 	/** Nominal GDP in mia. kr. by year (price years of the Finance Ministry's figures). */
 	vBNP: Record<string, number>;
-	/** Structural employment in 2030, 1.000 persons. */
-	snL2030: number;
+	/** The households' structural employment snLHh(tot) in 2030, 1.000 persons: the base the
+	 *  Arbejdsudbud_beskaeftigelse shock moves by 1 %. */
+	snLHh2030: number;
 	/** Static saldo effect of each fiscal shock at ×1, pct. of 2030 GDP, positive = strengthens. */
 	staticSaldoPct: Record<string, number>;
 }

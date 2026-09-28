@@ -2,15 +2,16 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { Sizing } from './data';
 import {
-	exportTitle, isPublishable, listedProposals, presetState, PROPOSAL_KEYS, chainLineDa, proposalDateDa,
-	proposalDescriptionDa, proposalPackage, proposalQuery, verificationLineDa, type Proposal
+	exportTitle, formatKrDa, formatPctDa, isPublishable, listedProposals, presetState, PROPOSAL_KEYS, chainLineDa,
+	proposalDateDa, proposalDescriptionDa, proposalPackage, proposalQuery, splitFraction, verificationLineDa,
+	type Proposal
 } from './proposal';
 import { PROPOSALS } from './proposals';
 
 const SIZING: Sizing = {
 	year: 2030,
 	vBNP: { '2024': 2800, '2025': 2900 },
-	snL2030: 3000,
+	snLHh2030: 3000,
 	staticSaldoPct: { Topskat: 0.05, Bundskat: 0.5, Offentligt_forbrug: -0.25 }
 };
 
@@ -55,6 +56,13 @@ describe('proposalPackage', () => {
 		expect(problems).toHaveLength(4);
 		expect(components.every((c) => Number.isFinite(c.scale))).toBe(true);
 	});
+	it('sizes the structural row on the households\' structural employment, the shock\'s own base', () => {
+		// 5.200 fuldtidspersoner / (1 pct. af 3.064,32 tusind) = 5.200 / 30.643,2 = 0,16970 → ×0,1697
+		const sizing: Sizing = { ...SIZING, snLHh2030: 3064.32 };
+		const row = proposalPackage({ ...BASE, structural: { fte: 5200, source: 0 } }, sizing).chain
+			.find((r) => r.role === 'structural')!;
+		expect(row.scale).toBe(0.1697);
+	});
 	it('drops a zero structural estimate without a row', () => {
 		const pkg = proposalPackage({ ...BASE, structural: { fte: 0, source: 0 } }, SIZING);
 		expect(pkg.components.map((c) => c.name)).not.toContain('Arbejdsudbud_beskaeftigelse');
@@ -95,6 +103,34 @@ describe('card text', () => {
 		expect(chainLineDa(structural, labels)).toBe('Strukturel virkning – Finansministeriets skøn: +3.000 fuldtidspersoner → Arbejdsudbud (beskæftigelse) ×0,1');
 		expect(chainLineDa(financing, {})).toBe('Mindre offentligt forbrug: +2,9 mia. kr. (2025) = +0,1 pct. af BNP → Offentligt forbrug ×−0,4');
 	});
+	it('shows kroner at source precision and pct. of GDP with 3 significant digits', () => {
+		const p: Proposal = { ...BASE, structural: null, financing: [], elements: [
+			{ shock: 'Topskat', labelDa: 'Senior', kr: -0.215, priceYear: 2024, source: 0 },
+			{ shock: 'Topskat', labelDa: 'Top-top', kr: 1.0, priceYear: 2025, source: 0 },
+			{ shock: 'Topskat', labelDa: 'Fradrag', kr: -6.8, priceYear: 2025, source: 0 }
+		] };
+		const lines = proposalPackage(p, SIZING).chain.map((r) => chainLineDa(r));
+		// −0,215 / 2.800 = −0,00767857 pct. of GDP; / 0,05 = −0,1536
+		expect(lines[0]).toBe('Senior: −0,215 mia. kr. (2024) = −0,00768 pct. af BNP → Topskat ×−0,15');
+		// 1,0 / 2.900 = 0,0344828 pct.; / 0,05 = 0,6897
+		expect(lines[1]).toBe('Top-top: +1,0 mia. kr. (2025) = +0,0345 pct. af BNP → Topskat ×0,69');
+		// −6,8 / 2.900 = −0,234483 pct.; / 0,05 = −4,6897
+		expect(lines[2]).toBe('Fradrag: −6,8 mia. kr. (2025) = −0,234 pct. af BNP → Topskat ×−4,69');
+	});
+	it('words a split row as its fraction of the source figure', () => {
+		const p: Proposal = { ...BASE, structural: null, elements: [], financing: [
+			{ shock: 'Offentligt_forbrug', labelDa: 'Varekøb', kr: 6.7 / 3, split: { of: 6.7, fractionDa: '1/3' },
+				priceYear: 2024, source: 0 }
+		] };
+		const [row] = proposalPackage(p, SIZING).chain;
+		// 2,2333 / 2.800 = 0,0797619 pct.; / −0,25 = −0,3190
+		expect(row.scale).toBe(-0.319);
+		expect(chainLineDa(row)).toBe('Varekøb: 1/3 af 6,7 mia. kr. (2024) = +0,0798 pct. af BNP → Offentligt forbrug ×−0,32');
+	});
+	it('formats kroner with 1-3 decimals and percentages with 3 significant digits', () => {
+		expect([-6.8, -0.5, -0.215, -3.7, 1.0, 2.2333333].map(formatKrDa)).toEqual(['−6,8', '−0,5', '−0,215', '−3,7', '+1,0', '+2,233']);
+		expect([-0.0937123, 0.0552088, 0.53189, -0.140375, 0].map(formatPctDa)).toEqual(['−0,0937', '+0,0552', '+0,532', '−0,14', '0']);
+	});
 	it('words the date in Danish', () => {
 		expect(proposalDateDa('2023-12-14')).toBe('14. december 2023');
 		expect(proposalDateDa('2025-01-01')).toBe('1. januar 2025');
@@ -117,6 +153,12 @@ describe('PROPOSALS', () => {
 		expect(new Set(PROPOSALS.map((p) => p.id)).size).toBe(PROPOSALS.length);
 	});
 	for (const p of PROPOSALS) {
+		it(`${p.id}: every split row is exactly its fraction of the source figure`, () => {
+			for (const e of [...p.elements, ...p.financing]) {
+				if (!e.split) continue;
+				expect(Math.abs(e.kr - splitFraction(e.split.fractionDa) * e.split.of), e.labelDa).toBeLessThan(1e-9);
+			}
+		});
 		it(`${p.id}: the same method, with a source for every figure`, () => {
 			expect(Object.keys(p).sort()).toEqual([...PROPOSAL_KEYS].sort());
 			expect(p.sources.every((s) => s.url.startsWith('https://'))).toBe(true);
@@ -166,9 +208,9 @@ describe('exportTitle', () => {
 describe('proposalDescriptionDa', () => {
 	it('counts the sized rows and names only the parts the proposal has', () => {
 		expect(proposalDescriptionDa(BASE, SIZING)).toBe(
-			'Testforslag (Regeringen) regnet i MAKRO med samme metode som alle forslag: 2 elementer sat i størrelse ' +
-				'efter deres statiske provenu, heraf 1 til finansiering, plus Finansministeriets skøn over den strukturelle ' +
-				'beskæftigelse. Regnet uden lukkeskat.'
+			'Testforslag (Regeringen) regnet i MAKRO med samme metode som alle forslag: 1 element sat i størrelse ' +
+				'efter dets statiske provenu, plus forslagets egen finansiering (1 række) og Finansministeriets skøn over ' +
+				'den strukturelle beskæftigelse. Regnet uden lukkeskat.'
 		);
 	});
 	it('leaves out financing and the structural estimate when there are none', () => {
@@ -178,6 +220,19 @@ describe('proposalDescriptionDa', () => {
 				'efter dets statiske provenu. Regnet uden lukkeskat.'
 		);
 		expect(proposalDescriptionDa({ ...BASE, structural: { fte: 0, source: 0 } }, SIZING)).not.toContain('strukturelle');
+	});
+	it('counts financing rows apart from the elements sized by their static revenue', () => {
+		const two = { ...BASE, structural: null, elements: [...BASE.elements, ...BASE.elements],
+			financing: [...BASE.financing, ...BASE.financing] };
+		expect(proposalDescriptionDa(two, SIZING)).toBe(
+			'Testforslag (Regeringen) regnet i MAKRO med samme metode som alle forslag: 2 elementer sat i størrelse ' +
+				'efter deres statiske provenu, plus forslagets egen finansiering (2 rækker). Regnet uden lukkeskat.'
+		);
+		expect(proposalDescriptionDa({ ...BASE, financing: [] }, SIZING)).toBe(
+			'Testforslag (Regeringen) regnet i MAKRO med samme metode som alle forslag: 1 element sat i størrelse ' +
+				'efter dets statiske provenu, plus Finansministeriets skøn over den strukturelle beskæftigelse. ' +
+				'Regnet uden lukkeskat.'
+		);
 	});
 });
 

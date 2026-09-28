@@ -24,7 +24,9 @@
 	import {
 		downloadBlob, packageFilename, packagePermalink, provenanceLine, scenarioCsv, svgToPngBlob
 	} from '$lib/export';
-	import { exportTitle, listedProposals, presetState, proposalQuery, statusDa, type Proposal } from '$lib/proposal';
+	import {
+		exportTitle, listedProposals, presetState, proposalDateDa, proposalQuery, statusDa, type Proposal
+	} from '$lib/proposal';
 	import { PROPOSALS } from '$lib/proposals';
 	import { page } from '$app/state';
 	import { afterNavigate, goto, replaceState } from '$app/navigation';
@@ -135,6 +137,11 @@
 	}
 
 	const proposalPackageQuery = (p: Proposal) => `${proposalQuery(p, meta.sizing!)}&${FORSLAG_PARAM}=${p.id}`;
+
+	/** A plain left click opens a list entry in place; ctrl/cmd/shift/alt or a middle click is left
+	 *  to the browser, so "open in new tab" follows the link's href. */
+	const plainClick = (e: MouseEvent) =>
+		e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
 
 	/** A proposal opens unfinanced with its computed rows; the id rides along in the query. */
 	function openProposal(p: Proposal) {
@@ -545,11 +552,12 @@
 								<a
 									href={resolve(`/pakke/forslag/${p.id}/`)}
 									onclick={(e) => {
+										if (!plainClick(e)) return;
 										e.preventDefault();
 										openProposal(p);
 									}}>{p.titleDa}</a
 								>
-								<span class="muted">{p.proposerDa} · {statusDa(p.status)} · {p.date.slice(0, 4)}</span>
+								<span class="muted">{p.proposerDa} · {statusDa(p.status)} · {proposalDateDa(p.date)}</span>
 							</li>
 						{/each}
 					</ul>
@@ -564,6 +572,7 @@
 							<a
 								href={`${resolve('/pakke/')}?${example.query}`}
 								onclick={(e) => {
+									if (!plainClick(e)) return;
 									e.preventDefault();
 									apply(example.query);
 								}}>{example.title}</a

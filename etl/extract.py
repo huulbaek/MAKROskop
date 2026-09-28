@@ -197,12 +197,17 @@ SIZING_YEARS = range(2022, 2031)
 def build_sizing(reference: gt.Container, detrended: dict[str, dict[int, float]],
                  factors: dict[str, dict[int, float]]) -> dict:
     """What proposal presets are sized with (makroskop-48o): nominal GDP in mia. kr. by price year,
-    structural employment in 2030 (1.000 persons) and each fiscal shock's static saldo effect at ×1."""
+    the households' structural employment snLHh(tot) in 2030 (1.000 persons; the base that
+    Arbejdsudbud_beskaeftigelse moves by 1 %, which leaves out snLxDK and so is below snL(tot)) and
+    each fiscal shock's static saldo effect at ×1."""
     vbnp = apply_trend(detrended["vBNP"], "fvt", factors)
+    snlhh = read_records(reference, SeriesDef("snLHh", "snLHh", ("tot",), "", "", "", "", None, "pct"))
+    if 2030 not in snlhh:
+        raise ValueError("no snLHh(tot,2030) in the reference")
     return {
         "year": 2030,
         "vBNP": {str(year): sig_round(vbnp[year]) for year in SIZING_YEARS},
-        "snL2030": sig_round(detrended["snL"][2030]),
+        "snLHh2030": sig_round(snlhh[2030]),
         "staticSaldoPct": {k: sig_round(v) for k, v in static_saldo.all_static(static_saldo.GdxReference(reference)).items()},
     }
 

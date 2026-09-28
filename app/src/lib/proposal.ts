@@ -17,6 +17,9 @@ export interface ProposalElement {
 	source: number;
 	/** Set when MAKRO lacks the element's own instrument and it is regnet on the nearest one. */
 	mappedDa?: string;
+	/** Set when kr is a share of one source figure: kr = fraction × of (e.g. { of: 6.7, fractionDa: '1/3' }),
+	 *  so the card can show the figure the source prints. */
+	split?: { of: number; fractionDa: string };
 }
 export interface Proposal {
 	id: string;
@@ -46,6 +49,7 @@ export interface ChainRow {
 	fte: number | null;
 	scale: number;
 	mappedDa?: string;
+	split?: { of: number; fractionDa: string };
 }
 export interface ProposalPackage { components: PackageComponent[]; chain: ChainRow[]; problems: string[] }
 
@@ -70,7 +74,7 @@ export function proposalPackage(p: Proposal, sizing: Sizing): ProposalPackage {
 		if (gdp == null || unit == null || unit === 0) return;
 		const gdpPct = (e.kr / gdp) * 100;
 		chain.push({ role, shock: e.shock, labelDa: e.labelDa, kr: e.kr, priceYear: e.priceYear, gdpPct,
-			fte: null, scale: round4(gdpPct / unit), mappedDa: e.mappedDa });
+			fte: null, scale: round4(gdpPct / unit), mappedDa: e.mappedDa, split: e.split });
 	};
 	for (const e of p.elements) sizeRow(e, 'element');
 	if (p.structural == null) {
@@ -80,7 +84,7 @@ export function proposalPackage(p: Proposal, sizing: Sizing): ProposalPackage {
 		if (p.structural.fte !== 0) {
 			chain.push({ role: 'structural', shock: STRUCTURAL_SHOCK, labelDa: 'Strukturel virkning', kr: null,
 				priceYear: null, gdpPct: null, fte: p.structural.fte,
-				scale: round4(p.structural.fte / (0.01 * sizing.snL2030 * 1000)) });
+				scale: round4(p.structural.fte / (0.01 * sizing.snLHh2030 * 1000)) });
 		}
 	}
 	for (const e of p.financing) sizeRow(e, 'financing');
@@ -99,6 +103,26 @@ export function proposalQuery(p: Proposal, sizing: Sizing): string {
 
 const SHOCK_SHORT: Record<string, string> = { [STRUCTURAL_SHOCK]: 'Arbejdsudbud' };
 const minus = (s: string) => s.replace('-', '−');
+const signed = (s: string, value: number) => minus((value > 0 ? '+' : '') + s);
+
+const daKr = new Intl.NumberFormat('da-DK', { minimumFractionDigits: 1, maximumFractionDigits: 3 });
+const daSig3 = new Intl.NumberFormat('da-DK', { maximumSignificantDigits: 3 });
+
+/** Mia. kr. at the source's own precision: −6,8, −0,215, +1,0. */
+export function formatKrDa(kr: number): string {
+	return signed(daKr.format(kr), kr);
+}
+
+/** Pct. of GDP with 3 significant digits, so a chain step can be recomputed from what is shown. */
+export function formatPctDa(pct: number): string {
+	return signed(daSig3.format(pct), pct);
+}
+
+/** '1/3' → 1/3, '2/3' → 2/3. */
+export function splitFraction(fractionDa: string): number {
+	const [num, den] = fractionDa.split('/').map(Number);
+	return num / den;
+}
 
 /** One conversion step in words. `labels` (catalog name → labelDa, from meta.shocks) names the
  *  target shock as the catalog does; without it the shock name stands in. */
@@ -108,7 +132,10 @@ export function chainLineDa(row: ChainRow, labels?: Record<string, string>): str
 	if (row.role === 'structural') {
 		return `Strukturel virkning – Finansministeriets skøn: ${formatSigned(row.fte ?? 0)} fuldtidspersoner → ${target}`;
 	}
-	return `${row.labelDa}: ${minus(formatSigned(row.kr ?? 0))} mia. kr. (${row.priceYear}) = ${minus(formatSigned(row.gdpPct ?? 0))} pct. af BNP → ${target}`;
+	const kr = row.split
+		? `${row.split.fractionDa} af ${minus(daKr.format(row.split.of))}`
+		: formatKrDa(row.kr ?? 0);
+	return `${row.labelDa}: ${kr} mia. kr. (${row.priceYear}) = ${formatPctDa(row.gdpPct ?? 0)} pct. af BNP → ${target}`;
 }
 
 export function verificationLineDa(maxGapPct: number): string {
@@ -128,14 +155,19 @@ export function proposalDateDa(iso: string): string {
 /** The forslag page's meta description: what was sized, and only the parts the proposal has. */
 export function proposalDescriptionDa(p: Proposal, sizing: Sizing): string {
 	const chain = proposalPackage(p, sizing).chain;
-	const sized = chain.filter((r) => r.role !== 'structural').length;
+	const sized = chain.filter((r) => r.role === 'element').length;
 	const financing = chain.filter((r) => r.role === 'financing').length;
 	const structural = chain.some((r) => r.role === 'structural');
+	// Financing rows are the proposal's own financing figure (after tilbageløb og adfærd), not a
+	// static revenue, so they are named apart from the elements.
+	const extras = [
+		...(financing > 0 ? [`forslagets egen finansiering (${financing} ${financing === 1 ? 'række' : 'rækker'})`] : []),
+		...(structural ? ['Finansministeriets skøn over den strukturelle beskæftigelse'] : [])
+	];
 	return (
 		`${p.titleDa} (${p.proposerDa}) regnet i MAKRO med samme metode som alle forslag: ` +
 		`${sized} ${sized === 1 ? 'element' : 'elementer'} sat i størrelse efter ${sized === 1 ? 'dets' : 'deres'} statiske provenu` +
-		(financing > 0 ? `, heraf ${financing} til finansiering` : '') +
-		(structural ? ', plus Finansministeriets skøn over den strukturelle beskæftigelse' : '') +
+		(extras.length ? `, plus ${extras.join(' og ')}` : '') +
 		'. Regnet uden lukkeskat.'
 	);
 }

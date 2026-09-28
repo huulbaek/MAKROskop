@@ -20,7 +20,7 @@ export const PROPOSALS: Proposal[] = [
 			},
 			{
 				// [B]
-				labelDa: 'L 138 (2023-24) som fremsat, almindelige bemærkninger (Tabel 6, s. 10)',
+				labelDa: 'L 138 (2023-24) som fremsat, almindelige bemærkninger (Tabel 6)',
 				url: 'https://www.ft.dk/samling/20231/lovforslag/l138/20231_l138_som_fremsat.htm'
 			},
 			{
@@ -84,16 +84,18 @@ export const PROPOSALS: Proposal[] = [
 		financing: [
 			{
 				shock: 'Offentlig_varekoeb',
-				labelDa: 'Lavere offentligt forbrug – realt offentligt varekøb (1/3)',
+				labelDa: 'Lavere offentligt forbrug – realt offentligt varekøb',
 				kr: 6.7 / 3,
+				split: { of: 6.7, fractionDa: '1/3' },
 				priceYear: 2024,
 				source: 2,
 				mappedDa: 'Fordelt med 1/3 offentligt varekøb og 2/3 offentlig beskæftigelse som i Finansministeriets svar på L 138, spm. 1 (anm. 1)'
 			},
 			{
 				shock: 'Offentlig_Beskaeftigelse',
-				labelDa: 'Lavere offentligt forbrug – offentlig beskæftigelse (2/3)',
+				labelDa: 'Lavere offentligt forbrug – offentlig beskæftigelse',
 				kr: (6.7 * 2) / 3,
+				split: { of: 6.7, fractionDa: '2/3' },
 				priceYear: 2024,
 				source: 2,
 				mappedDa: 'Fordelt med 1/3 offentligt varekøb og 2/3 offentlig beskæftigelse som i Finansministeriets svar på L 138, spm. 1 (anm. 1)'
