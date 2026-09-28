@@ -94,12 +94,25 @@ describe('fiveYearLine', () => {
 		expect(fiveYearLine(17427, 30714)).toBe('Efter 5 år er effekten vokset til +30.700 personer.');
 	});
 
-	it('states the number otherwise', () => {
-		expect(fiveYearLine(3000, 1500)).toBe('Efter 5 år: +1.500 personer i beskæftigelse i forhold til grundforløbet.');
+	it('says "stadig" when the grown effect rounds to the year-1 number', () => {
+		expect(fiveYearLine(10000, 10040)).toBe('Efter 5 år er effekten stadig +10.000 personer.');
 	});
 
-	it('handles a zero first-year effect without dividing', () => {
-		expect(fiveYearLine(0, 0)).toBe('Efter 5 år er beskæftigelseseffekten næsten væk (0 personer).');
+	it('says the effect has turned when it changed sign and is not small', () => {
+		expect(fiveYearLine(3000, -1500)).toBe('Efter 5 år er effekten vendt: −1.500 personer.');
+	});
+
+	it('counts an effect under the persons floor as faded', () => {
+		expect(fiveYearLine(300, 90)).toBe('Efter 5 år er beskæftigelseseffekten næsten væk (+90 personer).');
+	});
+
+	it('says employment hardly moves when both years are under the floor', () => {
+		expect(fiveYearLine(0, 0)).toBe('Beskæftigelsen påvirkes stort set ikke, heller ikke efter 5 år.');
+		expect(fiveYearLine(60, -40)).toBe('Beskæftigelsen påvirkes stort set ikke, heller ikke efter 5 år.');
+	});
+
+	it('states the number otherwise', () => {
+		expect(fiveYearLine(3000, 1500)).toBe('Efter 5 år: +1.500 personer i beskæftigelse i forhold til grundforløbet.');
 		expect(fiveYearLine(0, 500)).toBe('Efter 5 år: +500 personer i beskæftigelse i forhold til grundforløbet.');
 	});
 });
@@ -155,6 +168,20 @@ describe('buildAnswer', () => {
 		});
 		expect(answer.tiles.map((t) => t.value)).toEqual(['−10.900', '−1,2', '−1,0']);
 		expect(answer.fiveYear).toMatch(/^Efter 5 år er beskæftigelseseffekten næsten væk/);
+	});
+});
+
+describe('the published questions', () => {
+	it('all have three tile numbers and a five-year line', () => {
+		const baseline = readBaseline();
+		const yearStart = readMeta().yearStart;
+		for (const question of QUESTIONS) {
+			const scenario = trimScenario(readScenario(question.file));
+			const y1 = scenario.definition.firstYear;
+			const answer = buildAnswer({ question, scenario, yearStart, levels: levelsAt(baseline, y1), nL5: levelsAt(baseline, y1 + 4)?.nL ?? null });
+			expect(answer.tiles.map((t) => t.value), question.file).not.toContain(null);
+			expect(answer.fiveYear, question.file).toMatch(/^(Efter 5 år|Beskæftigelsen)/);
+		}
 	});
 });
 

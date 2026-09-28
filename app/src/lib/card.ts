@@ -55,6 +55,20 @@ export interface CardTile {
 	unit: string;
 }
 
+const TILE_WORD: Record<CardTile['key'], string> = { nL: 'beskæftigelse', qBNP: 'BNP', saldo2bnp: 'offentlig saldo' };
+
+/** The tiles in words for page and card descriptions ("BNP −0,6 pct. efter 3 år"); null where a
+ *  value is missing. Each caller picks its own order. */
+export function tilePhrases(tiles: CardTile[]): Record<CardTile['key'], string | null> {
+	const phrases = { nL: null, qBNP: null, saldo2bnp: null } as Record<CardTile['key'], string | null>;
+	for (const t of tiles) {
+		if (t.value == null) continue;
+		const when = t.key === 'qBNP' ? `efter ${t.year} år` : `i år ${t.year}`;
+		phrases[t.key] = `${TILE_WORD[t.key]} ${t.value} ${t.unit} ${when}`;
+	}
+	return phrases;
+}
+
 export interface CardData {
 	name: string;
 	variation: string;
@@ -246,7 +260,7 @@ export function buildCard(input: {
 	const at = deviationAt(scenario, yearStart, scale);
 	const y1 = def.firstYear;
 	const tiles = cardTiles({ scenario, definition: def, yearStart, levels, scale });
-	const [persons, bnp, saldo] = tiles;
+	const bnp = tiles[1];
 
 	const instrument = cardSubject(shock, def);
 	const change = changeText(def, scale);
@@ -261,11 +275,8 @@ export function buildCard(input: {
 	const subline = shortForm ? `${profileWord} · standardstød ${def.changeDa}` : profileWord;
 	const closure = closureWord(scenario.variation);
 	const question = `Hvad sker der i MAKRO, hvis ${instrument} ${PROFILE_WORD[scenario.variation] ?? 'varigt'} ændres med ${change}?`;
-	const numbers = [
-		persons.value == null ? null : `beskæftigelse ${persons.value} personer i år 1`,
-		saldo.value == null ? null : `offentlig saldo ${saldo.value} pct. af BNP`,
-		bnp.value == null ? null : `BNP ${bnp.value} pct. efter 3 år`
-	].filter((part): part is string => part != null);
+	const said = tilePhrases(tiles);
+	const numbers = [said.nL, said.saldo2bnp, said.qBNP].filter((part): part is string => part != null);
 	const scaling = scale === 1 ? '' : scale < 0 ? ', spejlet stød (lineær tilnærmelse)' : ', lineært skaleret';
 	const honesty = `MAKROs standardstød (stødår ${y1}) vist som år efter stødet${scaling}.`;
 	const description = [

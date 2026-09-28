@@ -31,8 +31,8 @@ export interface AnswerSentence {
  *  (vtLukning = tLukning · (vtHhx − vtLukning)); without the base its pct.-point says nothing. */
 export const CLOSURE_TAX_DA = 'lukkeskatten – et beregningsteknisk tillæg til husholdningernes direkte skatter –';
 
-/** Below this many persons an employment effect is "stort set uændret". */
-const MIN_PERSONS = 100;
+/** Below this many persons an employment effect is "stort set uændret" (also the front page). */
+export const MIN_PERSONS = 100;
 /** A fifth-year effect at most this share of the first year's has "næsten" faded (as on the front page). */
 const FADED_SHARE = 0.2;
 /** Saldo effects below this many mia. kr. (50 mio.) are "stort set upåvirkede". */

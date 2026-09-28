@@ -49,7 +49,6 @@
 		'MAKROskop er en fri, licensløs udgave af MAKRO – den makroøkonomiske model bag Finansministeriets regnestykker: grundforløb, stød-scenarier og politikpakker.';
 
 	function isActive(href: string): boolean {
-		if (href === '/') return page.url.pathname === '/';
 		return page.url.pathname.startsWith(href.replace(/\/$/, ''));
 	}
 
@@ -114,7 +113,7 @@
 	{@render children()}
 {:else}
 	<a class="skip-link" href="#indhold" onclick={skipToContent}>Spring til indhold</a>
-	
+
 	<div class="shell">
 		<header>
 			<a class="wordmark" href="/">MAKRO<span>skop</span></a>
@@ -136,11 +135,11 @@
 				</a>
 			</div>
 		</header>
-	
+
 		<main id="indhold" tabindex="-1" bind:this={main}>
 			{@render children()}
 		</main>
-	
+
 		<footer>
 			<p class="about">
 				Bygget på <a href="https://github.com/DREAM-DK/MAKRO" rel="external">MAKRO</a>, den makroøkonomiske

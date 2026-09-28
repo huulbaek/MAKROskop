@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Scenario, ShockMeta } from './data';
 import {
 	ALL_SCALE_STEPS, buildCard, cardTiles, changeText, formatPersons, formatTileValue, imageFile, parseSkala,
-	scalableChange, scaleLabel, scaleSteps, shareViews, splitView, viewPath
+	scalableChange, scaleLabel, scaleSteps, shareViews, splitView, tilePhrases, viewPath
 } from './card';
 
 const YEAR_START = 1985;
@@ -102,13 +102,28 @@ describe('formatting', () => {
 	});
 });
 
+describe('tilePhrases', () => {
+	it('words each tile with its unit and year, null where the value is missing', () => {
+		const tiles = [
+			{ key: 'nL', label: 'Beskæftigelse', year: 1, value: '−5.500', unit: 'personer' },
+			{ key: 'qBNP', label: 'BNP', year: 3, value: '−0,6', unit: 'pct.' },
+			{ key: 'saldo2bnp', label: 'Offentlig saldo', year: 1, value: null, unit: 'pct. af BNP' }
+		] as const;
+		expect(tilePhrases([...tiles])).toEqual({
+			nL: 'beskæftigelse −5.500 personer i år 1',
+			qBNP: 'BNP −0,6 pct. efter 3 år',
+			saldo2bnp: null
+		});
+	});
+});
+
 describe('buildCard', () => {
 	it('states the halved ECB hike as years after the shock', () => {
 		const card = build(0.5);
 		expect(card.title).toBe('ECB-renten +0,5 pct.-point: BNP −0,6 pct. efter 3 år');
 		expect(card.description).toBe(
 			'Hvad sker der i MAKRO, hvis ECB-renten varigt ændres med +0,5 pct.-point? ' +
-				'Beskæftigelse −5.500 personer i år 1, offentlig saldo −0,5 pct. af BNP, BNP −0,6 pct. efter 3 år. ' +
+				'Beskæftigelse −5.500 personer i år 1, offentlig saldo −0,5 pct. af BNP i år 1, BNP −0,6 pct. efter 3 år. ' +
 				'Ufinansieret. MAKROs standardstød (stødår 2030) vist som år efter stødet, lineært skaleret.'
 		);
 		expect(card.tiles.map((t) => [t.key, t.year, t.value, t.unit])).toEqual([

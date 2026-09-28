@@ -140,15 +140,40 @@
 			grid-template-columns: 1fr;
 			gap: 0;
 		}
+		/* one row per figure, label left and number right: the chart stays near the first screen */
 		.tiles :global(.figure) {
 			border-right: 0;
-			padding: 12px 0;
+			padding: 8px 0;
+			display: flex;
+			align-items: baseline;
+			justify-content: space-between;
+			gap: 12px;
+		}
+		.tiles :global(.figure .label) {
+			margin-bottom: 0;
+		}
+		.tiles :global(.figure .value) {
+			font-size: 26px;
 		}
 		.tiles :global(.figure + .figure) {
 			border-top: 1px solid var(--rule);
 		}
 		.answer h2 {
 			font-size: 24px;
+		}
+		/* tighter chips: six questions on three rows instead of four */
+		.chip-row {
+			gap: 6px;
+		}
+		.chip-row .chip {
+			padding: 7px 10px;
+		}
+		.answer {
+			margin-top: 20px;
+			padding-top: 16px;
+		}
+		.five-year {
+			font-size: 17px;
 		}
 	}
 </style>

@@ -1,7 +1,8 @@
 /** The front page: curated "Hvad sker der, hvis …" questions, each answered by a solved
  *  unfinanced scenario exactly as solved — no scaling, no mirroring. Spec:
  *  docs/superpowers/specs/2026-09-25-front-page-design.md (makroskop-169). */
-import { cardTiles, formatPersons, type CardLevels, type CardTile } from './card';
+import { cardTiles, formatPersons, tilePhrases, type CardLevels, type CardTile } from './card';
+import { MIN_PERSONS } from './answer';
 import type { Scenario, ScenarioDefinition } from './data';
 import { RECOMPUTING } from './notices';
 
@@ -64,11 +65,17 @@ export function trimScenario(scenario: Scenario): TrimmedScenario {
 	};
 }
 
-/** Employment five years on (shock year + 4), in persons, against year 1. */
+/** Employment five years on (shock year + 4), in persons, against year 1. Effects under
+ *  MIN_PERSONS count as none, as in the scenario page's answer sentence. */
 export function fiveYearLine(y1: number, y5: number): string {
 	const persons = `${formatPersons(y5)} personer`;
-	if (Math.abs(y5) <= 0.2 * Math.abs(y1)) return `Efter 5 år er beskæftigelseseffekten næsten væk (${persons}).`;
-	if (Math.sign(y5) === Math.sign(y1) && Math.abs(y5) > Math.abs(y1)) return `Efter 5 år er effekten vokset til ${persons}.`;
+	if (Math.abs(y1) < MIN_PERSONS && Math.abs(y5) < MIN_PERSONS) return 'Beskæftigelsen påvirkes stort set ikke, heller ikke efter 5 år.';
+	if (Math.abs(y5) < MIN_PERSONS || Math.abs(y5) <= 0.2 * Math.abs(y1)) return `Efter 5 år er beskæftigelseseffekten næsten væk (${persons}).`;
+	if (Math.sign(y5) === Math.sign(y1) && Math.abs(y5) > Math.abs(y1)) {
+		// the year-1 tile shows the rounded number: "vokset til" the same number would read oddly
+		return formatPersons(y5) === formatPersons(y1) ? `Efter 5 år er effekten stadig ${persons}.` : `Efter 5 år er effekten vokset til ${persons}.`;
+	}
+	if (Math.sign(y5) === -Math.sign(y1)) return `Efter 5 år er effekten vendt: ${persons}.`;
 	return `Efter 5 år: ${persons} i beskæftigelse i forhold til grundforløbet.`;
 }
 
@@ -122,12 +129,8 @@ export interface PageHead {
 
 /** The front page's <title> and description; the description carries the default answer. */
 export function homeHead(answer: Answer): PageHead {
-	const [persons, bnp, saldo] = answer.tiles;
-	const numbers = [
-		persons.value == null ? null : `beskæftigelse ${persons.value} personer i år 1`,
-		bnp.value == null ? null : `BNP ${bnp.value} pct. efter 3 år`,
-		saldo.value == null ? null : `offentlig saldo ${saldo.value} pct. af BNP i år 1`
-	].filter(Boolean);
+	const said = tilePhrases(answer.tiles);
+	const numbers = [said.nL, said.qBNP, said.saldo2bnp].filter(Boolean);
 	return {
 		title: 'MAKROskop – spørg Finansministeriets model, hvad der sker, hvis …',
 		description:
