@@ -9,10 +9,10 @@
 		"dataBasisDa": "Nationalregnskabsdata fra marts 2026"
 	},
 	"license": "CC-BY-4.0",
-	"changelog": "meta.json: sizing for proposal presets (makroskop-48o)",
+	"changelog": "Topskat og beskæftigelsesfradrag: to nye stød i begge varianter; meta.json: størrelser til forslag i Pakker (makroskop-48o)",
 	"files": {
 		"baseline.json": "a7bc2fa58e0f29129221caad527a844a8239f83aafa28ba341f4f51fb2b33418",
-		"meta.json": "b62cca00dc505776d9ca80e323e1b40f2714f45e98d830fe3fde67c506c84a7b",
+		"meta.json": "ce413ed12450c01e51b1e9ebb65e502d11a0b9bf6fb2fdc208d621dd6fc9894c",
 		"shocks/AM_bidrag_perm.json": "029bc8220724aac7cf4c5003f320a4fefd2f4883718896a780393ce926364dbd",
 		"shocks/AM_bidrag_ufin.json": "ce7770cca7645bfc0b6b17f8d22e842ad9840ac5b19b49411a1864985d2f683b",
 		"shocks/Afgift_erhverv_perm.json": "4c095e9e2114a7a764feda722d3126bdf45af16290e0a7aa11f112b6d32b3fa9",
@@ -29,6 +29,8 @@
 		"shocks/Arbejdsudbud_timer_ufin.json": "e763a115fa4b84da7b9683a3df6592fd93cb581bb601a96f7fcc97d824bb41bd",
 		"shocks/Befolkning_perm.json": "2d2b685676f5e2a553d7f104ccd47aaac31dedc352683fd08b13ca38ddcfa18e",
 		"shocks/Befolkning_ufin.json": "7198ea181c4fc49b6f0f6d6d082c9653034359863c7d1bd438475e718366ac14",
+		"shocks/Beskaeftigelsesfradrag_perm.json": "ddd3778fab22a977fb5c6bb434f13760785a487b0fb0ac524586f8185d6f7e30",
+		"shocks/Beskaeftigelsesfradrag_ufin.json": "a4c44948a44ab45e1b5d94be195a417b9e99b2aa81b7f46ee3858aa90441e453",
 		"shocks/BoligRisiko_perm.json": "197084a3973532241c401e71a743c669d0a4e3f4390536b55a13716539f5858a",
 		"shocks/BoligRisiko_ufin.json": "1fa904fdd8ad6bf683ae218ac28c335dd2cf7cd08de812f3adfdd0e24ebc0cea",
 		"shocks/Bundskat_perm.json": "cb3f36f6e9e0e40d496ef479ad85a5e3b1f10cd39d267b21b5eb05a2d5c14783",
@@ -85,6 +87,8 @@
 		"shocks/Selskabsskat_ufin.json": "9c118aec80ddfb77665a7c0c034188dc2918cc58e03b8480b110e655ef74fefb",
 		"shocks/Skattepligtig_indkomstoverforsel_perm.json": "9337fd76eb1d0ae7debee6529cfffd1096169ec0f57f8f572880dbcf3407262f",
 		"shocks/Skattepligtig_indkomstoverforsel_ufin.json": "7d9bd6ab94af0c7fc18d1944de379ebb151b6f8c0a154abc474430ff823f103a",
+		"shocks/Topskat_perm.json": "8f7def5b93024fad1149811dfc8e71a10f520dabefa4732b21ce0270efb448f1",
+		"shocks/Topskat_ufin.json": "d660dced1d1767511f68718206da592cdc2931a4d415c091cfb7c2a4f1e72620",
 		"shocks/Udenlandske_priser_perm.json": "d811080578dce569d5fc3fac482d18a174543cf92e91cd3714aec411f9e1484f",
 		"shocks/Udenlandske_priser_ufin.json": "b04064d85203ca978628c9ae20df466bf5c6ea2905782590703d699e99d787f7",
 		"shocks/Vaegtafgift_perm.json": "e61a5f6199f5d13c93d54ddfdab34760f198972e9c00ba06bddd3981d2fd60ca",
@@ -108,7 +112,7 @@
 	],
 	"zip": {
 		"name": "makroskop-data-2026.09.28.2.zip",
-		"bytes": 5633430,
-		"sha256": "b10815f47a0e8d64c7ed89d50494403cd65ab81ea3707daed3433d513c70f293"
+		"bytes": 5887633,
+		"sha256": "96d5c515317a4c285951656faa5e91599334c5aac52b06f03aa1bfe27d833645"
 	}
 }
