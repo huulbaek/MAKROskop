@@ -1,8 +1,10 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { Sizing } from './data';
 import {
 	PROPOSAL_KEYS, chainLineDa, proposalPackage, proposalQuery, verificationLineDa, type Proposal
 } from './proposal';
+import { PROPOSALS } from './proposals';
 
 const SIZING: Sizing = {
 	year: 2030,
@@ -91,4 +93,20 @@ describe('PROPOSAL_KEYS', () => {
 	it('is exactly the Proposal fields: no per-proposal override can sneak in', () => {
 		expect([...PROPOSAL_KEYS].sort()).toEqual(Object.keys(BASE).sort());
 	});
+});
+
+describe('PROPOSALS', () => {
+	const meta = JSON.parse(readFileSync('static/data/meta.json', 'utf8'));
+	it('is non-empty, ordered by date and has unique ids', () => {
+		expect(PROPOSALS.length).toBeGreaterThan(0);
+		expect(PROPOSALS.map((p) => p.date)).toEqual([...PROPOSALS.map((p) => p.date)].sort());
+		expect(new Set(PROPOSALS.map((p) => p.id)).size).toBe(PROPOSALS.length);
+	});
+	for (const p of PROPOSALS) {
+		it(`${p.id}: the same method, with a source for every figure`, () => {
+			expect(Object.keys(p).sort()).toEqual([...PROPOSAL_KEYS].sort());
+			expect(p.sources.every((s) => s.url.startsWith('https://'))).toBe(true);
+			expect(proposalPackage(p, meta.sizing).problems).toEqual([]);
+		});
+	}
 });
