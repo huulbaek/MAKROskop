@@ -1750,15 +1750,25 @@ def package_targets(convert_dir: Path, system, members: list[PackageMember],
             system.swap(np.array([s for s, _, _ in pairs]), np.array([e for _, e, _ in pairs]))
             matched = [(s, year) for s, _, year in pairs]
         first_year = min(year for _, year in matched)
+        fixed = filtered = 0
         for var_id, year in matched:
             if var_id in owner and (member.endogenize or _run_endogenizes(members, owner[var_id])):
                 raise SystemExit(f"--package: {member.name} and {owner[var_id]} overlap on a swapped instance")
             if not system.is_fixed[var_id]:
+                filtered += 1
                 continue  # aggregates of a symbol-level shock (e.g. nPop), as in the single-run path
             w = profile_weight(profile, year - first_year) * bundle_scale.get(var_id, 1.0) * member.scale
             level = system.levels[var_id]
             increments[var_id] = increments.get(var_id, 0.0) + level * (member.factor - 1.0) * w + member.delta * w
             owner.setdefault(var_id, member.name)
+            fixed += 1
+        if fixed == 0:
+            # as the single-shock path: a member that moves nothing would silently drop out of the package
+            raise SystemExit(f"--package: all {len(matched)} matched instances of {member.name} "
+                             f"({member.solver_shock}) are endogenous")
+        if filtered:
+            print(f"  {member.name}: filtering {filtered} endogenous instances (aggregates); "
+                  f"shocking {fixed} exogenous ones", flush=True)
     if not increments:
         raise SystemExit("--package: no exogenous instance to shock")
     ids = np.array(sorted(increments))

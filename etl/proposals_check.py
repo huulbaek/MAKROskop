@@ -41,10 +41,19 @@ def relative_gap(joint: list[float | None], linear: list[float | None]) -> float
     return max(abs(j - l) for j, l in pairs) / peak
 
 
+# The design every joint solve must have: unfinanced (the published _ufin scenarios it is compared
+# with), first solved year 2030 and a permanent shock over the whole horizon (cloud/run_proposals.sh).
+JOINT_DESIGN = {"closure": "none", "from_year": "2030", "shock_years": "2030-2129"}
+
+
 def check_stamp(proposal_id: str, stamp: dict[str, str], spec: dict[str, str]) -> None:
     if stamp.get("package") != spec["package"]:
         raise SystemExit(f"{proposal_id}: joint solve is stale (solved {stamp.get('package')!r}, "
                          f"current {spec['package']!r}) — rerun cloud/run_proposals.sh")
+    for field, expected in JOINT_DESIGN.items():
+        if stamp.get(field) != expected:
+            raise SystemExit(f"{proposal_id}: joint solve has {field}={stamp.get(field)!r}, expected {expected!r} "
+                             f"— rerun cloud/run_proposals.sh")
 
 
 def main() -> None:

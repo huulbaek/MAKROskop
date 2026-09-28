@@ -4,6 +4,10 @@
 # (NOT scanned by extract.py) until verified; joint solves go to etl/proposal_gdx/.
 #   setsid nohup bash cloud/run_proposals.sh > proposals.log 2>&1 < /dev/null &
 # Sequential (one factorization at a time), idempotent, resumable from checkpoints.
+# Idempotent means an existing output is SKIPped, never re-solved: after a sizing or figure change
+# (new meta.json sizing, an edited proposal, a new proposal_specs.json) delete the stale
+# proposal_gdx/Forslag_<id>.gdx first — otherwise the old joint solve stays, and proposals_check.py
+# refuses it as stale.
 set -uo pipefail
 cd "$(dirname "$0")/../etl"
 export PATH="$HOME/.local/bin:$PATH"

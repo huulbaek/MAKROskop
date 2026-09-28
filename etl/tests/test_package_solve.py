@@ -76,3 +76,28 @@ def test_a_swap_member_may_not_overlap_another(monkeypatch: pytest.MonkeyPatch, 
 
     with pytest.raises(SystemExit, match="overlap"):
         fs.package_targets(convert_dir(tmp_path), SwapSystem(), members, (2030, 2030), "permanent")
+
+
+def test_a_member_without_an_exogenous_instance_is_refused(tmp_path: Path) -> None:
+    class AggregateSystem(FakeSystem):
+        def __init__(self) -> None:
+            super().__init__()
+            self.is_fixed[1] = False  # tTop(2030) endogenous: Topskat has nothing left to move
+
+    members = fs.package_members("Bundskat=1&Topskat=1")
+    with pytest.raises(SystemExit, match="Topskat"):
+        fs.package_targets(convert_dir(tmp_path), AggregateSystem(), members, (2030, 2030), "permanent")
+
+
+def test_filtered_endogenous_instances_are_counted_per_member(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+    class PartlyEndogenous(FakeSystem):
+        def __init__(self) -> None:
+            super().__init__()
+            self.is_fixed[4] = False  # hL(off,2030): one of Offentligt_forbrug's instances
+
+    members = fs.package_members("Offentligt_forbrug=1&Bundskat=1")
+    ids, _ = fs.package_targets(convert_dir(tmp_path), PartlyEndogenous(), members, (2030, 2030), "permanent")
+    assert 4 not in ids.tolist()
+    out = capsys.readouterr().out
+    assert "Offentligt_forbrug: filtering 1 endogenous" in out
+    assert "Bundskat: filtering" not in out

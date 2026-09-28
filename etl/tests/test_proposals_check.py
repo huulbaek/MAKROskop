@@ -27,4 +27,21 @@ def test_package_scales_come_from_the_query() -> None:
 
 def test_a_stale_joint_solve_is_refused() -> None:
     with pytest.raises(SystemExit, match="stale"):
-        pc.check_stamp("x", {"package": "Topskat=-1"}, {"package": "Topskat=-2", "query": "…"})
+        pc.check_stamp("x", {**GOOD_STAMP, "package": "Topskat=-1"}, SPEC)
+
+
+GOOD_STAMP = {"package": "Topskat=-2", "closure": "none", "from_year": "2030", "shock_years": "2030-2129"}
+SPEC = {"package": "Topskat=-2", "query": "Topskat=-2&variant=_ufin"}
+
+
+def test_a_current_unfinanced_2030_solve_passes() -> None:
+    pc.check_stamp("x", GOOD_STAMP, SPEC)
+
+
+@pytest.mark.parametrize("field, value", [
+    ("closure", "tax-reaction"), ("closure", ""), ("from_year", "2029"), ("from_year", ""),
+    ("shock_years", "2030-2030"), ("shock_years", ""),
+])
+def test_a_joint_solve_of_another_design_is_refused(field: str, value: str) -> None:
+    with pytest.raises(SystemExit, match=field):
+        pc.check_stamp("x", {**GOOD_STAMP, field: value}, SPEC)
