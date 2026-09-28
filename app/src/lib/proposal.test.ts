@@ -22,6 +22,8 @@ const BASE: Proposal = {
 	omittedDa: [], revisions: []
 };
 
+const meta = JSON.parse(readFileSync('static/data/meta.json', 'utf8'));
+
 describe('proposalPackage', () => {
 	it('sizes each row by its static saldo effect in pct. of GDP', () => {
 		const pkg = proposalPackage(BASE, SIZING);
@@ -96,7 +98,6 @@ describe('PROPOSAL_KEYS', () => {
 });
 
 describe('PROPOSALS', () => {
-	const meta = JSON.parse(readFileSync('static/data/meta.json', 'utf8'));
 	it('is non-empty, ordered by date and has unique ids', () => {
 		expect(PROPOSALS.length).toBeGreaterThan(0);
 		expect(PROPOSALS.map((p) => p.date)).toEqual([...PROPOSALS.map((p) => p.date)].sort());
@@ -118,5 +119,9 @@ describe('isPublishable', () => {
 		expect(isPublishable(BASE, SIZING, {})).toBe(false);
 		expect(isPublishable(BASE, SIZING, { test: { ...check, query: 'Topskat=-1&variant=_ufin' } })).toBe(false);
 		expect(isPublishable(BASE, SIZING, { test: { ...check, maxGapPct: 10.5 } })).toBe(false);
+	});
+	it('every shipped proposal is publishable', () => {
+		const checks = JSON.parse(readFileSync('static/data/proposals.json', 'utf8'));
+		for (const p of PROPOSALS) expect(isPublishable(p, meta.sizing, checks), p.id).toBe(true);
 	});
 });
