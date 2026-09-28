@@ -148,6 +148,16 @@ for (const p of PROPOSALS) {
 	check(/class="card proposal[ "]/.test(html), `/pakke/forslag/${p.id}/: the proposal card is not in the prerendered HTML`);
 }
 
+const metode = readFileSync(join(build, 'pakke', 'metode', 'index.html'), 'utf8');
+check(metode.includes('<title>Sådan regner vi forslag · MAKROskop</title>'), '/pakke/metode/: <title>');
+for (const id of ['optagelse', 'stoerrelse', 'strukturel', 'finansiering', 'ikke', 'rettelser']) {
+	check(metode.includes(`id="${id}"`), `/pakke/metode/: section #${id} missing`);
+}
+// PackageWorkbench links with resolve('/pakke/metode/'), which SvelteKit renders relative to the
+// current page's depth (paths.relative, the default) — "../pakke/metode/" here, not an absolute
+// href — so match on the resolved target rather than assuming an absolute path.
+check(/href="[^"]*pakke\/metode\/"/.test(readFileSync(join(build, 'pakke', 'index.html'), 'utf8')), '/pakke/: no link to the method note');
+
 if (failures.length) {
 	console.error(`verify-build: ${failures.length} problem(s)\n` + failures.slice(0, 20).join('\n'));
 	process.exit(1);
