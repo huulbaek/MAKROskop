@@ -2,7 +2,7 @@
  *  package by one method for every proposal — see docs/superpowers/specs/2026-09-28-proposal-presets-design.md.
  *  kr is the static saldo effect in mia. kr. in the price year, positive = strengthens the balance. */
 
-import type { Sizing } from './data';
+import type { ProposalCheck, Sizing } from './data';
 import { formatSigned, formatValue } from './format';
 import { formatScale, packageQuery, type PackageComponent } from './package';
 
@@ -114,4 +114,13 @@ export function verificationLineDa(maxGapPct: number): string {
 
 export function statusDa(status: ProposalStatus): string {
 	return status === 'vedtaget' ? 'Vedtaget' : 'Forslag';
+}
+
+export const MAX_GAP_PCT = 10;
+
+/** Listed and prerendered only when the joint solve is of the current query and agrees within 10 %. */
+export function isPublishable(p: Proposal, sizing: Sizing, checks: Record<string, ProposalCheck>): boolean {
+	const check = checks[p.id];
+	return check != null && check.query === proposalQuery(p, sizing) && check.maxGapPct <= MAX_GAP_PCT
+		&& proposalPackage(p, sizing).problems.length === 0;
 }

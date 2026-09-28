@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { Sizing } from './data';
 import {
-	PROPOSAL_KEYS, chainLineDa, proposalPackage, proposalQuery, verificationLineDa, type Proposal
+	isPublishable, PROPOSAL_KEYS, chainLineDa, proposalPackage, proposalQuery, verificationLineDa, type Proposal
 } from './proposal';
 import { PROPOSALS } from './proposals';
 
@@ -109,4 +109,14 @@ describe('PROPOSALS', () => {
 			expect(proposalPackage(p, meta.sizing).problems).toEqual([]);
 		});
 	}
+});
+
+describe('isPublishable', () => {
+	const check = { query: proposalQuery(BASE, SIZING), gapPct: {}, maxGapPct: 2, exported: '2026-10-01' };
+	it('needs a current, agreeing joint solve', () => {
+		expect(isPublishable(BASE, SIZING, { test: check })).toBe(true);
+		expect(isPublishable(BASE, SIZING, {})).toBe(false);
+		expect(isPublishable(BASE, SIZING, { test: { ...check, query: 'Topskat=-1&variant=_ufin' } })).toBe(false);
+		expect(isPublishable(BASE, SIZING, { test: { ...check, maxGapPct: 10.5 } })).toBe(false);
+	});
 });

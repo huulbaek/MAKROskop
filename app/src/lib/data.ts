@@ -142,6 +142,13 @@ export async function loadScenario(fetcher: typeof fetch, file: string): Promise
 	return response.json();
 }
 
+/** Joint solve vs linear sum per proposal (etl/proposals_check.py, makroskop-48o). */
+export interface ProposalCheck { query: string; gapPct: Record<string, number>; maxGapPct: number; exported: string }
+export async function loadProposalChecks(fetcher: typeof fetch): Promise<Record<string, ProposalCheck>> {
+	const response = await fetcher('/data/proposals.json');
+	return response.ok ? response.json() : {};
+}
+
 /** Unfinanced first: that is how DREAM presents its shock reactions, and a financed run's
  *  closure-tax reaction can swamp the shock itself (Rente, makroskop-cak). */
 const VARIATION_PREFERENCE = ['_ufin', '_perm', '_midl', '_blip'];
