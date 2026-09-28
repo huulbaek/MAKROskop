@@ -87,14 +87,16 @@ export const PROPOSALS: Proposal[] = [
 				labelDa: 'Lavere offentligt forbrug – realt offentligt varekøb (1/3)',
 				kr: 6.7 / 3,
 				priceYear: 2024,
-				source: 2
+				source: 2,
+				mappedDa: 'Fordelt med 1/3 offentligt varekøb og 2/3 offentlig beskæftigelse som i Finansministeriets svar på L 138, spm. 1 (anm. 1)'
 			},
 			{
 				shock: 'Offentlig_Beskaeftigelse',
 				labelDa: 'Lavere offentligt forbrug – offentlig beskæftigelse (2/3)',
 				kr: (6.7 * 2) / 3,
 				priceYear: 2024,
-				source: 2
+				source: 2,
+				mappedDa: 'Fordelt med 1/3 offentligt varekøb og 2/3 offentlig beskæftigelse som i Finansministeriets svar på L 138, spm. 1 (anm. 1)'
 			}
 		],
 		omittedDa: [
