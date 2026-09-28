@@ -64,6 +64,15 @@ describe('scaleSteps', () => {
 	});
 });
 
+describe('scaleSteps with a current value', () => {
+	it('adds an off-ladder current value in order', () => {
+		expect(scaleSteps(null, -0.63)).toEqual([-1, -0.75, -0.63, -0.5, -0.25, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]);
+	});
+	it('leaves the ladder alone for a ladder value', () => {
+		expect(scaleSteps(null, 0.5)).toEqual(ALL_SCALE_STEPS);
+	});
+});
+
 describe('superpose', () => {
 	it('returns the values unchanged for a single part at scale 1', () => {
 		expect(superpose([{ scale: 1, values: [null, 0, 1.5] }])).toEqual([null, 0, 1.5]);

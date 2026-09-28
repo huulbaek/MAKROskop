@@ -124,3 +124,19 @@ export function isPublishable(p: Proposal, sizing: Sizing, checks: Record<string
 	return check != null && check.query === proposalQuery(p, sizing) && check.maxGapPct <= MAX_GAP_PCT
 		&& proposalPackage(p, sizing).problems.length === 0;
 }
+
+export interface PresetState { proposal: Proposal; edited: boolean }
+
+/** The package query (packageQuery form) against the proposal it was opened from. Any difference —
+ *  a scale, a row, the closure — makes it an edited package that no longer carries the name. */
+export function presetState(query: string, proposalId: string | null, sizing: Sizing,
+	proposals: Proposal[]): PresetState | null {
+	const proposal = proposalId ? proposals.find((p) => p.id === proposalId) : undefined;
+	if (!proposal) return null;
+	return { proposal, edited: query !== proposalQuery(proposal, sizing) };
+}
+
+/** The line exports lead with while the package is the proposal itself; an edited package is anonymous. */
+export function exportTitle(state: PresetState | null): string | null {
+	return state && !state.edited ? `Forslag: ${state.proposal.titleDa} (${state.proposal.proposerDa})` : null;
+}

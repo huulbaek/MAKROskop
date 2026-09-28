@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { Sizing } from './data';
 import {
-	isPublishable, PROPOSAL_KEYS, chainLineDa, proposalPackage, proposalQuery, verificationLineDa, type Proposal
+	exportTitle, isPublishable, presetState, PROPOSAL_KEYS, chainLineDa, proposalPackage, proposalQuery,
+	verificationLineDa, type Proposal
 } from './proposal';
 import { PROPOSALS } from './proposals';
 
@@ -123,5 +124,29 @@ describe('isPublishable', () => {
 	it('every shipped proposal is publishable', () => {
 		const checks = JSON.parse(readFileSync('static/data/proposals.json', 'utf8'));
 		for (const p of PROPOSALS) expect(isPublishable(p, meta.sizing, checks), p.id).toBe(true);
+	});
+});
+
+describe('presetState', () => {
+	const PROPS = [BASE];
+	const q = proposalQuery(BASE, SIZING);
+	it('is the proposal, unedited, when the package is its query', () => {
+		expect(presetState(q, 'test', SIZING, PROPS)).toEqual({ proposal: BASE, edited: false });
+	});
+	it('is edited after any change: scale, row, closure', () => {
+		expect(presetState(q.replace('Topskat=-2', 'Topskat=-1'), 'test', SIZING, PROPS)?.edited).toBe(true);
+		expect(presetState(q.replace('Arbejdsudbud_beskaeftigelse=0.1&', ''), 'test', SIZING, PROPS)?.edited).toBe(true);
+		expect(presetState(q.replace('_ufin', '_perm'), 'test', SIZING, PROPS)?.edited).toBe(true);
+	});
+	it('is null for an unknown or missing id', () => {
+		expect(presetState(q, 'nope', SIZING, PROPS)).toBeNull();
+		expect(presetState(q, null, SIZING, PROPS)).toBeNull();
+	});
+});
+describe('exportTitle', () => {
+	it('names the proposal only while unedited', () => {
+		expect(exportTitle({ proposal: BASE, edited: false })).toBe('Forslag: Testforslag (Regeringen)');
+		expect(exportTitle({ proposal: BASE, edited: true })).toBeNull();
+		expect(exportTitle(null)).toBeNull();
 	});
 });
