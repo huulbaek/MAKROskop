@@ -105,8 +105,8 @@ posts `{ type: 'makroskop:height', height }` to `parent` after each render and o
   - a read-only textarea with the code from `embedCode` and a "Kopiér" button (a polite live
     region says "Kopieret"). The code: `src` with `?skala=` and `sammenlign` only when not the
     default, `width="100%"`, the default height, `title` (the headline and chart, for screen
-    readers), `loading="lazy"`, `style="border:0"`, `data-makroskop-embed`, and a fallback link
-    inside the iframe element;
+    readers), `loading="lazy"`, `style="border:0"` and `data-makroskop-embed` (the fallback link
+    inside the iframe was dropped in makroskop-gnp.9: browsers never render it);
   - a checkbox "Tilpas højden automatisk", on by default, which appends `<script async
     src="https://makroskop.nodalit.com/indlejr/resize.js"></script>`; help text: some CMSs remove
     scripts, and the chart then keeps its fixed height;
