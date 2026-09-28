@@ -140,6 +140,7 @@
 	{#if m.earlier.length}
 		<section aria-labelledby="tidligere">
 			<h2 id="tidligere">Tidligere versioner</h2>
+			<p class="note">Siden her har kun den nyeste version. Tidligere versioner hentes fra deres udgivelse på GitHub.</p>
 			<ul>
 				{#each m.earlier as release (release.version)}
 					<li><a href={release.url} rel="external">{release.version}</a> ({release.date}) – {release.changelog}</li>

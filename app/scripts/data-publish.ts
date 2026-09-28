@@ -6,7 +6,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { changedFiles, publishProblems, releaseNotes, releaseTag } from '../src/lib/opendata';
-import { dataChecksums, loadDataSet, readManifest, releaseExists, releaseZip, zipName } from '../src/lib/server/opendata-files';
+import { dataChecksums, loadDataSet, readManifest, releaseExists, releaseZip, remoteTagExists, zipName } from '../src/lib/server/opendata-files';
 
 const manifest = readManifest();
 const ds = loadDataSet();
@@ -16,10 +16,12 @@ const unpushed = revList.status === 0 ? Number(revList.stdout.trim()) : null;
 const head = spawnSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).stdout.trim();
 const status = spawnSync('git', ['status', '--porcelain', '--', 'static/data', '../CITATION.cff'], { encoding: 'utf8' });
 const uncommitted = status.stdout.split('\n').filter(Boolean).map((line) => line.slice(3));
+// A bare tag (pushed by hand, or a release deleted without its tag) counts as taken too.
+const tagExists = manifest ? (releaseExists(manifest.version) || remoteTagExists(manifest.version)) : false;
 const problems = publishProblems({
 	manifest,
 	ghAuthed: ok('gh', ['auth', 'status']),
-	tagExists: manifest ? releaseExists(manifest.version) : false,
+	tagExists,
 	changed: manifest ? changedFiles(manifest.files, dataChecksums(ds)) : [],
 	unpushed,
 	uncommitted

@@ -277,7 +277,8 @@ ${m.doi ? `doi: "${m.doi}"\n` : ''}references:
 export function publishProblems(p: {
 	manifest: Manifest | null;
 	ghAuthed: boolean;
-	tagExists: boolean;
+	/** A release or a bare tag data-<version> on GitHub; null when the remote could not be read. */
+	tagExists: boolean | null;
 	changed: string[];
 	/** Commits not on the upstream; null when there is no upstream to compare with. */
 	unpushed: number | null;
@@ -288,6 +289,8 @@ export function publishProblems(p: {
 	if (!p.manifest) problems.push('Ingen udgivelse: kør bun run data:release først.');
 	if (!p.ghAuthed) problems.push('gh er ikke logget ind: kør gh auth login.');
 	if (p.manifest && p.tagExists) problems.push(`${releaseTag(p.manifest.version)} findes allerede på GitHub.`);
+	if (p.manifest && p.tagExists === null)
+		problems.push(`Kunne ikke se tags på origin (git ls-remote): tjek forbindelsen, så et eksisterende ${releaseTag(p.manifest.version)} ikke genbruges.`);
 	if (p.manifest && p.changed.length)
 		problems.push(`Data er ændret siden version ${p.manifest.version} (${p.changed.join(', ')}): kør bun run data:release.`);
 	if (p.uncommitted.length) problems.push(`Ikke committet: ${p.uncommitted.join(', ')} — commit og push først.`);

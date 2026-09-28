@@ -119,7 +119,12 @@
 			<a class="wordmark" href="/">MAKRO<span>skop</span></a>
 			<nav aria-label="Hovednavigation">
 				{#each links as link (link.href)}
-					<a href={link.href} class:active={isActive(link.href)} aria-current={isActive(link.href) ? 'page' : undefined}>
+					<a
+						href={link.href}
+						class:active={isActive(link.href)}
+						class:desktop-only={link.href === DATA_PAGE && !isActive(link.href)}
+						aria-current={isActive(link.href) ? 'page' : undefined}
+					>
 						{link.label}
 					</a>
 				{/each}
@@ -145,7 +150,8 @@
 				Bygget på <a href="https://github.com/DREAM-DK/MAKRO" rel="external">MAKRO</a>, den makroøkonomiske
 				model udviklet af DREAM-gruppen til Finansministeriet m.fl. Grundforløbet er stiliseret og egner sig
 				kun til marginale eksperimenter, ikke som prognose. MAKROskop er en uafhængig prototype og ikke et
-				produkt fra DREAM eller Finansministeriet.
+				produkt fra DREAM eller Finansministeriet. Alle tallene kan hentes som CSV og JSON under
+				<a href={DATA_PAGE}>Data</a>.
 			</p>
 			<dl class="stamp">
 				<dt>Model</dt>
@@ -371,13 +377,17 @@
 		}
 	}
 
-	/* Five nav entries on one line down to 360px phones (288px of text at 14.5px). */
+	/* Phones: Data (downloads, rarely wanted on a phone) leaves the nav, so the other four stay on
+	   one row down to 320px; the footer links it on every page. It stays while it is the current page. */
 	@media (max-width: 420px) {
 		nav {
 			column-gap: 10px;
 		}
 		nav a {
 			font-size: 13.5px;
+		}
+		nav a.desktop-only {
+			display: none;
 		}
 	}
 </style>

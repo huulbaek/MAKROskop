@@ -116,15 +116,25 @@ check(existsSync(dataPagePath), 'open data: missing build/aabne-data/index.html'
 if (existsSync(dataPagePath) && release) {
 	const dataPage = readFileSync(dataPagePath, 'utf8');
 	const hrefs = [...dataPage.matchAll(/href="(\/data\/[^"]+)"/g)].map((m) => m[1]);
-	for (const href of new Set(hrefs)) check(existsSync(join(build, href)), `open data page: link to missing ${href}`);
 	const perScenario = hrefs.filter((h) => /^\/data\/(shocks|csv|csv-da)\/(?!alle-scenarier|grundforloeb)[^/]+\.(json|csv)$/.test(h));
 	check(new Set(perScenario).size === dataSet.scenarios.length * 3, `open data page: ${new Set(perScenario).size} per-scenario links, expected ${dataSet.scenarios.length * 3}`);
 	if (zipBytes) check(dataPage.includes(sha256(zipBytes)), 'open data page: the SHA-256 shown is not the built zip\'s');
 	check(count(dataPage, /<title>/g) === 1 && dataPage.includes('<title>Data · MAKROskop</title>'), 'open data page: <title>');
 }
 
+// Every link into /data/ on every built page: the prerender crawler skips them (rel="external",
+// the files are written after vite build), so a broken one would otherwise ship silently.
+const htmlFiles = (readdirSync(build, { recursive: true, encoding: 'utf8' }) as string[]).filter((f) => f.endsWith('.html'));
+const dataLinks = new Map<string, string>();
+for (const file of htmlFiles) {
+	for (const m of readFileSync(join(build, file), 'utf8').matchAll(/href="(\/data\/[^"?#]+)/g)) {
+		if (!dataLinks.has(m[1])) dataLinks.set(m[1], file);
+	}
+}
+for (const [href, file] of dataLinks) check(existsSync(join(build, href)), `${file}: link to missing ${href}`);
+
 if (failures.length) {
 	console.error(`verify-build: ${failures.length} problem(s)\n` + failures.slice(0, 20).join('\n'));
 	process.exit(1);
 }
-console.log(`verify-build: ${views.length} views, ${embeds.length} embeds and ${derived.length} data files, pages and images present, tags correct`);
+console.log(`verify-build: ${views.length} views, ${embeds.length} embeds and ${derived.length} data files, pages and images present, tags correct, ${dataLinks.size} data links in ${htmlFiles.length} pages resolve`);

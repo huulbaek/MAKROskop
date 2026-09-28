@@ -235,6 +235,10 @@ describe('publishProblems', () => {
 			'gh er ikke logget ind: kør gh auth login.'
 		]);
 		expect(publishProblems({ ...ok, tagExists: true })).toEqual(['data-2026.09.27 findes allerede på GitHub.']);
+		// git ls-remote failed: an unknown tag is not a new tag
+		expect(publishProblems({ ...ok, tagExists: null })).toEqual([
+			'Kunne ikke se tags på origin (git ls-remote): tjek forbindelsen, så et eksisterende data-2026.09.27 ikke genbruges.'
+		]);
 		expect(publishProblems({ ...ok, changed: ['shocks/Moms_perm.json'] })).toEqual([
 			'Data er ændret siden version 2026.09.27 (shocks/Moms_perm.json): kør bun run data:release.'
 		]);

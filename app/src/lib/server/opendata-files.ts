@@ -100,3 +100,10 @@ export function dataFilesOnDisk(dir: string = DATA_DIR): string[] {
 export function releaseExists(version: string): boolean {
 	return spawnSync('gh', ['release', 'view', releaseTag(version)], { stdio: 'ignore' }).status === 0;
 }
+
+/** Whether origin has the tag data-<version>, with or without a release: gh release create would reuse
+ *  a bare tag and ignore --target. null when git ls-remote fails (offline, no remote). */
+export function remoteTagExists(version: string): boolean | null {
+	const r = spawnSync('git', ['ls-remote', '--exit-code', '--tags', 'origin', `refs/tags/${releaseTag(version)}`], { stdio: 'ignore' });
+	return r.status === 0 ? true : r.status === 2 ? false : null;
+}

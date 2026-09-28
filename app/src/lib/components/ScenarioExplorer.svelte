@@ -14,6 +14,7 @@
 	} from '$lib/data';
 	import { RECOMPUTING } from '$lib/notices';
 	import { DATA_PAGE, DATA_VERSION } from '$lib/release';
+	import { SITE_URL } from '$lib/site';
 	import { EMBED_SERIES, chartUnit, embedHeadline, embedHeight, embedTarget, embedUrl } from '$lib/embed';
 	import EmbedDialog from '$lib/components/EmbedDialog.svelte';
 	import { page } from '$app/state';
@@ -403,7 +404,7 @@
 				scenarioLine,
 				'Afvigelser fra grundforløbet: pct. for mængder og priser, pct.-point for satser og saldi',
 				provenance,
-				`Dataversion ${DATA_VERSION} · alle tal: ${page.url.origin}${DATA_PAGE}`,
+				`Dataversion ${DATA_VERSION} · alle tal: ${SITE_URL}${DATA_PAGE}`,
 				`Kilde: ${shareUrl}`
 			]
 		});

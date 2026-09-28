@@ -23,7 +23,7 @@
 	import { page } from '$app/state';
 	import { replaceState } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 
 	let { data } = $props();
 
@@ -101,7 +101,11 @@
 	}
 
 	// Deep link: /pakke/?Bundskat=-1&Offentligt_forbrug=0.5&variant=_perm
+	/** replaceState throws until SvelteKit's router is up, which is after hydration. */
+	let hydrated = $state(false);
+
 	onMount(() => {
+		void tick().then(() => (hydrated = true));
 		if (page.url.search) apply(page.url.search);
 	});
 
@@ -269,6 +273,7 @@
 
 	// Keep the address bar in sync, so the URL a reader copies reproduces the package.
 	$effect(() => {
+		if (!hydrated) return;
 		if (components.length === 0) {
 			if (location.search) replaceState(resolve('/pakke/'), {});
 			return;
