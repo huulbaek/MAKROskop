@@ -1,0 +1,974 @@
+<script lang="ts">
+	import LineChart from '$lib/components/LineChart.svelte';
+	import StatTile from '$lib/components/StatTile.svelte';
+	import { changeText } from '$lib/card';
+	import { formatSigned } from '$lib/format';
+	import { devUnit, loadScenario, type Baseline, type Meta, type Scenario, type ShockMeta } from '$lib/data';
+	import { RECOMPUTING } from '$lib/notices';
+	import {
+		financedCostLine,
+		formatScale,
+		gdpPpToKr,
+		packageLine,
+		packageQuery,
+		parsePackageQuery,
+		pctToLevel,
+		scaleSteps,
+		superpose,
+		unfinancedCostLine,
+		type PackageComponent
+	} from '$lib/package';
+	import {
+		downloadBlob, packageFilename, packagePermalink, provenanceLine, scenarioCsv, svgToPngBlob
+	} from '$lib/export';
+	import { page } from '$app/state';
+	import { replaceState } from '$app/navigation';
+	import { resolve } from '$app/paths';
+	import { onMount, tick } from 'svelte';
+
+	let { meta, baseline }: { meta: Meta; baseline: Baseline } = $props();
+
+	/** The two closures a package can be solved under. Temporary profiles are not offered:
+	 *  they are unfinanced-only and not yet solved for the catalog. */
+	const CLOSURES = ['_perm', '_ufin'];
+
+	let components: PackageComponent[] = $state([]);
+	let variant = $state('_perm');
+	/** Loaded scenario files, keyed by `<shock><variant>`; null = the file is missing. */
+	let cache: Map<string, Scenario | null> = $state.raw(new Map());
+	let loading = $state(0);
+	let indicator = $state('qBNP');
+
+	const shocksByName = $derived(new Map(meta.shocks.map((s) => [s.name, s])));
+	const closureLabel = $derived(meta.variations.find((v) => v.suffix === variant)?.labelDa ?? 'Permanent, finansieret');
+
+	const shockGroups = $derived.by(() => {
+		const groups = new Map<string, ShockMeta[]>();
+		for (const shock of meta.shocks) {
+			const list = groups.get(shock.group) ?? [];
+			list.push(shock);
+			groups.set(shock.group, list);
+		}
+		return groups;
+	});
+
+	async function ensureLoaded(file: string) {
+		if (cache.has(file)) return;
+		loading++;
+		try {
+			const scenario = await loadScenario(fetch, file);
+			cache = new Map(cache).set(file, scenario);
+		} finally {
+			loading--;
+		}
+	}
+
+	function add(name: string) {
+		if (components.some((c) => c.name === name)) return;
+		components = [...components, { name, scale: 1 }];
+		void ensureLoaded(`${name}${variant}`);
+	}
+
+	function remove(name: string) {
+		components = components.filter((c) => c.name !== name);
+	}
+
+	function toggle(name: string) {
+		if (components.some((c) => c.name === name)) remove(name);
+		else add(name);
+	}
+
+	function setScale(name: string, scale: number) {
+		components = components.map((c) => (c.name === name ? { ...c, scale } : c));
+	}
+
+	function setVariant(next: string) {
+		variant = next;
+		for (const c of components) {
+			if (shocksByName.get(c.name)?.available.includes(next)) void ensureLoaded(`${c.name}${next}`);
+		}
+	}
+
+	function apply(query: string) {
+		const parsed = parsePackageQuery(new URLSearchParams(query), shocksByName.keys(), CLOSURES);
+		variant = parsed.variant;
+		components = parsed.components;
+		for (const c of components) {
+			if (shocksByName.get(c.name)?.available.includes(variant)) void ensureLoaded(`${c.name}${variant}`);
+		}
+	}
+
+	// Deep link: /pakke/?Bundskat=-1&Offentligt_forbrug=0.5&variant=_perm
+	/** replaceState throws until SvelteKit's router is up, which is after hydration. */
+	let hydrated = $state(false);
+
+	onMount(() => {
+		void tick().then(() => (hydrated = true));
+		if (page.url.search) apply(page.url.search);
+	});
+
+	/** One row per component: its catalog entry, the loaded scenario (if any) and the
+	 *  slider ladder it is allowed. */
+	const rows = $derived.by(() =>
+		components.map((c) => {
+			const shock = shocksByName.get(c.name);
+			const available = shock?.available.includes(variant) ?? false;
+			const file = `${c.name}${variant}`;
+			const scenario = available ? (cache.get(file) ?? undefined) : undefined;
+			const steps = scaleSteps(scenario?.definition?.maxScale);
+			return {
+				...c,
+				shock,
+				available,
+				scenario,
+				missing: available && cache.has(file) && scenario == null,
+				steps,
+				stepIdx: steps.indexOf(c.scale)
+			};
+		})
+	);
+
+	/** Rows that actually enter the sums. */
+	const active = $derived(rows.filter((r) => r.scenario != null && r.available));
+	const ready = $derived(active.length > 0);
+
+	function deviation(key: string): (number | null)[] {
+		return superpose(active.map((r) => ({ scale: r.scale, values: r.scenario!.deviations[key] ?? [] })));
+	}
+
+	/** The change a component's size implies, in the instrument's own units. */
+	function scaledChange(row: (typeof rows)[number]): string {
+		const def = row.scenario?.definition;
+		return def ? changeText(def, row.scale) : '';
+	}
+
+	const years = $derived(Array.from({ length: meta.yearEnd - meta.yearStart + 1 }, (_, i) => meta.yearStart + i));
+	const fromYear = $derived(meta.defaultShockYear - 1);
+	const toYear = 2060;
+	const yearIndex = (year: number) => year - meta.yearStart;
+
+	// ------------------------------------------------------------------------------------
+	// Headline numbers: first shock year, medium run, long run.
+	const headlineYears = $derived([meta.defaultShockYear, meta.defaultShockYear + 5, 2050]);
+	const HEADLINE_INDICATORS = [
+		{ key: 'qBNP', label: 'BNP (realt)', devUnit: 'pct.', levelUnit: 'mia. 2020-kr.' },
+		{ key: 'nL', label: 'Beskæftigelse', devUnit: 'pct.', levelUnit: 'personer' },
+		{ key: 'saldo2bnp', label: 'Offentlig saldo', devUnit: 'pct.-point af BNP', levelUnit: 'mia. kr.' }
+	];
+
+	function levelOf(key: string, dev: number | null, year: number): number | null {
+		const i = yearIndex(year);
+		if (key === 'qBNP') return pctToLevel(dev, baseline.series.qBNP?.[i]);
+		if (key === 'nL') {
+			const persons = pctToLevel(dev, baseline.series.nL?.[i]);
+			return persons == null ? null : Math.round(persons * 1000);
+		}
+		if (key === 'saldo2bnp') return gdpPpToKr(dev, baseline.series.vBNP?.[i]);
+		return null;
+	}
+
+	/** One cell per headline year: the (scaled) deviation and its kr./persons equivalent. */
+	function cellsOf(key: string, values: (number | null)[], scale = 1) {
+		return headlineYears.map((year) => {
+			const v = values[yearIndex(year)];
+			const dev = v == null ? null : v * scale;
+			return { year, dev, level: levelOf(key, dev, year) };
+		});
+	}
+
+	const headline = $derived.by(() => {
+		if (!ready) return [];
+		return HEADLINE_INDICATORS.map((ind) => ({ ...ind, cells: cellsOf(ind.key, deviation(ind.key)) }));
+	});
+
+	/** The closure tax reaction: how much the fiscal rule had to move to pay for the package.
+	 *  Only the financed closure has one. */
+	const lukkeskat = $derived.by(() => {
+		if (!ready || variant !== '_perm') return null;
+		return cellsOf('tLukning', deviation('tLukning'));
+	});
+
+	/** Index of the year the hero tiles and the cost sentence quote (medium run). */
+	const HERO = 1;
+	const heroYear = $derived(headlineYears[HERO]);
+
+	/** "I 2035 koster pakken de offentlige finanser ca. 15,6 mia. kr. om året" — the number
+	 *  a costing sheet leads with. */
+	const costText = $derived.by(() => {
+		if (lukkeskat) return financedCostLine(lukkeskat[HERO]?.dev ?? null);
+		const saldo = headline.find((h) => h.key === 'saldo2bnp')?.cells[HERO];
+		return unfinancedCostLine(heroYear, saldo?.dev ?? null, saldo?.level ?? null);
+	});
+
+	// ------------------------------------------------------------------------------------
+	// Charts of the package total.
+	const chartKeys = ['qBNP', 'nL', 'saldo2bnp', 'qC', 'pBolig', 'vhW', 'ledighedsgrad', 'nettoformue2bnp'];
+
+	const charts = $derived.by(() => {
+		if (!ready) return [];
+		const bySeriesKey = new Map(meta.series.map((s) => [s.key, s]));
+		const keys = variant === '_perm' ? [...chartKeys, 'tLukning'] : chartKeys;
+		return keys
+			.map((key) => ({ key, values: deviation(key) }))
+			.filter((c) => c.values.some((v) => v != null))
+			.map(({ key, values }) => {
+				const info = bySeriesKey.get(key);
+				const pct = info?.devMode === 'pct';
+				return {
+					key,
+					title: info?.labelDa ?? key,
+					unit: pct ? 'afvigelse fra grundforløb, pct.' : 'afvigelse, pct.-point',
+					suffix: ` ${devUnit(info?.devMode)}`,
+					values
+				};
+			});
+	});
+
+	// ------------------------------------------------------------------------------------
+	// Contributions: which part of the package does what.
+	const contributionIndicator = $derived(HEADLINE_INDICATORS.find((i) => i.key === indicator) ?? HEADLINE_INDICATORS[0]);
+
+	const contributions = $derived.by(() => {
+		if (!ready) return [];
+		const key = contributionIndicator.key;
+		const lines = active.map((r) => ({
+			name: r.name,
+			label: r.shock?.labelDa ?? r.name,
+			scale: r.scale,
+			cells: cellsOf(key, r.scenario!.deviations[key] ?? [], r.scale)
+		}));
+		// The total row is the same row the Hovedtal table shows, so the two cannot drift.
+		const total = headline.find((h) => h.key === key)?.cells ?? cellsOf(key, deviation(key));
+		return [...lines, { name: '__total', label: 'Pakken i alt', scale: null, cells: total }];
+	});
+
+	/** True when any component was solved on a different MAKRO version than the baseline shown. */
+	const versionMismatch = $derived(
+		active.some((r) => {
+			const version = r.scenario?.modelVersion;
+			if (!version) return false;
+			if (meta.model.fingerprint && version.fingerprint) return version.fingerprint !== meta.model.fingerprint;
+			return version.commit !== meta.model.commit;
+		})
+	);
+
+	// ------------------------------------------------------------------------------------
+	// Sharing: the URL reproduces the package; every export carries the source stamp.
+	const query = $derived(packageQuery(components, variant));
+	const shareUrl = $derived(components.length > 0 ? packagePermalink(page.url.origin, query) : '');
+	const provenance = $derived(
+		provenanceLine({ model: meta.model.name, commit: meta.model.commit ?? '', dataBasis: meta.model.dataBasisDa, closure: closureLabel, date: __BUILD_DATE__ })
+	);
+	const packageDescription = $derived(
+		packageLine(
+			active.map((r) => ({ labelDa: r.shock?.labelDa ?? r.name, scale: r.scale, changeDa: scaledChange(r) })),
+			closureLabel
+		)
+	);
+	const METHOD_LINE = 'Lineær sum af enkeltvis løste standardstød, skaleret i browseren — ikke en ny modelkørsel';
+
+	// Keep the address bar in sync, so the URL a reader copies reproduces the package.
+	$effect(() => {
+		if (!hydrated) return;
+		if (components.length === 0) {
+			if (location.search) replaceState(resolve('/pakke/'), {});
+			return;
+		}
+		const url = new URL(shareUrl);
+		if (url.search !== location.search) replaceState(url, {});
+	});
+
+	let chartSvgs: Record<string, SVGSVGElement | undefined> = $state({});
+	/** Phones only: the catalog folds behind a toggle so the package comes first (CSS shows it open on wide screens). */
+	let catalogOpen = $state(false);
+	let copied = $state(false);
+	let exporting: string | null = $state(null);
+
+	/** The package state in one sentence, for a polite live region: adding or removing a
+	 *  shock changes tables and charts that a screen reader would otherwise not notice. */
+	const statusText = $derived.by(() => {
+		if (loading > 0) return 'Henter stødene …';
+		if (components.length === 0) return 'Pakken er tom.';
+		if (!ready) return 'Ingen af pakkens stød er løst med den valgte finansiering.';
+		return `Pakken: ${active.length} af ${components.length} stød indgår i summen, ${closureLabel.toLowerCase()}.`;
+	});
+
+	async function copyLink() {
+		await navigator.clipboard.writeText(shareUrl);
+		copied = true;
+		setTimeout(() => (copied = false), 2000);
+	}
+
+	function downloadCsv() {
+		const csv = scenarioCsv({
+			years,
+			columns: charts.map((c) => ({ key: c.key, label: c.title, unit: c.suffix.trim(), values: c.values })),
+			provenance: [
+				packageDescription,
+				METHOD_LINE,
+				'Afvigelser fra grundforløbet: pct. for mængder og priser, pct.-point for satser og saldi',
+				provenance,
+				`Kilde: ${shareUrl}`
+			]
+		});
+		downloadBlob(
+			new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }),
+			packageFilename(components, variant, null, 'csv')
+		);
+	}
+
+	async function downloadPng(chart: (typeof charts)[number]) {
+		const svg = chartSvgs[chart.key];
+		if (!svg) return;
+		exporting = chart.key;
+		try {
+			const theme = getComputedStyle(document.documentElement);
+			const cssVar = (name: string) => theme.getPropertyValue(name).trim();
+			const blob = await svgToPngBlob(svg, {
+				header: [`${chart.title} — ${chart.unit}`, packageDescription, METHOD_LINE],
+				footer: [provenance, shareUrl],
+				colors: { background: cssVar('--surface'), ink: cssVar('--ink'), muted: cssVar('--ink-muted') },
+				fonts: { display: cssVar('--font-display'), body: cssVar('--font-body') }
+			});
+			downloadBlob(blob, packageFilename(components, variant, chart.key, 'png'));
+		} finally {
+			exporting = null;
+		}
+	}
+
+	/** Worked examples for the empty state, as package queries. */
+	const EXAMPLES = [
+		{
+			title: 'Lavere bundskat, betalt med mindre offentligt forbrug',
+			note: 'Ufinansieret, så saldoen viser, om pakken balancerer.',
+			query: 'Bundskat=-1&Offentligt_forbrug=-0.5&variant=_ufin'
+		},
+		{
+			title: 'Velfærdspakke: flere offentligt ansatte og højere overførsler',
+			note: 'Finansieret med lukkeskatten, som i DREAMs egne beregninger.',
+			query: 'Offentlig_Beskaeftigelse=1&Skattepligtig_indkomstoverforsel=1&variant=_perm'
+		},
+		{
+			title: 'Grøn omlægning: højere energiafgift, lavere bundskat',
+			note: 'Ufinansieret; se om provenuet rækker til skattelettelsen.',
+			query: 'Energiafgift=1&Bundskat=-0.25&variant=_ufin'
+		}
+	];
+
+	/** Deviations rounded to what the table shows, so a −0,004 reads "0" rather than "-0". */
+	function fmtDev(value: number | null): string {
+		if (value == null) return '–';
+		const rounded = Math.round(value * 100) / 100;
+		return rounded === 0 ? '0' : formatSigned(rounded);
+	}
+
+	function fmtLevel(key: string, value: number | null): string {
+		if (value == null) return '–';
+		const rounded = key === 'nL' ? Math.round(value) : Math.round(value * 100) / 100;
+		return rounded === 0 ? '0' : formatSigned(rounded);
+	}
+</script>
+
+<section class="intro">
+	<h1>Hvad koster pakken?</h1>
+	<p class="lede">
+		Sæt flere standardstød sammen til én politik-pakke – fx lavere bundskat betalt med mindre offentligt
+		forbrug – og se, hvad MAKRO siger om BNP, beskæftigelse og de offentlige finanser. Pakken er summen af
+		de enkelte stød, skaleret i browseren; hvert stød er løst i modellen én gang.
+	</p>
+</section>
+
+<div class="workbench">
+	<aside aria-label="Stødkatalog" class:open={catalogOpen}>
+		<button class="catalog-toggle" aria-expanded={catalogOpen} aria-controls="catalog-list" onclick={() => (catalogOpen = !catalogOpen)}>
+			<span class="catalog-toggle-key">Stød</span>
+			<span class="catalog-toggle-value">{components.length === 0 ? 'Tilføj stød til pakken' : `${components.length} i pakken`}</span>
+			<span class="catalog-toggle-action">{catalogOpen ? 'Luk' : 'Vælg'}</span>
+		</button>
+		<div class="catalog-list" id="catalog-list">
+			<p class="aside-hint">Vælg et stød for at lægge det i pakken.</p>
+			{#each [...shockGroups] as [group, shocks] (group)}
+				<h2>{group}</h2>
+				{#each shocks as shock (shock.name)}
+					{@const inPackage = components.some((c) => c.name === shock.name)}
+					{@const usable = shock.available.includes(variant)}
+					{@const reason = usable
+						? ''
+						: shock.available.length > 0
+							? `Kun løst ${meta.variations.find((v) => v.suffix === shock.available[0])?.labelDa?.toLowerCase()}`
+							: 'Afventer modelkørsel'}
+					{@const blocked = !usable && !inPackage}
+					<!-- aria-disabled rather than disabled: the button stays focusable, so the reason is read out. -->
+					<button
+						class="shock"
+						class:selected={inPackage}
+						aria-disabled={blocked}
+						title={reason || undefined}
+						aria-pressed={inPackage}
+						onclick={() => {
+							if (!blocked) toggle(shock.name);
+						}}
+					>
+						{shock.labelDa}{#if reason}<span class="sr-only"> – {reason.toLowerCase()}</span>{/if}
+					</button>
+				{/each}
+			{/each}
+		</div>
+	</aside>
+
+	<div class="detail">
+		<div class="sr-only" role="status">{statusText}</div>
+		<div class="sr-only" role="status">{copied ? 'Link kopieret til udklipsholderen.' : ''}</div>
+		<div class="sr-only" role="status">{exporting ? 'Laver PNG …' : ''}</div>
+		{#each components.filter((c) => RECOMPUTING[c.name]) as c (c.name)}
+			<div class="banner warn" role="note">
+				<strong>{shocksByName.get(c.name)?.labelDa ?? c.name} genberegnes.</strong> {RECOMPUTING[c.name]}
+			</div>
+		{/each}
+		<div class="detail-head">
+			<h2>Pakkens indhold</h2>
+			<div class="chip-row" role="group" aria-label="Finansiering">
+				{#each CLOSURES as suffix (suffix)}
+					<button
+						class="chip"
+						class:active={variant === suffix}
+						aria-pressed={variant === suffix}
+						onclick={() => setVariant(suffix)}
+					>
+						{meta.variations.find((v) => v.suffix === suffix)?.labelDa ?? suffix}
+					</button>
+				{/each}
+			</div>
+		</div>
+
+		{#if components.length === 0}
+			<section class="empty">
+				<h3>Pakken er tom</h3>
+				<p>Vælg stød i kataloget – eller start fra et eksempel:</p>
+				<ul class="examples">
+					{#each EXAMPLES as example (example.query)}
+						<li>
+							<a
+								href={`${resolve('/pakke/')}?${example.query}`}
+								onclick={(e) => {
+									e.preventDefault();
+									apply(example.query);
+								}}>{example.title}</a
+							>
+							<span class="muted">{example.note}</span>
+						</li>
+					{/each}
+				</ul>
+			</section>
+		{:else}
+			<section class="card package" aria-label="Pakkens stød">
+				<ol class="rows">
+					{#each rows as row (row.name)}
+						<li class="row" class:inactive={!row.available || row.missing}>
+							<div class="row-head">
+								<span class="row-name">{row.shock?.labelDa ?? row.name}</span>
+								<button class="remove" onclick={() => remove(row.name)} aria-label={`Fjern ${row.shock?.labelDa ?? row.name}`}>Fjern</button>
+							</div>
+							{#if !row.available}
+								<p class="row-note">Ikke løst {closureLabel.toLowerCase()} – indgår ikke i summen. Skift finansiering for at bruge stødet.</p>
+							{:else if row.missing}
+								<p class="row-note">Resultatfilen kunne ikke hentes – indgår ikke i summen.</p>
+							{:else if row.scenario}
+								{@const def = row.scenario.definition}
+								<div class="scaler">
+									<input
+										type="range"
+										min="0"
+										max={row.steps.length - 1}
+										step="1"
+										value={row.stepIdx < 0 ? row.steps.indexOf(1) : row.stepIdx}
+										oninput={(e) => setScale(row.name, row.steps[Number(e.currentTarget.value)])}
+										aria-label={`Størrelse af ${row.shock?.labelDa ?? row.name}`}
+										aria-valuetext={`${formatScale(row.scale)} gange stødet${row.scale < 0 ? ' — spejlet, altså en lempelse' : ''}`}
+									/>
+									<output class="scale-readout">
+										<span class="scale-value"><strong>×{formatScale(row.scale)}</strong> = {scaledChange(row)}</span>
+										<span class="approx" class:blank={row.scale === 1} class:mirror={row.scale < 0}>
+											{row.scale < 0 ? 'spejlet' : 'lineær tilnærmelse'}
+										</span>
+									</output>
+								</div>
+								{#if def}
+									<p class="row-note">{def.instrumentDa} · løst som {def.changeDa}{def.maxScaleDa ? ` · ${def.maxScaleDa}` : ''}</p>
+								{/if}
+							{:else}
+								<p class="row-note">Henter …</p>
+							{/if}
+						</li>
+					{/each}
+				</ol>
+				{#if active.length < components.length}
+					<p class="count-note">{active.length} af {components.length} stød indgår i summen.</p>
+				{/if}
+			</section>
+		{/if}
+
+		{#if versionMismatch}
+			<div class="banner warn" role="alert">
+				<strong>Versionsforskel.</strong> Mindst ét stød i pakken er løst på en anden MAKRO-version end
+				grundforløbet her ({meta.model.name}, {meta.model.commit}). Omregningen til kroner og personer bruger
+				grundforløbets niveauer og bør tages med forbehold.
+			</div>
+		{/if}
+
+		{#if ready}
+			<div class="figures" aria-label={`Hovedtal i ${heroYear}`}>
+				{#each headline as ind (ind.key)}
+					{@const cell = ind.cells[HERO]}
+					<StatTile
+						label={`${ind.label} i ${heroYear}`}
+						value={fmtDev(cell.dev)}
+						unit={ind.devUnit}
+						note={cell.level == null ? '' : `≈ ${fmtLevel(ind.key, cell.level)} ${ind.levelUnit}`}
+						tone={ind.key === 'saldo2bnp' && cell.dev != null ? (cell.dev >= 0 ? 'good' : 'bad') : 'neutral'}
+					/>
+				{/each}
+			</div>
+
+			<section class="facts" aria-label="Hovedtal">
+				<h3>Hovedtal – afvigelse fra grundforløbet</h3>
+				{#if costText}<p class="cost">{costText}</p>{/if}
+				<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+				<!-- Focusable on purpose: the table scrolls sideways on narrow screens, and a keyboard needs a focus stop to do that. -->
+				<div class="table-wrap" tabindex="0" role="region" aria-label="Hovedtal, tabel">
+					<table>
+						<thead>
+							<tr>
+								<th scope="col"></th>
+								{#each headlineYears as year (year)}<th scope="col">{year}</th>{/each}
+							</tr>
+						</thead>
+						<tbody>
+							{#each headline as ind (ind.key)}
+								<tr>
+									<th scope="row">{ind.label}<span class="unit">{ind.devUnit} · {ind.levelUnit}</span></th>
+									{#each ind.cells as cell (cell.year)}
+										<td>
+											<span class="dev">{fmtDev(cell.dev)}</span>
+											<span class="level">{cell.level == null ? '' : fmtLevel(ind.key, cell.level)}</span>
+										</td>
+									{/each}
+								</tr>
+							{/each}
+							{#if lukkeskat}
+								<tr>
+									<th scope="row">Lukkeskat (finansieringen)<span class="unit">pct.-point · beregningsteknisk</span></th>
+									{#each lukkeskat as cell (cell.year)}
+										<td><span class="dev">{fmtDev(cell.dev)}</span></td>
+									{/each}
+								</tr>
+							{/if}
+						</tbody>
+					</table>
+				</div>
+				<p class="facts-note">
+					Kroner og personer er omregnet med grundforløbets niveauer i det pågældende år (BNP i 2020-priser,
+					saldo i løbende priser). {#if lukkeskat}Lukkeskatten er den beregningstekniske skat, DREAM lader
+					reagere, så de offentlige finanser forbliver holdbare: positiv = pakken skal finansieres, negativ =
+					pakken giver råderum.{/if}
+				</p>
+			</section>
+
+			<section class="contributions" aria-label="Bidrag fra de enkelte stød">
+				<div class="contrib-head">
+					<h3>Hvad bidrager med hvad?</h3>
+					<div class="chip-row" role="group" aria-label="Indikator">
+						{#each HEADLINE_INDICATORS as ind (ind.key)}
+							<button
+								class="chip"
+								class:active={indicator === ind.key}
+								aria-pressed={indicator === ind.key}
+								onclick={() => (indicator = ind.key)}>{ind.label}</button
+							>
+						{/each}
+					</div>
+				</div>
+				<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+				<div class="table-wrap" tabindex="0" role="region" aria-label="Bidrag fra de enkelte stød, tabel">
+					<table>
+						<thead>
+							<tr>
+								<th scope="col" class="lead">{contributionIndicator.label}<span class="unit">{contributionIndicator.devUnit} · {contributionIndicator.levelUnit}</span></th>
+								{#each headlineYears as year (year)}<th scope="col">{year}</th>{/each}
+							</tr>
+						</thead>
+						<tbody>
+							{#each contributions as line (line.name)}
+								<tr class:total={line.scale == null}>
+									<th scope="row">{line.label}{#if line.scale != null}<span class="unit">×{formatScale(line.scale)}</span>{/if}</th>
+									{#each line.cells as cell (cell.year)}
+										<td>
+											<span class="dev">{fmtDev(cell.dev)}</span>
+											<span class="level">{cell.level == null ? '' : fmtLevel(contributionIndicator.key, cell.level)}</span>
+										</td>
+									{/each}
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				</div>
+			</section>
+
+			<div class="share-row" role="group" aria-label="Del og hent">
+				<button class="chip" onclick={copyLink}>{copied ? 'Link kopieret ✓' : 'Kopiér link'}</button>
+				<button class="chip" onclick={downloadCsv}>Hent tal (CSV)</button>
+				<span class="share-hint">Linket gengiver præcis denne pakke; hver graf kan hentes som PNG med kildeangivelse.</span>
+			</div>
+
+			<div class="chart-grid" style:opacity={loading > 0 ? 0.5 : 1}>
+				{#each charts as chart (chart.key)}
+					<div class="cell">
+						<LineChart
+							title={chart.title}
+							code={chart.key}
+							unit={chart.unit}
+							{years}
+							series={[{ key: chart.key, label: 'Pakken i alt', values: chart.values }]}
+							fromYear={fromYear}
+							toYear={toYear}
+							zeroLine
+							height={200}
+							suffix={chart.suffix}
+							bind:svg={chartSvgs[chart.key]}
+						/>
+						<div class="card-tools">
+							<button class="png-btn" onclick={() => downloadPng(chart)} disabled={exporting === chart.key}>
+								{exporting === chart.key ? 'Henter …' : 'Hent PNG'}
+							</button>
+						</div>
+					</div>
+				{/each}
+			</div>
+			<p class="kilde">{packageDescription}<br />Kilde: {provenance} · <a href={shareUrl}>{shareUrl}</a></p>
+		{:else if components.length > 0 && loading > 0}
+			<p class="muted">Henter stødene …</p>
+		{/if}
+
+		<div class="method">
+			<h2>Sådan er pakken regnet</h2>
+			<p>
+				Hvert stød i kataloget er løst i MAKRO én gang, i sin egen størrelse. Pakken er den <em>lineære
+				sum</em> af de valgte stød, hver ganget med den valgte størrelse – regnet i browseren, ikke som en ny
+				modelkørsel. MAKRO er tæt på lineær for stød af denne størrelse (målt 1–2 pct. afvigelse pr. stød),
+				men samspil mellem stødene indgår ikke, og fejlen vokser med pakkens størrelse.
+			</p>
+			<p>
+				Negative størrelser spejler stødet: kataloget indeholder kun forhøjelser, så en lempelse vises ved at
+				vende fortegnet. Finansieringen gælder hele pakken: <em>finansieret</em> betyder, at den
+				beregningstekniske lukkeskat reagerer på hvert stød, som i DREAMs egne beregninger; <em>ufinansieret</em>
+				betyder, at ingen skat reagerer, så saldoen viser pakkens egen virkning på de offentlige finanser.
+				Størrelserne er MAKROskops egne stødstørrelser – ikke DREAMs normering til 1 pct. af BNP.
+			</p>
+		</div>
+	</div>
+</div>
+
+<style>
+	.aside-hint {
+		font-size: 12px;
+		color: var(--ink-muted);
+		margin: 0 0 10px;
+	}
+
+	.detail-head {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: flex-end;
+		justify-content: space-between;
+		gap: 12px;
+		margin-bottom: 16px;
+	}
+
+	.detail-head h2 {
+		font-size: 30px;
+	}
+
+	.empty {
+		border-top: 1px solid var(--rule-strong);
+		padding-top: 14px;
+	}
+
+	.empty h3 {
+		margin-bottom: 6px;
+	}
+
+	.empty p {
+		color: var(--ink-secondary);
+		font-size: 14.5px;
+		margin: 0 0 10px;
+	}
+
+	.examples {
+		margin: 0;
+		padding-left: 18px;
+		font-size: 14.5px;
+	}
+
+	.examples li {
+		margin-bottom: 8px;
+	}
+
+	.examples .muted {
+		display: block;
+		font-size: 12.5px;
+		color: var(--ink-muted);
+	}
+
+	.package {
+		border-left: 3px solid var(--makro);
+		margin-bottom: 22px;
+		padding-top: 6px;
+		padding-bottom: 6px;
+	}
+
+	.rows {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+
+	.row {
+		padding: 12px 0;
+		border-top: 1px solid var(--rule);
+	}
+
+	.row:first-child {
+		border-top: 0;
+	}
+
+	.row.inactive .row-name {
+		color: var(--ink-muted);
+	}
+
+	.row-head {
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		gap: 10px;
+	}
+
+	.row-name {
+		font-family: var(--font-display);
+		font-weight: 500;
+		font-size: 19px;
+	}
+
+	.remove {
+		font: inherit;
+		font-size: 12px;
+		padding: 2px 0;
+		border: 0;
+		border-bottom: 1px solid transparent;
+		border-radius: 0;
+		background: none;
+		color: var(--ink-muted);
+		cursor: pointer;
+	}
+
+	.remove:hover {
+		color: var(--bad);
+		border-bottom-color: var(--bad);
+	}
+
+	.row-note {
+		font-size: 12px;
+		color: var(--ink-muted);
+		margin: 4px 0 0;
+	}
+
+	.count-note {
+		font-size: 12.5px;
+		color: var(--ink-secondary);
+		margin: 10px 0 0;
+	}
+
+	.scaler {
+		margin-top: 8px;
+		display: grid;
+		/* Both columns content-independent: a track that changes width mid-drag makes
+		   the thumb slide out from under the pointer. */
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		gap: 4px 14px;
+		align-items: center;
+		font-size: 13px;
+	}
+
+	.scaler input[type='range'] {
+		width: 100%;
+	}
+
+	.scale-readout {
+		font-variant-numeric: tabular-nums;
+	}
+
+	.scale-readout .scale-value {
+		white-space: nowrap;
+	}
+
+	.scale-readout .approx {
+		margin-left: 6px;
+		white-space: nowrap;
+		font-family: var(--font-mono);
+		font-size: 10px;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--warm-text);
+	}
+
+	.scale-readout .approx.blank {
+		visibility: hidden;
+	}
+
+	.scale-readout .approx.mirror {
+		color: var(--bad);
+	}
+
+	@media (max-width: 520px) {
+		.scaler {
+			grid-template-columns: 1fr;
+		}
+	}
+
+	.figures {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+		border-top: 1px solid var(--rule-strong);
+		border-bottom: 1px solid var(--rule);
+		padding: 16px 0;
+		margin-bottom: 26px;
+	}
+
+	.figures > :global(.figure:first-child) {
+		border-left: 0;
+		padding-left: 0;
+	}
+
+	@media (max-width: 520px) {
+		.figures {
+			grid-template-columns: 1fr;
+			padding: 4px 0;
+		}
+		.figures > :global(.figure) {
+			border-right: 0;
+			padding: 12px 0;
+		}
+		.figures > :global(.figure + .figure) {
+			border-top: 1px solid var(--rule);
+		}
+	}
+
+	.facts,
+	.contributions {
+		margin-bottom: 28px;
+	}
+
+	.facts h3,
+	.contrib-head h3 {
+		margin-bottom: 8px;
+	}
+
+	.contrib-head {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: flex-end;
+		justify-content: space-between;
+		gap: 8px;
+		margin-bottom: 8px;
+	}
+
+	.contrib-head h3 {
+		margin-bottom: 0;
+	}
+
+	.table-wrap {
+		overflow-x: auto;
+	}
+
+	table {
+		border-collapse: collapse;
+		width: 100%;
+		font-size: 13.5px;
+		font-variant-numeric: tabular-nums;
+	}
+
+	th,
+	td {
+		text-align: right;
+		padding: 8px 12px;
+		border-bottom: 1px solid var(--rule);
+		vertical-align: top;
+	}
+
+	th[scope='row'] {
+		text-align: left;
+		font-weight: 500;
+		color: var(--ink);
+		padding-left: 0;
+	}
+
+	thead th {
+		font-size: 12px;
+		color: var(--ink-muted);
+		font-weight: 500;
+		border-bottom: 1px solid var(--rule-strong);
+		padding-top: 0;
+	}
+
+	td:last-child,
+	th:last-child {
+		padding-right: 0;
+	}
+
+	.unit {
+		display: block;
+		font-size: 11px;
+		font-weight: 400;
+		color: var(--ink-muted);
+	}
+
+	.dev {
+		display: block;
+		font-weight: 600;
+	}
+
+	.level {
+		display: block;
+		font-size: 12px;
+		color: var(--ink-muted);
+	}
+
+	tr.total th,
+	tr.total td {
+		border-top: 2px solid var(--ink);
+		border-bottom: 0;
+		font-weight: 600;
+	}
+
+	.cost {
+		font-family: var(--font-display);
+		font-size: 20px;
+		line-height: 1.4;
+		color: var(--ink);
+		margin: 0 0 14px;
+		max-width: 60ch;
+	}
+
+	thead th.lead {
+		text-align: left;
+		padding-left: 0;
+		color: var(--ink);
+		font-size: 13.5px;
+	}
+
+	.facts-note {
+		font-size: 12px;
+		color: var(--ink-muted);
+		margin: 10px 0 0;
+		max-width: 80ch;
+	}
+</style>
