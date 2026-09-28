@@ -59,20 +59,20 @@ aligned by years since the shock. The published 2030 runs can therefore be prese
 Inputs: `ShockMeta`, `Scenario` (definition + deviations), `Meta` (variations, year range,
 model name), baseline levels for `nL` and `vBNP` in the shock year, and `scale`.
 
-- **Change in words** — `scalableChange(def)` first classifies the instrument: a plain rate
-  change (`factor = 1`, `|delta| < 1`) or a plain percentage increase (`delta = 0`, `factor >
-  1`) — the two cases the numeric rule can state and scale. For those, `delta ≠ 0` → `±x
-  pct.-point`, else `±(factor−1)·100 pct.` (keeping an "af satsen" suffix from `changeDa` when
-  present), times `scale`, Danish formatting (`formatSigned`). Anything else (a factor below 1
-  on a disutility parameter such as `uh`, a delta in mia. kr.) is worded by the catalog's own
-  `changeDa` verbatim at scale 1, and as "×<skala> af standardstødet (<changeDa>)" at other
-  scales, since the numeric rule cannot be trusted to state or scale that unit.
-- **Instrument name** — `definition.instrumentDa` when it is 24 characters or shorter, else
-  the shock's `labelDa` (e.g. "Udenlandske priser" instead of the long import-price label).
-  One override, `INSTRUMENT_SHORT`, names the Loen shock's headline subject as "Arbejdsgivernes
-  forhandlingsvægt": DREAM's `rLoenNash` instrument is the employers' Nash weight, but the
-  catalog labels the shock as workers' bargaining power, and the numeric sign only holds
-  against the side that actually moves.
+- **Change in words** — `definition.changeSize × scale`, signed with the true minus and up to
+  three decimals, then `definition.changeUnitDa` ("+0,5 pct.-point", "+5 mia. kr. årligt
+  (2020-niveau)"). Both come from the catalog (`etl/catalog.py` `change_display`, makroskop-uah):
+  a rate delta reads in pct.-points, a factor as a percentage ("… af satsen" where the catalog
+  words it so), and a run that rule cannot word — the mia.-kr. transfer, the `uh` disutility
+  factor, the `jfDisk_t` j-term — sets `change_size`/`change_unit_da` itself. An ETL test pins
+  the scale-1 text to the start of the catalog's `changeDa`.
+- **Instrument name** — `definition.shortDa` when the catalog sets `short_da`, else
+  `definition.instrumentDa` when it is 24 characters or shorter, else the shock's `labelDa`
+  (e.g. "Udenlandske priser" instead of the long import-price label). `short_da` names the Loen
+  shock's subject "Arbejdsgivernes forhandlingsvægt" (DREAM's `rLoenNash` is the employers' Nash
+  weight while the catalog labels the shock as workers' bargaining power, and the numeric sign
+  only holds against the side that moves) and Diskontering's "Husholdningernes
+  diskonteringsfaktor".
 - **Profile word** — `_perm`/`_ufin`: "varigt"; `_midl`: "midlertidigt"; `_blip`: "i ét år".
 - **Closure word** — `_perm`: "finansieret via lukkeskat"; otherwise "ufinansieret".
 - **Three fixed tiles** (years counted from `definition.firstYear` = year 1):

@@ -130,8 +130,8 @@ export function chartUnit(devMode: string | undefined): string {
 
 /** "ECB-renten +0,5 pct.-point, varigt og ufinansieret" — the share cards' subject and change. */
 export function embedHeadline(p: {
-	shock: Pick<ShockMeta, 'name' | 'labelDa'>;
-	definition: Pick<ScenarioDefinition, 'instrumentDa' | 'delta' | 'factor' | 'changeDa'>;
+	shock: Pick<ShockMeta, 'labelDa'>;
+	definition: Pick<ScenarioDefinition, 'instrumentDa' | 'shortDa' | 'changeSize' | 'changeUnitDa'>;
 	variation: string;
 	scale: number;
 	compare: boolean;

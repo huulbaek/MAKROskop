@@ -4,7 +4,6 @@
  *  `scripts/og-images.ts` — bun, outside SvelteKit — computes exactly what the pages carry.
  *  Wording rules: docs/superpowers/specs/2026-09-10-share-cards-design.md. */
 import type { Meta, Scenario, ScenarioDefinition, ShockMeta } from './data';
-import { formatSigned } from './format';
 
 /** Slider steps offered for every solved scenario. Negative steps mirror the shock. */
 export const ALL_SCALE_STEPS = [-1, -0.75, -0.5, -0.25, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
@@ -124,35 +123,19 @@ export function formatPersons(value: number): string {
 	return signed(da0.format(rounded), rounded);
 }
 
-/** Whether the instrument moves in a unit the numeric rule can state and scale: a plain rate
- *  change (factor 1, |delta| < 1 → pct.-point), a plain percentage increase (delta 0, factor > 1),
- *  or a proportional change of a rate the catalog words "… af satsen" (the VAT cut, factor 0.98).
- *  Anything else (a factor below 1 on a disutility parameter, a delta in mia. kr.) is worded by the
- *  catalog's own changeDa. */
-export function scalableChange(def: Pick<ScenarioDefinition, 'delta' | 'factor'> & { changeDa?: string }): boolean {
-	if (def.delta !== 0) return def.factor === 1 && Math.abs(def.delta) < 1;
-	return def.factor > 1 || (def.factor < 1 && !!def.changeDa?.endsWith('af satsen'));
-}
-
 /** The scale as a bare Danish number with the true minus ("0,5", "−1"). */
 export function formatScale(scale: number): string {
 	return daScale.format(scale).replace('-', MINUS);
 }
 
-/** "×<scale>" — the short image headline for a scaled shock whose full change text (catalog
- *  changeDa plus the "af standardstødet" note) is too long to fit. */
-export function scaleLabel(scale: number): string {
-	return `×${formatScale(scale)}`;
-}
+/** Up to three decimals: the smallest size times the smallest step (0,1 × 0,25) stays exact. */
+const daChange = new Intl.NumberFormat('da-DK', { maximumFractionDigits: 3 });
 
-/** The shock size in the instrument's own unit, the page's rule. */
-export function changeText(def: Pick<ScenarioDefinition, 'delta' | 'factor' | 'changeDa'>, scale: number): string {
-	if (!scalableChange(def)) {
-		return scale === 1 ? def.changeDa : `${scaleLabel(scale)} af standardstødet (${def.changeDa})`;
-	}
-	if (def.delta !== 0) return `${formatSigned(def.delta * 100 * scale).replace('-', MINUS)} pct.-point`;
-	const suffix = def.changeDa.endsWith('af satsen') ? ' af satsen' : '';
-	return `${formatSigned((def.factor - 1) * 100 * scale).replace('-', MINUS)} pct.${suffix}`;
+/** The shock size in the instrument's own unit at a slider scale, as the catalog words it
+ *  (etl/catalog.py change_display): "+0,5 pct.-point", "+5 mia. kr. årligt (2020-niveau)". */
+export function changeText(def: Pick<ScenarioDefinition, 'changeSize' | 'changeUnitDa'>, scale: number): string {
+	const size = def.changeSize * scale;
+	return `${size > 0 ? '+' : ''}${daChange.format(size).replace('-', MINUS)} ${def.changeUnitDa}`;
 }
 
 export const PROFILE_WORD: Record<string, string> = { _perm: 'varigt', _ufin: 'varigt', _midl: 'midlertidigt', _blip: 'i ét år' };
@@ -161,14 +144,11 @@ const PROFILE_SUBLINE: Record<string, string> = {
 };
 const MAX_INSTRUMENT_CHARS = 24;
 
-/** Headline subject where the catalog label names the other side of the instrument: the Loen shock
- *  lowers the employers' Nash weight, which the catalog labels as workers' bargaining power. The
- *  numeric sign only holds against the side that moves. A catalog `shortDa` is the proper home. */
-const INSTRUMENT_SHORT: Record<string, string> = { Loen: 'Arbejdsgivernes forhandlingsvægt' };
-
-/** What the headline says moved: the model's own label when it is short, else the catalog name. */
-export function cardSubject(shock: Pick<ShockMeta, 'name' | 'labelDa'>, def: Pick<ScenarioDefinition, 'instrumentDa'>): string {
-	return INSTRUMENT_SHORT[shock.name] ?? (def.instrumentDa.length <= MAX_INSTRUMENT_CHARS ? def.instrumentDa : shock.labelDa);
+/** What the headline says moved: the catalog's shortDa where it has one (e.g. Loen, whose catalog
+ *  label names the workers' side while the instrument is the employers' weight), else the model's
+ *  own label when it is short, else the catalog name. */
+export function cardSubject(shock: Pick<ShockMeta, 'labelDa'>, def: Pick<ScenarioDefinition, 'instrumentDa' | 'shortDa'>): string {
+	return def.shortDa ?? (def.instrumentDa.length <= MAX_INSTRUMENT_CHARS ? def.instrumentDa : shock.labelDa);
 }
 
 export function closureWord(variation: string): string {
@@ -265,14 +245,7 @@ export function buildCard(input: {
 	const instrument = cardSubject(shock, def);
 	const change = changeText(def, scale);
 	const headline = `${instrument} ${change}`;
-	/** A scaled catalog-worded shock's full change text ("×0,5 af standardstødet (+10 mia. kr.
-	 *  årligt)") can run to three unfittable lines on the image. Title and description keep the
-	 *  full text; the image headline shortens to the bare scale, moving the standardstød to the
-	 *  subline. */
-	const shortForm = !scalableChange(def) && scale !== 1;
-	const profileWord = PROFILE_SUBLINE[scenario.variation] ?? 'Varigt stød';
-	const cardHeadline = shortForm ? `${instrument} ${scaleLabel(scale)}` : headline;
-	const subline = shortForm ? `${profileWord} · standardstød ${def.changeDa}` : profileWord;
+	const subline = PROFILE_SUBLINE[scenario.variation] ?? 'Varigt stød';
 	const closure = closureWord(scenario.variation);
 	const question = `Hvad sker der i MAKRO, hvis ${instrument} ${PROFILE_WORD[scenario.variation] ?? 'varigt'} ændres med ${change}?`;
 	const said = tilePhrases(tiles);
@@ -295,7 +268,7 @@ export function buildCard(input: {
 		title: bnp.value == null ? headline : `${headline}: BNP ${bnp.value} pct. efter 3 år`,
 		description,
 		imageAlt: `${question} Tre nøgletal: BNP efter 3 år, beskæftigelse og offentlig saldo i år 1.`,
-		headline: cardHeadline,
+		headline,
 		subline,
 		kicker: `Scenarie · ${closure} · stødår ${y1}, vist som år efter stødet`,
 		closure,

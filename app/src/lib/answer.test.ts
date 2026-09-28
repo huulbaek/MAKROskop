@@ -16,7 +16,7 @@ function input(overrides: Partial<AnswerInput> & { nL?: Record<number, number>; 
 	const { nL = {}, qBNP = {}, saldo = {}, tLukning, ...rest } = overrides;
 	return {
 		subject: 'Bundskattesats',
-		definition: { firstYear: 2030, factor: 1, delta: 0.01, changeDa: '+1 pct.-point' },
+		definition: { firstYear: 2030, changeSize: 1, changeUnitDa: 'pct.-point' },
 		variation: '_ufin',
 		scenario: {
 			deviations: {

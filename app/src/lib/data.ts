@@ -45,7 +45,12 @@ export interface Baseline {
 export interface ScenarioDefinition {
 	instrument: string;
 	instrumentDa: string;
+	/** Headline subject where neither instrumentDa nor the shock label fits (card.ts cardSubject). */
+	shortDa?: string | null;
 	changeDa: string;
+	/** The change as the pages scale it: changeSize × scale, then changeUnitDa ("+0,5 pct.-point"). */
+	changeSize: number;
+	changeUnitDa: string;
 	factor: number;
 	delta: number;
 	firstYear: number;

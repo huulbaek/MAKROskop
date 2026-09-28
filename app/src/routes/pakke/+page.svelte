@@ -1,6 +1,7 @@
 <script lang="ts">
 	import LineChart from '$lib/components/LineChart.svelte';
 	import StatTile from '$lib/components/StatTile.svelte';
+	import { changeText } from '$lib/card';
 	import { formatSigned } from '$lib/format';
 	import { devUnit, loadScenario, type Scenario, type ShockMeta } from '$lib/data';
 	import { RECOMPUTING } from '$lib/notices';
@@ -141,9 +142,7 @@
 	/** The change a component's size implies, in the instrument's own units. */
 	function scaledChange(row: (typeof rows)[number]): string {
 		const def = row.scenario?.definition;
-		if (!def) return '';
-		if (def.delta !== 0) return `${formatSigned(def.delta * 100 * row.scale)} pct.-point`;
-		return `${formatSigned((def.factor - 1) * 100 * row.scale)} pct.`;
+		return def ? changeText(def, row.scale) : '';
 	}
 
 	const years = $derived(Array.from({ length: meta.yearEnd - meta.yearStart + 1 }, (_, i) => meta.yearStart + i));

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Scenario, ShockMeta } from './data';
 import {
 	ALL_SCALE_STEPS, buildCard, cardTiles, changeText, formatPersons, formatTileValue, imageFile, parseSkala,
-	scalableChange, scaleLabel, scaleSteps, shareViews, splitView, tilePhrases, viewPath
+	scaleSteps, shareViews, splitView, tilePhrases, viewPath
 } from './card';
 
 const YEAR_START = 1985;
@@ -22,7 +22,7 @@ function scenario(overrides: Partial<Scenario> = {}): Scenario {
 		shock: 'Rente', variation: '_ufin', synthetic: false, hbi: null,
 		definition: {
 			instrument: 'rRenteECB', instrumentDa: 'ECB-renten', changeDa: '+1 pct.-point (100 basispoint)',
-			factor: 1.0, delta: 0.01, firstYear: 2030, lastYear: 2129, profileDa: '', closureDa: '', dreamDa: '',
+			changeSize: 1, changeUnitDa: 'pct.-point', factor: 1.0, delta: 0.01, firstYear: 2030, lastYear: 2129, profileDa: '', closureDa: '', dreamDa: '',
 			seriesKey: 'rRenteECB', solver: '', linearityDa: '', maxScale: null, maxScaleDa: null
 		},
 		modelVersion: null,
@@ -62,43 +62,23 @@ describe('formatting', () => {
 		expect(formatPersons(347)).toBe('+350');
 		expect(formatPersons(-3)).toBe('0');
 	});
-	it('words the change in the instrument unit for scalable shocks', () => {
-		expect(changeText({ delta: 0.01, factor: 1, changeDa: '+1 pct.-point (100 basispoint)' }, 0.5)).toBe('+0,5 pct.-point');
-		expect(changeText({ delta: 0, factor: 1.01, changeDa: '+1 pct.' }, 2)).toBe('+2 pct.');
-		expect(changeText({ delta: 0.01, factor: 1, changeDa: '+1 pct.-point (100 basispoint)' }, -0.5)).toBe('−0,5 pct.-point');
+	it('scales the catalog size and keeps its unit, with the true minus', () => {
+		const rate = { changeSize: 1, changeUnitDa: 'pct.-point' };
+		expect(changeText(rate, 1)).toBe('+1 pct.-point');
+		expect(changeText(rate, 0.5)).toBe('+0,5 pct.-point');
+		expect(changeText(rate, -0.5)).toBe('−0,5 pct.-point');
+		expect(changeText({ changeSize: -2, changeUnitDa: 'pct. af satsen' }, -1)).toBe('+2 pct. af satsen');
 	});
-	it('identifies which shocks the numeric rule can scale', () => {
-		expect(scalableChange({ delta: 0.01, factor: 1 })).toBe(true);
-		expect(scalableChange({ delta: 0, factor: 1.01 })).toBe(true);
-		expect(scalableChange({ delta: 0, factor: 0.9900990099009901 })).toBe(false);
-		expect(scalableChange({ delta: 10, factor: 1 })).toBe(false);
-		expect(scalableChange({ delta: -0.01, factor: 1 })).toBe(true);
+	it('scales the units the old factor/delta rule could not (makroskop-uah)', () => {
+		const transfers = { changeSize: 10, changeUnitDa: 'mia. kr. årligt (2020-niveau)' };
+		expect(changeText(transfers, 0.5)).toBe('+5 mia. kr. årligt (2020-niveau)');
+		expect(changeText(transfers, -1)).toBe('−10 mia. kr. årligt (2020-niveau)');
+		expect(changeText({ changeSize: 1, changeUnitDa: 'pct. strukturel arbejdstid' }, 0.25)).toBe('+0,25 pct. strukturel arbejdstid');
+		expect(changeText({ changeSize: -0.1, changeUnitDa: 'pct.' }, 1)).toBe('−0,1 pct.');
 	});
-	it('words a disutility-parameter shock verbatim from the catalog, scaling only by a multiplier note', () => {
-		expect(changeText({ delta: 0, factor: 0.9900990099009901, changeDa: '+1 pct. strukturel arbejdstid' }, 1))
-			.toBe('+1 pct. strukturel arbejdstid');
-		expect(changeText({ delta: 0, factor: 0.9900990099009901, changeDa: '+1 pct. strukturel arbejdstid' }, 0.5))
-			.toBe('×0,5 af standardstødet (+1 pct. strukturel arbejdstid)');
-	});
-	it('words a mia.-kr. delta shock verbatim, with the true minus in the scale note', () => {
-		expect(changeText({ delta: 10, factor: 1, changeDa: '+10 mia. kr. årligt' }, 1)).toBe('+10 mia. kr. årligt');
-		expect(changeText({ delta: 10, factor: 1, changeDa: '+10 mia. kr. årligt' }, -1)).toBe('×−1 af standardstødet (+10 mia. kr. årligt)');
-	});
-	it('scales an "af satsen" change as a plain percentage', () => {
-		expect(changeText({ delta: 0, factor: 1.1, changeDa: '+10 pct. af satsen' }, 1)).toBe('+10 pct. af satsen');
-		expect(changeText({ delta: 0, factor: 1.1, changeDa: '+10 pct. af satsen' }, 0.5)).toBe('+5 pct. af satsen');
-	});
-	it('scales a proportional rate cut worded "af satsen" (the VAT shocks, makroskop-gnp.2)', () => {
-		const cut = { delta: 0, factor: 0.98, changeDa: '−2 pct. af satsen' };
-		expect(scalableChange(cut)).toBe(true);
-		expect(changeText(cut, 1)).toBe('−2 pct. af satsen');
-		expect(changeText(cut, 0.5)).toBe('−1 pct. af satsen');
-		expect(changeText(cut, -1)).toBe('+2 pct. af satsen');
-	});
-	it('formats a bare scale label with the true minus', () => {
-		expect(scaleLabel(0.5)).toBe('×0,5');
-		expect(scaleLabel(-1)).toBe('×−1');
-		expect(scaleLabel(1.25)).toBe('×1,25');
+	it('keeps three decimals for the smallest size at the smallest step', () => {
+		expect(changeText({ changeSize: 0.1, changeUnitDa: 'pct.-point' }, 0.25)).toBe('+0,025 pct.-point');
+		expect(changeText({ changeSize: 0.1, changeUnitDa: 'pct.-point' }, 0.75)).toBe('+0,075 pct.-point');
 	});
 });
 
@@ -168,7 +148,7 @@ describe('buildCard', () => {
 		expect(card.description).not.toContain('offentlig saldo');
 		expect(card.description).toContain('Beskæftigelse −10.900 personer i år 1, BNP −1,2 pct. efter 3 år.');
 	});
-	it('uses the display-subject override for a shock whose catalog label names the other side', () => {
+	it("uses the catalog's shortDa for a shock whose catalog label names the other side", () => {
 		const loenShock: ShockMeta = {
 			name: 'Loen', labelDa: 'Lønmodtagernes forhandlingsstyrke', labelEn: 'Wage bargaining power',
 			group: 'Præferencer', available: ['_ufin']
@@ -176,26 +156,21 @@ describe('buildCard', () => {
 		const s = scenario({ shock: 'Loen' });
 		s.definition = {
 			...s.definition!,
-			instrumentDa: 'Arbejdsgivernes forhandlingsvægt i lønforhandlingen',
-			delta: -0.01, factor: 1, changeDa: '−1 pct.-point (lønmodtagerne står stærkere)'
+			instrumentDa: 'Arbejdsgivernes forhandlingsvægt i lønforhandlingen', shortDa: 'Arbejdsgivernes forhandlingsvægt',
+			delta: -0.01, factor: 1, changeDa: '−1 pct.-point (lønmodtagerne står stærkere)', changeSize: -1, changeUnitDa: 'pct.-point'
 		};
 		const card = buildCard({ shock: loenShock, scenario: s, definition: s.definition!, yearStart: YEAR_START, modelName: 'M', levels, scale: 1 });
 		expect(card.headline).toBe('Arbejdsgivernes forhandlingsvægt −1 pct.-point');
 	});
-	it('shortens the headline and adds the full change to the subline for a scaled catalog-worded shock', () => {
+	it('scales a mia.-kr. shock in its own unit on the image headline too', () => {
 		const s = scenario();
-		s.definition = { ...s.definition!, instrumentDa: 'Øvrige overførsler', delta: 10, factor: 1, changeDa: '+10 mia. kr. årligt' };
-		const card = build(0.5, s);
-		expect(card.headline).toBe('Øvrige overførsler ×0,5');
-		expect(card.subline).toBe('Varigt stød · standardstød +10 mia. kr. årligt');
-		expect(card.title).toContain('×0,5 af standardstødet (+10 mia. kr. årligt)');
-	});
-	it('keeps the full-length headline and subline for a catalog-worded shock at its solved size', () => {
-		const s = scenario();
-		s.definition = { ...s.definition!, instrumentDa: 'Øvrige overførsler', delta: 10, factor: 1, changeDa: '+10 mia. kr. årligt' };
-		const card = build(1, s);
-		expect(card.headline).toBe('Øvrige overførsler +10 mia. kr. årligt');
-		expect(card.subline).toBe('Varigt stød');
+		s.definition = {
+			...s.definition!, instrumentDa: 'Øvrige overførsler', delta: 10, factor: 1, changeDa: '+10 mia. kr. årligt',
+			changeSize: 10, changeUnitDa: 'mia. kr. årligt'
+		};
+		expect(build(0.5, s).headline).toBe('Øvrige overførsler +5 mia. kr. årligt');
+		expect(build(0.5, s).subline).toBe('Varigt stød');
+		expect(build(1, s).headline).toBe('Øvrige overførsler +10 mia. kr. årligt');
 	});
 	it('needs baseline levels for the persons tile', () => {
 		const s = scenario();

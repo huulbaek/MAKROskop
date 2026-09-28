@@ -203,6 +203,14 @@ class ShockRun:
     # (None = `instrument`) and --endogenize. extract.py checks both against the GDX stamp.
     solver_shock: str | None = None
     endogenize: str = ""
+    # How the pages word the change at any slider scale: change_size × scale, then change_unit_da
+    # ("+0,5 pct.-point"). None = derived from factor/delta by change_display; set them where that
+    # rule cannot state the unit (a mia.-kr. delta, a disutility factor below 1, a j-term).
+    change_size: float | None = None
+    change_unit_da: str | None = None
+    # Headline subject when neither the model's label nor the catalog name fits (card.ts
+    # cardSubject), e.g. where the catalog label names the other side of the instrument.
+    short_da: str | None = None
 
 
 # makroskop-gnp.2: tMoms_y/tMoms_m are effective per-cell rates (revenue / base), about zero for
@@ -348,6 +356,7 @@ SHOCK_RUNS: list[ShockRun] = [
              explainer_perm_da="1 pct. højere ubeskattede ydelser er et lille beløb, som lukkeskatten henter tilbage fra husholdningerne ({lukning} af BNP): virkningerne på forbrug, BNP og saldo er ubetydelige."),
     ShockRun("Overforsel_privat", "vOffTilHhRest", "Øvrige offentlige overførsler til husholdninger", 1.0, 10.0, "+10 mia. kr. årligt (2020-niveau)", 2030,
              "Samme instrument som DREAMs standardstød (lump sum); DREAM giver 1 pct. af BNP, MAKROskop 10 mia. kr. i 2020-niveau (ca. 13 mia. kr. i 2030), der vokser med økonomien – godt 0,3 pct. af BNP.",
+             change_size=10.0, change_unit_da="mia. kr. årligt (2020-niveau)",
              channel=("qC>qBNP", "pBolig", "saldo2bnp"),
              explainer_da="Overførslerne øges med ca. 13 mia. kr. i 2030 (godt 0,3 pct. af BNP), og beløbet vokser med økonomien. Pengene går næsten fuldt ud i privat forbrug (+0,7 pct.) og boligpriser; BNP løftes ca. 0,1 pct., mens saldoen svækkes med det meste af beløbet.",
              explainer_perm_da="Overførslerne øges med ca. 13 mia. kr. i 2030 (godt 0,3 pct. af BNP), og lukkeskatten henter næsten samme beløb tilbage fra husholdningerne. Pengene flyttes altså mellem husholdninger: forbrug og boligpriser stiger under 0,1 pct. de første år og ligger lidt under grundforløbet på langt sigt, BNP rører sig næsten ikke, og saldoen svækkes kun lidt (ca. 0,05 pct. af BNP)."),
@@ -422,6 +431,7 @@ SHOCK_RUNS: list[ShockRun] = [
              "Samme virkning som DREAMs standardstød: DREAM hæver den strukturelle arbejdstid shLHh 1 pct. og "
              "endogeniserer uh; i modellen er shLHh = 1/uh eksakt, så MAKROskop sætter uh til 1/1,01 gange "
              "grundforløbets værdi, hvilket giver præcis +1 pct. arbejdstid for alle aldre.",
+             change_size=1.0, change_unit_da="pct. strukturel arbejdstid",
              channel=("qBNP>saldo2bnp", "vhW>qX>qBNP"),
              explainer_da="1 pct. længere arbejdstid pr. beskæftiget giver næsten samme BNP-løft som 1 pct. flere beskæftigede — omkring 1 pct. på langt sigt. Antallet af beskæftigede ender uændret, men den offentlige sektor, hvis timetal ligger fast, klarer sig med ca. 1 pct. færre ansatte, som går til private job. Timelønnen falder op mod 1 pct. de første år og ender ca. 0,2 pct. lavere, og den offentlige saldo forbedres.",
              explainer_perm_da="1 pct. længere arbejdstid pr. beskæftiget giver næsten samme BNP-løft som 1 pct. flere beskæftigede — godt 1 pct. på langt sigt. Antallet af beskæftigede ender uændret, men den offentlige sektor, hvis timetal ligger fast, klarer sig med ca. 1 pct. færre ansatte, som går til private job. Timelønnen falder op mod 0,5 pct. de første år og er tilbage ved grundforløbet på langt sigt. De offentlige finanser styrkes, og lukkeskatten giver gevinsten tilbage som lavere skat ({lukning} af BNP om året), så forbruget stiger knap 1 pct. det første år og ca. 1,8 pct. på langt sigt."),
@@ -450,8 +460,12 @@ SHOCK_RUNS: list[ShockRun] = [
              channel=("qI>qBNP", "pBolig>qC>qBNP", "pBolig>qI"),
              explainer_da="Højere risikopræmier på både virksomheder og boliger gør investeringer og boliger dyrere: de første år falder investeringerne ca. 0,4 pct. og boligpriserne ca. 0,5 pct.; på langt sigt er faldet mindre. BNP ligger ca. 0,1 pct. lavere.",
              explainer_perm_da="Højere risikopræmier på både virksomheder og boliger gør investeringer og boliger dyrere: de første år falder investeringerne ca. 0,4 pct. og boligpriserne ca. 0,5 pct.; på langt sigt er faldet mindre. BNP ligger ca. 0,1 pct. lavere. Finansieringen betyder næsten intet her – lukkeskatten ændres med {lukning} af BNP."),
-    ShockRun("Diskontering", "jfDisk_t", "Husholdningernes diskonteringsfaktor (justering)", 1.0, -0.001, "−0,001", 2030,
+    # fDisk = (1 + jfDisk_t) / (1 + rDisk) with jfDisk_t = 0 in the reference, so the −0,001 j-term lowers
+    # the discount factor by exactly 0,1 pct.: a factor change, not a rate in pct.-points.
+    ShockRun("Diskontering", "jfDisk_t", "Husholdningernes diskonteringsfaktor (justering)", 1.0, -0.001,
+             "−0,1 pct. (jfDisk_t −0,001)", 2030,
              "Samme instrument og størrelse som DREAMs standardstød.",
+             change_size=-0.1, change_unit_da="pct.", short_da="Husholdningernes diskonteringsfaktor",
              channel=("qC>qBNP", "pBolig>qC", "pBolig>qI"),
              explainer_da="Mere utålmodige husholdninger sparer mindre op: forbrug og boligpriser stiger på kort sigt, men effekten aftager og vender på langt sigt, når formuen er blevet mindre.",
              explainer_perm_da="Mere utålmodige husholdninger sparer mindre op: forbrug og boligpriser stiger på kort sigt, men effekten aftager og vender på langt sigt, når formuen er blevet mindre. Finansieringen betyder næsten intet her – lukkeskatten ændres med {lukning} af BNP."),
@@ -459,6 +473,7 @@ SHOCK_RUNS: list[ShockRun] = [
              "−1 pct.-point (lønmodtagerne står stærkere)", 2030,
              "Samme instrument og størrelse som DREAMs standardstød. rLoenNash er arbejdsgivernes vægt i "
              "Nash-forhandlingen, så et fald betyder stærkere lønmodtagere.",
+             short_da="Arbejdsgivernes forhandlingsvægt",
              channel=("vhW>nL", "vhW>qC>qBNP", "nL>saldo2bnp"),
              explainer_da="Når lønmodtagerne står stærkere i lønforhandlingen, stiger timelønnen (ca. +0,7 pct.), og virksomhederne slår færre stillinger op, så beskæftigelsen falder lidt (ca. −0,15 pct.). Den højere løn løfter forbruget (knap 0,5 pct. på langt sigt). BNP stiger alligevel svagt (ca. 0,2 pct.), fordi færre jobopslag frigør arbejdstid fra rekruttering til produktion. Saldoen svækkes lidt.",
              explainer_perm_da="Når lønmodtagerne står stærkere i lønforhandlingen, stiger timelønnen (ca. +0,7 pct.), og virksomhederne slår færre stillinger op, så beskæftigelsen falder lidt (ca. −0,15 pct.). BNP stiger alligevel svagt (ca. 0,2 pct.), fordi færre jobopslag frigør arbejdstid fra rekruttering til produktion. De offentlige finanser svækkes lidt, og lukkeskatten hæver husholdningernes skat med {lukning} af BNP om året, så forbruget først stiger efter et par år og ender ca. 0,35 pct. højere på langt sigt."),
@@ -559,6 +574,23 @@ def lukning_size_da(share_of_gdp: float) -> str:
     return "ca. " + f"{size:.{1 if size >= 1 else 2}f}".replace(".", ",") + " pct."
 
 
+def change_display(run: ShockRun) -> tuple[float, str]:
+    """The change as (size, unit) for the pages' wording, which scales the size with the slider.
+
+    A rate delta reads in pct.-points, a factor as a percentage change ("… af satsen" where the
+    catalog words it so). A run the rule cannot word sets change_size and change_unit_da.
+    """
+    if run.change_size is not None and run.change_unit_da is not None:
+        return run.change_size, run.change_unit_da
+    if run.factor == 1.0 and run.delta != 0.0 and abs(run.delta) < 1:
+        return round(run.delta * 100, 10), "pct.-point"
+    af_satsen = run.change_da.endswith("af satsen")
+    if run.delta == 0.0 and (run.factor > 1.0 or af_satsen):
+        unit = "pct. af satsen" if af_satsen else "pct."
+        return round((run.factor - 1) * 100, 10), unit
+    raise ValueError(f"{run.shock}: set change_size and change_unit_da, the factor/delta rule cannot word it")
+
+
 def shock_definition(shock_name: str, suffix: str, last_year: int,
                      lukning_share: float | None = None) -> dict | None:
     """Definition block written into a scenario JSON, or None if the run is not catalogued.
@@ -577,10 +609,14 @@ def shock_definition(shock_name: str, suffix: str, last_year: int,
         if lukning_share is None:
             raise ValueError(f"{shock_name}{suffix}: the explainer states the lukkeskat, but no solved size was given")
         explainer = explainer.replace(LUKNING_SLOT, lukning_size_da(lukning_share))
+    change_size, change_unit_da = change_display(run)
     return {
         "instrument": run.instrument,
         "instrumentDa": run.instrument_da,
+        "shortDa": run.short_da,
         "changeDa": run.change_da,
+        "changeSize": change_size,
+        "changeUnitDa": change_unit_da,
         "factor": run.factor,
         "delta": run.delta,
         "firstYear": run.first_year,

@@ -11,7 +11,7 @@ import { formatValue } from './format';
 export interface AnswerInput {
 	/** What moved, as the share-card headline says it (card.ts cardSubject). */
 	subject: string;
-	definition: Pick<ScenarioDefinition, 'firstYear' | 'factor' | 'delta' | 'changeDa'>;
+	definition: Pick<ScenarioDefinition, 'firstYear' | 'changeSize' | 'changeUnitDa'>;
 	variation: string;
 	scenario: Pick<Scenario, 'deviations'>;
 	yearStart: number;
