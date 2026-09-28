@@ -1,5 +1,5 @@
 {
-	"version": "2026.09.28",
+	"version": "2026.09.28.2",
 	"date": "2026-09-28",
 	"format": 1,
 	"model": {
@@ -9,10 +9,10 @@
 		"dataBasisDa": "Nationalregnskabsdata fra marts 2026"
 	},
 	"license": "CC-BY-4.0",
-	"changelog": "Stødbeskrivelser: hvert scenarie angiver nu stødets størrelse og enhed (changeSize, changeUnitDa) og evt. en kort overskrift (shortDa); Husholdningernes diskontering beskrives som −0,1 pct. af diskonteringsfaktoren (jfDisk_t −0,001). Ingen tal er ændret.",
+	"changelog": "meta.json: sizing for proposal presets (makroskop-48o)",
 	"files": {
 		"baseline.json": "a7bc2fa58e0f29129221caad527a844a8239f83aafa28ba341f4f51fb2b33418",
-		"meta.json": "9e1e7fd388de5a103cbf5f29f08bd8d9e73ba76d483b3097ad2bb0042e2f7cd3",
+		"meta.json": "b62cca00dc505776d9ca80e323e1b40f2714f45e98d830fe3fde67c506c84a7b",
 		"shocks/AM_bidrag_perm.json": "029bc8220724aac7cf4c5003f320a4fefd2f4883718896a780393ce926364dbd",
 		"shocks/AM_bidrag_ufin.json": "ce7770cca7645bfc0b6b17f8d22e842ad9840ac5b19b49411a1864985d2f683b",
 		"shocks/Afgift_erhverv_perm.json": "4c095e9e2114a7a764feda722d3126bdf45af16290e0a7aa11f112b6d32b3fa9",
@@ -94,6 +94,12 @@
 	},
 	"earlier": [
 		{
+			"version": "2026.09.28",
+			"date": "2026-09-28",
+			"changelog": "Stødbeskrivelser: hvert scenarie angiver nu stødets størrelse og enhed (changeSize, changeUnitDa) og evt. en kort overskrift (shortDa); Husholdningernes diskontering beskrives som −0,1 pct. af diskonteringsfaktoren (jfDisk_t −0,001). Ingen tal er ændret.",
+			"url": "https://github.com/huulbaek/makroskop/releases/tag/data-2026.09.28"
+		},
+		{
 			"version": "2026.09.27",
 			"date": "2026-09-27",
 			"changelog": "Første udgivelse: 78 scenarier (39 stød, permanent finansieret og ufinansieret) fra MAKRO 2026-June.",
@@ -101,8 +107,8 @@
 		}
 	],
 	"zip": {
-		"name": "makroskop-data-2026.09.28.zip",
-		"bytes": 5632213,
-		"sha256": "0612566b0407797abec92dfe9a9899c1d7ef18921be9e52eecc75102fe0cdb4a"
+		"name": "makroskop-data-2026.09.28.2.zip",
+		"bytes": 5633430,
+		"sha256": "b10815f47a0e8d64c7ed89d50494403cd65ab81ea3707daed3433d513c70f293"
 	}
 }

@@ -23,6 +23,17 @@ export interface VariationMeta {
 	labelEn: string;
 }
 
+/** Proposal sizing from the solver reference (etl/extract.py build_sizing, makroskop-48o). */
+export interface Sizing {
+	year: number;
+	/** Nominal GDP in mia. kr. by year (price years of the Finance Ministry's figures). */
+	vBNP: Record<string, number>;
+	/** Structural employment in 2030, 1.000 persons. */
+	snL2030: number;
+	/** Static saldo effect of each fiscal shock at ×1, pct. of 2030 GDP, positive = strengthens. */
+	staticSaldoPct: Record<string, number>;
+}
+
 export interface Meta {
 	model: { name: string; commit: string; fingerprint?: string; dataBasisDa?: string };
 	yearStart: number;
@@ -33,6 +44,7 @@ export interface Meta {
 	series: SeriesMeta[];
 	shocks: ShockMeta[];
 	variations: VariationMeta[];
+	sizing?: Sizing;
 }
 
 export interface Baseline {
