@@ -46,11 +46,10 @@ export function escapeHtml(text: string): string {
 
 /** The code a journalist pastes: a fixed-height responsive iframe (works where a CMS strips
  *  scripts), optionally followed by the resize script. */
-export function embedCode(p: { url: string; title: string; height: number; script: boolean; fallback: string }): string {
-	const title = escapeHtml(p.title);
+export function embedCode(p: { url: string; title: string; height: number; script: boolean }): string {
 	const iframe =
-		`<iframe src="${escapeHtml(p.url)}" title="${title}" width="100%" height="${p.height}" style="border:0" ` +
-		`loading="lazy" data-makroskop-embed><a href="${escapeHtml(p.fallback)}">${title} – MAKROskop</a></iframe>`;
+		`<iframe src="${escapeHtml(p.url)}" title="${escapeHtml(p.title)}" width="100%" height="${p.height}" style="border:0" ` +
+		'loading="lazy" data-makroskop-embed></iframe>';
 	return p.script ? `${iframe}\n<script async src="${RESIZE_SCRIPT}"></script>` : iframe;
 }
 
@@ -67,14 +66,14 @@ export interface OEmbed {
 }
 
 /** The static oEmbed response for one embed page (always the solved size, single run). */
-export function oembedJson(head: { url: string; title: string; height: number; canonical: string }): OEmbed {
+export function oembedJson(head: { url: string; title: string; height: number }): OEmbed {
 	return {
 		version: '1.0',
 		type: 'rich',
 		provider_name: 'MAKROskop',
 		provider_url: `${SITE_URL}/`,
 		title: head.title,
-		html: embedCode({ url: head.url, title: head.title, height: head.height, script: true, fallback: head.canonical }),
+		html: embedCode({ url: head.url, title: head.title, height: head.height, script: true }),
 		width: OEMBED_WIDTH,
 		height: head.height,
 		cache_age: OEMBED_CACHE_AGE
@@ -99,7 +98,7 @@ export function scaleNote(scale: number): string | null {
 
 /** The scenario page's charts after the instrument, in page order. The page imports this list,
  *  so the page and the embeds cannot drift apart. */
-export const EMBED_SERIES = [
+export const EMBED_SERIES: readonly string[] = [
 	'qBNP', 'nL', 'ledighedsgrad',
 	'qC', 'qX', 'qM',
 	'qI', 'vhW', 'pC',

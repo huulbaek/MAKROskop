@@ -20,4 +20,11 @@
 			frame.style.height = Math.max(200, Math.min(1200, Math.round(data.height))) + 'px';
 		}
 	});
+	// An embed that loaded before this script posted its height to no one: ask each one again.
+	var frames = document.querySelectorAll('iframe[data-makroskop-embed]');
+	for (var i = 0; i < frames.length; i++) {
+		try {
+			frames[i].contentWindow.postMessage({ type: 'makroskop:ping' }, new URL(frames[i].src).origin);
+		} catch (e) {}
+	}
 })();

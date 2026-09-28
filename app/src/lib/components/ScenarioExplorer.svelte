@@ -14,7 +14,6 @@
 	} from '$lib/data';
 	import { RECOMPUTING } from '$lib/notices';
 	import { DATA_PAGE, DATA_VERSION } from '$lib/release';
-	import { SITE_URL } from '$lib/site';
 	import { EMBED_SERIES, chartUnit, embedHeadline, embedHeight, embedTarget, embedUrl } from '$lib/embed';
 	import EmbedDialog from '$lib/components/EmbedDialog.svelte';
 	import { page } from '$app/state';
@@ -232,7 +231,6 @@
 			title,
 			url: embedUrl({ scenario: target.scenario, serie: chart.key, scale, compare: comparing }),
 			baseUrl: embedUrl({ scenario: target.scenario, serie: chart.key, scale: 1, compare: false }),
-			fallback: `${SITE_URL}/scenarier/${target.scenario}/`,
 			height: embedHeight(comparing),
 			scaled: scale !== 1 || comparing
 		};
@@ -684,11 +682,11 @@
 						/>
 						{#if shareable}
 							<div class="card-tools">
-								<button class="png-btn" onclick={() => downloadPng(chart)} disabled={exporting === chart.key}>
+								<button class="png-btn" onclick={() => downloadPng(chart)} disabled={exporting === chart.key} aria-label={`Hent PNG af ${chart.title}`}>
 									{exporting === chart.key ? 'Henter …' : 'Hent PNG'}
 								</button>
 								<span class="tool-sep" aria-hidden="true">·</span>
-								<button class="png-btn" onclick={() => (embedKey = chart.key)}>Indlejr</button>
+								<button class="png-btn" onclick={() => (embedKey = chart.key)} aria-label={`Indlejr ${chart.title}`} aria-haspopup="dialog">Indlejr</button>
 							</div>
 						{/if}
 					</div>

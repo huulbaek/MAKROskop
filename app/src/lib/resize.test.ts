@@ -52,6 +52,13 @@ describe('resize.js', () => {
 		expect(a.style.height).toBeUndefined();
 	});
 
+	it('asks every embed for its height when it loads, in case the embed spoke first', () => {
+		const sent: [unknown, string][] = [];
+		const a = { src: `${EMBED}/indlejr/x/qBNP/`, contentWindow: { postMessage: (m: unknown, o: string) => sent.push([m, o]) }, style: {} };
+		host([a]);
+		expect(sent).toEqual([[{ type: 'makroskop:ping' }, EMBED]]);
+	});
+
 	it('registers one listener however often the script is included', () => {
 		const { handlers, load } = host([]);
 		load();

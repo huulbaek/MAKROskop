@@ -84,9 +84,15 @@
 		};
 		const observer = new ResizeObserver(post);
 		if (root) observer.observe(root);
+		// resize.js asks again when it loads after us (makroskop-gnp.9)
+		const onPing = (event: MessageEvent) => {
+			if (event.source === window.parent && event.data?.type === 'makroskop:ping') post();
+		};
+		window.addEventListener('message', onPing);
 		return () => {
 			stale = true;
 			observer.disconnect();
+			window.removeEventListener('message', onPing);
 		};
 	});
 </script>

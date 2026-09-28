@@ -32,13 +32,12 @@ describe('embedTarget', () => {
 });
 
 describe('embedCode', () => {
-	const base = { url: `${SITE}/indlejr/Rente_ufin/qBNP/?skala=0.5&sammenlign`, title: 'ECB-renten +0,5 pct.-point — BNP', height: 470, fallback: `${SITE}/scenarier/Rente_ufin/` };
+	const base = { url: `${SITE}/indlejr/Rente_ufin/qBNP/?skala=0.5&sammenlign`, title: 'ECB-renten +0,5 pct.-point — BNP', height: 470 };
 
-	it('is a responsive, lazy, borderless iframe with a fallback link', () => {
+	it('is a responsive, lazy, borderless iframe', () => {
 		expect(embedCode({ ...base, script: false })).toBe(
 			`<iframe src="${SITE}/indlejr/Rente_ufin/qBNP/?skala=0.5&amp;sammenlign" title="ECB-renten +0,5 pct.-point — BNP" ` +
-				'width="100%" height="470" style="border:0" loading="lazy" data-makroskop-embed>' +
-				`<a href="${SITE}/scenarier/Rente_ufin/">ECB-renten +0,5 pct.-point — BNP – MAKROskop</a></iframe>`
+				'width="100%" height="470" style="border:0" loading="lazy" data-makroskop-embed></iframe>'
 		);
 	});
 

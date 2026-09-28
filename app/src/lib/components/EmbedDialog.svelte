@@ -7,7 +7,6 @@
 		title,
 		url,
 		baseUrl,
-		fallback,
 		height,
 		scaled,
 		onclose
@@ -18,8 +17,6 @@
 		url: string;
 		/** The ×1 embed URL: what a pasted link expands to through oEmbed. */
 		baseUrl: string;
-		/** The scenario page, the fallback link inside the iframe. */
-		fallback: string;
 		height: number;
 		/** The page is scaled or compared, so the pasted link differs from the code. */
 		scaled: boolean;
@@ -29,7 +26,7 @@
 	let dialog: HTMLDialogElement | undefined = $state();
 	let script = $state(true);
 	let copied = $state('');
-	const code = $derived(embedCode({ url, title, height, script, fallback }));
+	const code = $derived(embedCode({ url, title, height, script }));
 	/** The preview loads from this site, so it works before a deploy and on any host. */
 	const preview = $derived(url.startsWith(SITE_URL) ? url.slice(SITE_URL.length) : url);
 
@@ -39,14 +36,15 @@
 
 	async function copy(event: MouseEvent) {
 		const box = (event.currentTarget as HTMLElement).closest('.code')?.querySelector('textarea');
+		let ok = true;
 		try {
 			await navigator.clipboard.writeText(code);
 		} catch {
 			box?.select();
-			document.execCommand('copy');
+			ok = document.execCommand('copy');
 		}
-		copied = 'Kopieret';
-		setTimeout(() => (copied = ''), 2500);
+		copied = ok ? 'Kopieret' : 'Kunne ikke kopiere – markér koden og kopiér selv';
+		setTimeout(() => (copied = ''), ok ? 2500 : 6000);
 	}
 </script>
 

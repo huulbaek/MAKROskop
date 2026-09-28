@@ -63,6 +63,9 @@ const embeds = embedEntries(meta, readScenario);
 for (const embed of embeds) {
 	const page = join(build, 'indlejr', embed.scenario, embed.serie, 'index.html');
 	check(existsSync(page), `missing embed page ${page}`);
+	// every page's oEmbed discovery link names its own file
+	const discovery = `href="https://makroskop.nodalit.com/oembed/${embed.scenario}/${embed.serie}.json"`;
+	if (existsSync(page)) check(readFileSync(page, 'utf8').includes(discovery), `embed ${embed.scenario}/${embed.serie}: oEmbed discovery link is not its own`);
 }
 const builtEmbeds = readdirSync(join(build, 'indlejr'), { withFileTypes: true })
 	.filter((d) => d.isDirectory())
@@ -73,7 +76,6 @@ const embedPage = readFileSync(join(build, 'indlejr', 'Rente_ufin', 'qBNP', 'ind
 check(count(embedPage, /<title>/g) === 1, 'embed: not exactly one <title>');
 check(embedPage.includes('<meta name="robots" content="noindex"'), 'embed: noindex missing');
 check(embedPage.includes('<link rel="canonical" href="https://makroskop.nodalit.com/scenarier/Rente_ufin/"'), 'embed: canonical missing');
-check(embedPage.includes('href="https://makroskop.nodalit.com/oembed/Rente_ufin/qBNP.json"'), 'embed: oEmbed discovery link missing');
 check(!embedPage.includes('Hovednavigation') && !embedPage.includes('property="og:title"'), 'embed: carries the site chrome or share tags');
 check(embedPage.includes('ECB-renten +1 pct.-point, varigt og ufinansieret'), 'embed: prerendered headline missing');
 check(/<main[ >]/.test(embedPage), 'embed: no <main> landmark');
@@ -83,6 +85,10 @@ for (const embed of embeds) {
 	const file = join(build, 'oembed', embed.scenario, `${embed.serie}.json`);
 	check(existsSync(file), `missing oEmbed file ${file}`);
 }
+const builtOembeds = readdirSync(join(build, 'oembed'), { withFileTypes: true })
+	.filter((d) => d.isDirectory())
+	.flatMap((d) => readdirSync(join(build, 'oembed', d.name)));
+check(builtOembeds.length === embeds.length, `oEmbed files: ${builtOembeds.length} built, ${embeds.length} expected`);
 const oembed = JSON.parse(readFileSync(join(build, 'oembed', 'Rente_ufin', 'qBNP.json'), 'utf8'));
 check(oembed.version === '1.0' && oembed.type === 'rich', 'oEmbed: not a 1.0 rich response');
 check(String(oembed.html).includes('src="https://makroskop.nodalit.com/indlejr/Rente_ufin/qBNP/"'), 'oEmbed: html does not embed its page');
