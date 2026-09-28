@@ -3,4 +3,4 @@
 	let { data } = $props();
 </script>
 
-<PackageWorkbench meta={data.meta} baseline={data.baseline} checks={data.checks} />
+<PackageWorkbench meta={data.meta} baseline={data.baseline} checks={data.checks} initialProposal={data.proposalId} />

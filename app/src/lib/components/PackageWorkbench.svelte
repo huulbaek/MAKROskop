@@ -3,7 +3,10 @@
 	import StatTile from '$lib/components/StatTile.svelte';
 	import { changeText } from '$lib/card';
 	import { formatSigned } from '$lib/format';
-	import { devUnit, loadScenario, type Baseline, type Meta, type Scenario, type ShockMeta } from '$lib/data';
+	import ProposalCard from '$lib/components/ProposalCard.svelte';
+	import {
+		devUnit, loadScenario, type Baseline, type Meta, type ProposalCheck, type Scenario, type ShockMeta
+	} from '$lib/data';
 	import { RECOMPUTING } from '$lib/notices';
 	import {
 		financedCostLine,
@@ -21,12 +24,25 @@
 	import {
 		downloadBlob, packageFilename, packagePermalink, provenanceLine, scenarioCsv, svgToPngBlob
 	} from '$lib/export';
+	import { exportTitle, isPublishable, presetState, proposalQuery, statusDa, type Proposal } from '$lib/proposal';
+	import { PROPOSALS } from '$lib/proposals';
 	import { page } from '$app/state';
-	import { replaceState } from '$app/navigation';
+	import { goto, replaceState } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { onMount, tick } from 'svelte';
 
-	let { meta, baseline }: { meta: Meta; baseline: Baseline } = $props();
+	let {
+		meta,
+		baseline,
+		checks,
+		initialProposal = null
+	}: {
+		meta: Meta;
+		baseline: Baseline;
+		checks: Record<string, ProposalCheck>;
+		/** Set on /pakke/forslag/<id>/: the proposal the page opens with. */
+		initialProposal?: string | null;
+	} = $props();
 
 	/** The two closures a package can be solved under. Temporary profiles are not offered:
 	 *  they are unfinanced-only and not yet solved for the catalog. */
@@ -38,6 +54,12 @@
 	let cache: Map<string, Scenario | null> = $state.raw(new Map());
 	let loading = $state(0);
 	let indicator = $state('qBNP');
+
+	/** Proposal presets (makroskop-48o): the query parameter that remembers which proposal an
+	 *  edited package came from, the proposals the list offers, and the one the package was opened from. */
+	const FORSLAG_PARAM = 'forslag';
+	const listed = $derived(meta.sizing ? PROPOSALS.filter((p) => isPublishable(p, meta.sizing!, checks)) : []);
+	let proposalId: string | null = $state(null);
 
 	const shocksByName = $derived(new Map(meta.shocks.map((s) => [s.name, s])));
 	const closureLabel = $derived(meta.variations.find((v) => v.suffix === variant)?.labelDa ?? 'Permanent, finansieret');
@@ -71,6 +93,8 @@
 
 	function remove(name: string) {
 		components = components.filter((c) => c.name !== name);
+		// An emptied package is no longer adapted from anything.
+		if (components.length === 0) proposalId = null;
 	}
 
 	function toggle(name: string) {
@@ -90,12 +114,19 @@
 	}
 
 	function apply(query: string) {
-		const parsed = parsePackageQuery(new URLSearchParams(query), shocksByName.keys(), CLOSURES);
+		const params = new URLSearchParams(query);
+		const parsed = parsePackageQuery(params, shocksByName.keys(), CLOSURES);
+		proposalId = params.get(FORSLAG_PARAM);
 		variant = parsed.variant;
 		components = parsed.components;
 		for (const c of components) {
 			if (shocksByName.get(c.name)?.available.includes(variant)) void ensureLoaded(`${c.name}${variant}`);
 		}
+	}
+
+	/** A proposal opens unfinanced with its computed rows; the id rides along in the query. */
+	function openProposal(p: Proposal) {
+		apply(`${proposalQuery(p, meta.sizing!)}&${FORSLAG_PARAM}=${p.id}`);
 	}
 
 	// Deep link: /pakke/?Bundskat=-1&Offentligt_forbrug=0.5&variant=_perm
@@ -104,7 +135,10 @@
 
 	onMount(() => {
 		void tick().then(() => (hydrated = true));
-		if (page.url.search) apply(page.url.search);
+		if (initialProposal) {
+			const p = listed.find((x) => x.id === initialProposal);
+			if (p) openProposal(p);
+		} else if (page.url.search) apply(page.url.search);
 	});
 
 	/** One row per component: its catalog entry, the loaded scenario (if any) and the
@@ -115,7 +149,7 @@
 			const available = shock?.available.includes(variant) ?? false;
 			const file = `${c.name}${variant}`;
 			const scenario = available ? (cache.get(file) ?? undefined) : undefined;
-			const steps = scaleSteps(scenario?.definition?.maxScale);
+			const steps = scaleSteps(scenario?.definition?.maxScale, c.scale);
 			return {
 				...c,
 				shock,
@@ -255,7 +289,17 @@
 	// ------------------------------------------------------------------------------------
 	// Sharing: the URL reproduces the package; every export carries the source stamp.
 	const query = $derived(packageQuery(components, variant));
-	const shareUrl = $derived(components.length > 0 ? packagePermalink(page.url.origin, query) : '');
+	const preset = $derived(meta.sizing ? presetState(query, proposalId, meta.sizing, listed) : null);
+	/** `&forslag=<id>` keeps "Tilpasset fra" across a reload of an edited preset. */
+	const forslagSuffix = $derived(preset ? `&${FORSLAG_PARAM}=${preset.proposal.id}` : '');
+	/** The /pakke/ address of the package: what the address bar shows there. */
+	const packageUrl = $derived(components.length > 0 ? packagePermalink(page.url.origin, query) + forslagSuffix : '');
+	/** An unedited preset is shared as its citable proposal page. */
+	const shareUrl = $derived(
+		preset && !preset.edited ? new URL(`/pakke/forslag/${preset.proposal.id}/`, page.url.origin).toString() : packageUrl
+	);
+	/** Leads the exports while the package is the proposal itself. */
+	const title = $derived(exportTitle(preset));
 	const provenance = $derived(
 		provenanceLine({ model: meta.model.name, commit: meta.model.commit ?? '', dataBasis: meta.model.dataBasisDa, closure: closureLabel, date: __BUILD_DATE__ })
 	);
@@ -268,13 +312,36 @@
 	const METHOD_LINE = 'Lineær sum af enkeltvis løste standardstød, skaleret i browseren — ikke en ny modelkørsel';
 
 	// Keep the address bar in sync, so the URL a reader copies reproduces the package.
+	/** Set once the proposal page hands an edited package over to /pakke/. */
+	let leaving = false;
+
+	/** Focus the element matching `selector` as soon as it exists, for up to about a second. */
+	function refocus(selector: string, frames = 60) {
+		const el = document.querySelector<HTMLElement>(selector);
+		if (el) el.focus();
+		else if (frames > 0) requestAnimationFrame(() => refocus(selector, frames - 1));
+	}
 	$effect(() => {
 		if (!hydrated) return;
+		if (initialProposal) {
+			// /pakke/forslag/<id>/ is the proposal; the first edit moves the package to /pakke/,
+			// so the page's title and URL stop carrying the proposal's name.
+			if ((preset && !preset.edited) || leaving) return;
+			leaving = true;
+			const target = components.length > 0 ? `${resolve('/pakke/')}?${query}${forslagSuffix}` : resolve('/pakke/');
+			// The new route mounts a fresh workbench, so keepFocus has nothing to keep: hand focus to
+			// the same control (its sliders appear once the scenario files are in).
+			const label = document.activeElement?.getAttribute('aria-label');
+			void goto(target, { replaceState: true, keepFocus: true, noScroll: true }).then(() => {
+				if (label) refocus(`[aria-label="${CSS.escape(label)}"]`);
+			});
+			return;
+		}
 		if (components.length === 0) {
 			if (location.search) replaceState(resolve('/pakke/'), {});
 			return;
 		}
-		const url = new URL(shareUrl);
+		const url = new URL(packageUrl);
 		if (url.search !== location.search) replaceState(url, {});
 	});
 
@@ -304,6 +371,7 @@
 			years,
 			columns: charts.map((c) => ({ key: c.key, label: c.title, unit: c.suffix.trim(), values: c.values })),
 			provenance: [
+				...(title ? [title] : []),
 				packageDescription,
 				METHOD_LINE,
 				'Afvigelser fra grundforløbet: pct. for mængder og priser, pct.-point for satser og saldi',
@@ -325,7 +393,7 @@
 			const theme = getComputedStyle(document.documentElement);
 			const cssVar = (name: string) => theme.getPropertyValue(name).trim();
 			const blob = await svgToPngBlob(svg, {
-				header: [`${chart.title} — ${chart.unit}`, packageDescription, METHOD_LINE],
+				header: [...(title ? [title] : []), `${chart.title} — ${chart.unit}`, packageDescription, METHOD_LINE],
 				footer: [provenance, shareUrl],
 				colors: { background: cssVar('--surface'), ink: cssVar('--ink'), muted: cssVar('--ink-muted') },
 				fonts: { display: cssVar('--font-display'), body: cssVar('--font-body') }
@@ -444,6 +512,24 @@
 		{#if components.length === 0}
 			<section class="empty">
 				<h3>Pakken er tom</h3>
+				{#if listed.length > 0}
+					<h3>Forslag</h3>
+					<ul class="examples">
+						{#each listed as p (p.id)}
+							<li>
+								<a
+									href={resolve(`/pakke/forslag/${p.id}/`)}
+									onclick={(e) => {
+										e.preventDefault();
+										openProposal(p);
+									}}>{p.titleDa}</a
+								>
+								<span class="muted">{p.proposerDa} · {statusDa(p.status)} · {p.date.slice(0, 4)}</span>
+							</li>
+						{/each}
+					</ul>
+					<p class="muted"><a href={resolve('/pakke/metode/')}>Sådan regner vi forslag</a></p>
+				{/if}
 				<p>Vælg stød i kataloget – eller start fra et eksempel:</p>
 				<ul class="examples">
 					{#each EXAMPLES as example (example.query)}
@@ -461,6 +547,14 @@
 				</ul>
 			</section>
 		{:else}
+			{#if preset && meta.sizing}
+				<ProposalCard
+					state={preset}
+					sizing={meta.sizing}
+					check={checks[preset.proposal.id]}
+					onreset={() => openProposal(preset.proposal)}
+				/>
+			{/if}
 			<section class="card package" aria-label="Pakkens stød">
 				<ol class="rows">
 					{#each rows as row (row.name)}
@@ -482,7 +576,16 @@
 										max={row.steps.length - 1}
 										step="1"
 										value={row.stepIdx < 0 ? row.steps.indexOf(1) : row.stepIdx}
-										oninput={(e) => setScale(row.name, row.steps[Number(e.currentTarget.value)])}
+										oninput={(e) => {
+											const input = e.currentTarget;
+											setScale(row.name, row.steps[Number(input.value)]);
+											// Leaving an off-ladder preset scale drops it from the ladder and shifts the
+											// indices; Svelte skips an unchanged value, so put the thumb on the new scale.
+											void tick().then(() => {
+												const idx = rows.find((r) => r.name === row.name)?.stepIdx ?? -1;
+												if (idx >= 0) input.value = String(idx);
+											});
+										}}
 										aria-label={`Størrelse af ${row.shock?.labelDa ?? row.name}`}
 										aria-valuetext={`${formatScale(row.scale)} gange stødet${row.scale < 0 ? ' — spejlet, altså en lempelse' : ''}`}
 									/>

@@ -9,6 +9,9 @@ import { unzipSync } from 'fflate';
 import { derivedFiles, loadDataSet, readManifest, sha256, zipEntries, zipName } from '../src/lib/server/opendata-files';
 import { embedEntries } from '../src/lib/embed';
 import { maxScales, readMeta, readScenario } from '../src/lib/server/scenarios';
+import { PROPOSALS } from '../src/lib/proposals';
+import { isPublishable } from '../src/lib/proposal';
+import type { ProposalCheck } from '../src/lib/data';
 
 const build = join(process.cwd(), 'build');
 const failures: string[] = [];
@@ -132,6 +135,15 @@ for (const file of htmlFiles) {
 	}
 }
 for (const [href, file] of dataLinks) check(existsSync(join(build, href)), `${file}: link to missing ${href}`);
+
+// Proposal pages (makroskop-48o): exactly the publishable proposals are prerendered, each with its own <title>.
+const proposalChecks: Record<string, ProposalCheck> = JSON.parse(readFileSync(join(process.cwd(), 'static/data/proposals.json'), 'utf8'));
+for (const p of PROPOSALS) {
+	const file = join(build, 'pakke', 'forslag', p.id, 'index.html');
+	const listed = meta.sizing != null && isPublishable(p, meta.sizing, proposalChecks);
+	check(existsSync(file) === listed, `/pakke/forslag/${p.id}/: page ${listed ? 'missing' : 'must not exist (not publishable)'}`);
+	if (listed && existsSync(file)) check(readFileSync(file, 'utf8').includes(`<title>${p.titleDa} regnet i MAKRO · MAKROskop</title>`), `/pakke/forslag/${p.id}/: <title>`);
+}
 
 if (failures.length) {
 	console.error(`verify-build: ${failures.length} problem(s)\n` + failures.slice(0, 20).join('\n'));
