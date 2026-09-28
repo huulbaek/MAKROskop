@@ -291,11 +291,11 @@ SHOCK_RUNS: list[ShockRun] = [
              "og toptopskatten har endnu ikke data i modellen.",
              channel=("qC>qBNP>nL>ledighedsgrad>vhW>qX", "pBolig>qI>qBNP", "saldo2bnp"),
              explainer_da="En højere topskat rammer kun de øverste indkomster, så skattebasen er langt mindre "
-                          "end bundskattens: det private forbrug falder omkring 0,1 pct., og boligpriserne lidt "
-                          "mere. Løn og priser falder marginalt, hvilket styrker eksporten en anelse, så BNP "
-                          "ender kun ca. 0,02 pct. lavere. Saldoen forbedres med ca. 0,04 pct. af BNP og mere "
-                          "over tid. Beskæftigelsen falder kun kortvarigt, fordi topskatten i denne udgave af "
-                          "MAKRO ikke påvirker arbejdsudbuddet.",
+                          "end bundskattens: det private forbrug falder gradvist til knap 0,15 pct., og "
+                          "boligpriserne falder omtrent lige så meget. Løn og priser falder marginalt, hvilket "
+                          "styrker eksporten en anelse, så BNP ender kun ca. 0,02 pct. lavere. Saldoen "
+                          "forbedres med ca. 0,04 pct. af BNP og mere over tid. Beskæftigelsen falder kun "
+                          "kortvarigt, fordi topskatten i denne udgave af MAKRO ikke påvirker arbejdsudbuddet.",
              explainer_perm_da="Provenuet fra den højere topskat – {lukning} af BNP – gives tilbage til "
                           "husholdningerne via lukkeskatten, så deres samlede skat er næsten uændret. Forbrug, "
                           "boligpriser, løn og BNP rører sig under 0,01 pct., og saldoen er stort set uændret: "
@@ -315,9 +315,9 @@ SHOCK_RUNS: list[ShockRun] = [
                           "påvirker arbejdsudbuddet.",
              explainer_perm_da="Provenuet fra det højere beskæftigelsesfradrag finansieres med højere skat: "
                           "lukkeskatten hæver husholdningernes skat med {lukning} af BNP om året, så gevinsten "
-                          "fra fradraget stort set opvejes. Forbrug, boligpriser, løn og BNP rører sig under "
-                          "0,01 pct., og saldoen er stort set uændret: beregningen er en omlægning af skatten, "
-                          "ikke en lempelse. Fordi fradraget i denne udgave af MAKRO ikke påvirker "
+                          "fra fradraget stort set opvejes. Forbrug, boligpriser, løn og BNP rører sig højst "
+                          "ca. 0,02 pct., og saldoen er stort set uændret: beregningen er en omlægning af "
+                          "skatten, ikke en lempelse. Fordi fradraget i denne udgave af MAKRO ikke påvirker "
                           "arbejdsudbuddet, ændrer omlægningen næsten intet."),
     ShockRun("Selskabsskat", "tSelskab", "Selskabsskattesats", 1.0, 0.01, "+1 pct.-point", 2030, _DREAM_GDP_NORM,
              channel=("qI>qBNP", "qC>qBNP", "saldo2bnp"),
