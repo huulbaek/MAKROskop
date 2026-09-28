@@ -55,6 +55,16 @@ describe('proposalPackage', () => {
 		expect(pkg.components.map((c) => c.name)).not.toContain('Arbejdsudbud_beskaeftigelse');
 		expect(pkg.problems).toEqual([]);
 	});
+	it('reports a problem for a shock whose static saldo effect is zero, never an Infinity scale', () => {
+		const p: Proposal = { ...BASE, elements: [
+			{ shock: 'ZeroUnit', labelDa: 'Nulvirkning', kr: 1, priceYear: 2025, source: 0 }
+		] };
+		const sizing: Sizing = { ...SIZING, staticSaldoPct: { ...SIZING.staticSaldoPct, ZeroUnit: 0 } };
+		const { problems, components } = proposalPackage(p, sizing);
+		expect(problems).toHaveLength(1);
+		expect(components.map((c) => c.name)).not.toContain('ZeroUnit');
+		expect(components.every((c) => Number.isFinite(c.scale))).toBe(true);
+	});
 });
 
 describe('proposalQuery', () => {

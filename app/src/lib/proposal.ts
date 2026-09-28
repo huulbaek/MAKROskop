@@ -66,8 +66,8 @@ export function proposalPackage(p: Proposal, sizing: Sizing): ProposalPackage {
 		const gdp = sizing.vBNP[String(e.priceYear)];
 		const unit = sizing.staticSaldoPct[e.shock];
 		if (gdp == null) problems.push(`${e.labelDa}: prisår ${e.priceYear} findes ikke i BNP-tabellen`);
-		if (unit == null) problems.push(`${e.labelDa}: ${e.shock} har ingen statisk provenuvirkning`);
-		if (gdp == null || unit == null) return;
+		if (unit == null || unit === 0) problems.push(`${e.labelDa}: ${e.shock} har ingen statisk provenuvirkning`);
+		if (gdp == null || unit == null || unit === 0) return;
 		const gdpPct = (e.kr / gdp) * 100;
 		chain.push({ role, shock: e.shock, labelDa: e.labelDa, kr: e.kr, priceYear: e.priceYear, gdpPct,
 			fte: null, scale: round4(gdpPct / unit), mappedDa: e.mappedDa });
