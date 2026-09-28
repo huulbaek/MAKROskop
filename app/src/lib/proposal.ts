@@ -100,8 +100,11 @@ export function proposalQuery(p: Proposal, sizing: Sizing): string {
 const SHOCK_SHORT: Record<string, string> = { [STRUCTURAL_SHOCK]: 'Arbejdsudbud' };
 const minus = (s: string) => s.replace('-', '−');
 
-export function chainLineDa(row: ChainRow): string {
-	const target = `${SHOCK_SHORT[row.shock] ?? row.shock.replaceAll('_', ' ')} ×${minus(formatScale(row.scale))}`;
+/** One conversion step in words. `labels` (catalog name → labelDa, from meta.shocks) names the
+ *  target shock as the catalog does; without it the shock name stands in. */
+export function chainLineDa(row: ChainRow, labels?: Record<string, string>): string {
+	const name = labels?.[row.shock] ?? SHOCK_SHORT[row.shock] ?? row.shock.replaceAll('_', ' ');
+	const target = `${name} ×${minus(formatScale(row.scale))}`;
 	if (row.role === 'structural') {
 		return `Strukturel virkning – Finansministeriets skøn: ${formatSigned(row.fte ?? 0)} fuldtidspersoner → ${target}`;
 	}
@@ -110,6 +113,31 @@ export function chainLineDa(row: ChainRow): string {
 
 export function verificationLineDa(maxGapPct: number): string {
 	return `Den lineære sum afviger højst ${formatValue(Math.round(maxGapPct * 10) / 10)} pct. fra en samlet modelkørsel af hele forslaget.`;
+}
+
+const MONTHS_DA = [
+	'januar', 'februar', 'marts', 'april', 'maj', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'december'
+];
+
+/** `2023-12-14` → `14. december 2023`, the same on the server and in every browser. */
+export function proposalDateDa(iso: string): string {
+	const [year, month, day] = iso.split('-').map(Number);
+	return `${day}. ${MONTHS_DA[month - 1]} ${year}`;
+}
+
+/** The forslag page's meta description: what was sized, and only the parts the proposal has. */
+export function proposalDescriptionDa(p: Proposal, sizing: Sizing): string {
+	const chain = proposalPackage(p, sizing).chain;
+	const sized = chain.filter((r) => r.role !== 'structural').length;
+	const financing = chain.filter((r) => r.role === 'financing').length;
+	const structural = chain.some((r) => r.role === 'structural');
+	return (
+		`${p.titleDa} (${p.proposerDa}) regnet i MAKRO med samme metode som alle forslag: ` +
+		`${sized} ${sized === 1 ? 'element' : 'elementer'} sat i størrelse efter ${sized === 1 ? 'dets' : 'deres'} statiske provenu` +
+		(financing > 0 ? `, heraf ${financing} til finansiering` : '') +
+		(structural ? ', plus Finansministeriets skøn over den strukturelle beskæftigelse' : '') +
+		'. Regnet uden lukkeskat.'
+	);
 }
 
 export function statusDa(status: ProposalStatus): string {
@@ -139,4 +167,9 @@ export function presetState(query: string, proposalId: string | null, sizing: Si
 /** The line exports lead with while the package is the proposal itself; an edited package is anonymous. */
 export function exportTitle(state: PresetState | null): string | null {
 	return state && !state.edited ? `Forslag: ${state.proposal.titleDa} (${state.proposal.proposerDa})` : null;
+}
+
+/** The proposals the page lists and prerenders: the publishable ones, oldest first. */
+export function listedProposals(proposals: Proposal[], sizing: Sizing, checks: Record<string, ProposalCheck>): Proposal[] {
+	return proposals.filter((p) => isPublishable(p, sizing, checks)).sort((a, b) => a.date.localeCompare(b.date));
 }

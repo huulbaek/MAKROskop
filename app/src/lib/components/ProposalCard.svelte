@@ -1,18 +1,23 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import type { ProposalCheck, Sizing } from '$lib/data';
-	import { chainLineDa, proposalPackage, statusDa, verificationLineDa, type PresetState } from '$lib/proposal';
+	import {
+		chainLineDa, proposalDateDa, proposalPackage, statusDa, verificationLineDa, type PresetState
+	} from '$lib/proposal';
 
 	/** The proposal a preset package was opened from (makroskop-48o): the full card while the
 	 *  package is the proposal, a one-line "Tilpasset fra" note once anything is changed. */
 	let {
 		state,
 		sizing,
+		labels,
 		check,
 		onreset
 	}: {
 		state: PresetState;
 		sizing: Sizing;
+		/** Catalog name → labelDa, so each step names the shock as the catalog does. */
+		labels: Record<string, string>;
 		check: ProposalCheck | undefined;
 		onreset: () => void;
 	} = $props();
@@ -33,22 +38,22 @@
 	</p>
 {:else}
 	<section class="card proposal" aria-label="Forslaget">
-		<p class="kicker">{statusDa(p.status)} · {p.proposerDa} · {p.date}</p>
+		<p class="kicker">{statusDa(p.status)} · {p.proposerDa} · {proposalDateDa(p.date)}</p>
 		<h3>{p.titleDa}</h3>
 		<ul class="chain">
 			{#each chain as row, i (i)}
-				<li>{chainLineDa(row)}{#if row.mappedDa}<span class="mapped">{row.mappedDa}</span>{/if}</li>
+				<li>{chainLineDa(row, labels)}{#if row.mappedDa}<span class="mapped">{row.mappedDa}</span>{/if}</li>
 			{/each}
 		</ul>
 		{#if check}<p class="verification">{verificationLineDa(check.maxGapPct)}</p>{/if}
 		<details>
 			<summary>Ikke med i beregningen</summary>
 			<ul>
-				{#each [...p.omittedDa, ...STANDARD_OMITTED] as line (line)}<li>{line}</li>{/each}
+				{#each [...p.omittedDa, ...STANDARD_OMITTED] as line, i (i)}<li>{line}</li>{/each}
 			</ul>
 		</details>
 		<p class="sources">
-			Kilder: {#each p.sources as s, i (s.url)}<a href={s.url} rel="external">{s.labelDa}</a>{i < p.sources.length - 1
+			Kilder: {#each p.sources as s, i (i)}<a href={s.url} rel="external">{s.labelDa}</a>{i < p.sources.length - 1
 					? ' · '
 					: ''}{/each}
 			· <a href={resolve('/pakke/metode/')}>Metode</a>

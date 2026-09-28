@@ -2,8 +2,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { Sizing } from './data';
 import {
-	exportTitle, isPublishable, presetState, PROPOSAL_KEYS, chainLineDa, proposalPackage, proposalQuery,
-	verificationLineDa, type Proposal
+	exportTitle, isPublishable, listedProposals, presetState, PROPOSAL_KEYS, chainLineDa, proposalDateDa,
+	proposalDescriptionDa, proposalPackage, proposalQuery, verificationLineDa, type Proposal
 } from './proposal';
 import { PROPOSALS } from './proposals';
 
@@ -87,6 +87,18 @@ describe('card text', () => {
 		const row = proposalPackage(BASE, SIZING).chain.find((r) => r.role === 'structural')!;
 		expect(chainLineDa(row)).toBe('Strukturel virkning – Finansministeriets skøn: +3.000 fuldtidspersoner → Arbejdsudbud ×0,1');
 	});
+	it('uses the catalog labels when given, the shock name otherwise', () => {
+		const [row, structural, financing] = proposalPackage(BASE, SIZING).chain;
+		const labels = { Topskat: 'Topskat', Offentligt_forbrug: 'Offentligt forbrug', Arbejdsudbud_beskaeftigelse: 'Arbejdsudbud (beskæftigelse)' };
+		expect(chainLineDa(row, labels)).toBe('Lavere topskat: −2,9 mia. kr. (2025) = −0,1 pct. af BNP → Topskat ×−2');
+		expect(chainLineDa(financing, labels)).toBe('Mindre offentligt forbrug: +2,9 mia. kr. (2025) = +0,1 pct. af BNP → Offentligt forbrug ×−0,4');
+		expect(chainLineDa(structural, labels)).toBe('Strukturel virkning – Finansministeriets skøn: +3.000 fuldtidspersoner → Arbejdsudbud (beskæftigelse) ×0,1');
+		expect(chainLineDa(financing, {})).toBe('Mindre offentligt forbrug: +2,9 mia. kr. (2025) = +0,1 pct. af BNP → Offentligt forbrug ×−0,4');
+	});
+	it('words the date in Danish', () => {
+		expect(proposalDateDa('2023-12-14')).toBe('14. december 2023');
+		expect(proposalDateDa('2025-01-01')).toBe('1. januar 2025');
+	});
 	it('words the verification gap', () => {
 		expect(verificationLineDa(1.84)).toBe('Den lineære sum afviger højst 1,8 pct. fra en samlet modelkørsel af hele forslaget.');
 	});
@@ -148,5 +160,33 @@ describe('exportTitle', () => {
 		expect(exportTitle({ proposal: BASE, edited: false })).toBe('Forslag: Testforslag (Regeringen)');
 		expect(exportTitle({ proposal: BASE, edited: true })).toBeNull();
 		expect(exportTitle(null)).toBeNull();
+	});
+});
+
+describe('proposalDescriptionDa', () => {
+	it('counts the sized rows and names only the parts the proposal has', () => {
+		expect(proposalDescriptionDa(BASE, SIZING)).toBe(
+			'Testforslag (Regeringen) regnet i MAKRO med samme metode som alle forslag: 2 elementer sat i størrelse ' +
+				'efter deres statiske provenu, heraf 1 til finansiering, plus Finansministeriets skøn over den strukturelle ' +
+				'beskæftigelse. Regnet uden lukkeskat.'
+		);
+	});
+	it('leaves out financing and the structural estimate when there are none', () => {
+		const bare = { ...BASE, financing: [], structural: null };
+		expect(proposalDescriptionDa(bare, SIZING)).toBe(
+			'Testforslag (Regeringen) regnet i MAKRO med samme metode som alle forslag: 1 element sat i størrelse ' +
+				'efter dets statiske provenu. Regnet uden lukkeskat.'
+		);
+		expect(proposalDescriptionDa({ ...BASE, structural: { fte: 0, source: 0 } }, SIZING)).not.toContain('strukturelle');
+	});
+});
+
+describe('listedProposals', () => {
+	it('keeps the publishable ones, oldest first, whatever the array order', () => {
+		const check = { query: proposalQuery(BASE, SIZING), gapPct: {}, maxGapPct: 2, exported: '2026-10-01' };
+		const later = { ...BASE, id: 'later', date: '2026-03-01' };
+		const hidden = { ...BASE, id: 'hidden', date: '2024-01-01' };
+		const checks = { test: check, later: check };
+		expect(listedProposals([later, hidden, BASE], SIZING, checks).map((p) => p.id)).toEqual(['test', 'later']);
 	});
 });

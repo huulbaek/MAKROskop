@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { EntryGenerator, PageServerLoad } from './$types';
 import type { ProposalCheck } from '$lib/data';
-import { isPublishable, proposalPackage } from '$lib/proposal';
+import { listedProposals, proposalDescriptionDa } from '$lib/proposal';
 import { PROPOSALS } from '$lib/proposals';
 import { readMeta } from '$lib/server/scenarios';
 
@@ -15,7 +15,7 @@ function publishable() {
 	const checks: Record<string, ProposalCheck> = JSON.parse(
 		readFileSync(join(process.cwd(), 'static/data/proposals.json'), 'utf8')
 	);
-	return meta.sizing ? PROPOSALS.filter((p) => isPublishable(p, meta.sizing!, checks)) : [];
+	return meta.sizing ? listedProposals(PROPOSALS, meta.sizing, checks) : [];
 }
 
 export const entries: EntryGenerator = () => publishable().map((p) => ({ id: p.id }));
@@ -23,12 +23,8 @@ export const entries: EntryGenerator = () => publishable().map((p) => ({ id: p.i
 export const load: PageServerLoad = ({ params }) => {
 	const p = publishable().find((x) => x.id === params.id);
 	if (!p) error(404, 'Ukendt forslag');
-	const rows = proposalPackage(p, readMeta().sizing!).chain.length;
 	return {
 		proposalId: p.id,
-		head: {
-			title: `${p.titleDa} regnet i MAKRO · MAKROskop`,
-			description: `${p.titleDa} (${p.proposerDa}) regnet i MAKRO med samme metode som alle forslag: ${rows} elementer sat i størrelse efter Finansministeriets tal, inkl. strukturel virkning, ufinansieret.`
-		}
+		head: { title: `${p.titleDa} regnet i MAKRO · MAKROskop`, description: proposalDescriptionDa(p, readMeta().sizing!) }
 	};
 };

@@ -142,7 +142,10 @@ for (const p of PROPOSALS) {
 	const file = join(build, 'pakke', 'forslag', p.id, 'index.html');
 	const listed = meta.sizing != null && isPublishable(p, meta.sizing, proposalChecks);
 	check(existsSync(file) === listed, `/pakke/forslag/${p.id}/: page ${listed ? 'missing' : 'must not exist (not publishable)'}`);
-	if (listed && existsSync(file)) check(readFileSync(file, 'utf8').includes(`<title>${p.titleDa} regnet i MAKRO · MAKROskop</title>`), `/pakke/forslag/${p.id}/: <title>`);
+	if (!listed || !existsSync(file)) continue;
+	const html = readFileSync(file, 'utf8');
+	check(html.includes(`<title>${p.titleDa} regnet i MAKRO · MAKROskop</title>`), `/pakke/forslag/${p.id}/: <title>`);
+	check(/class="card proposal[ "]/.test(html), `/pakke/forslag/${p.id}/: the proposal card is not in the prerendered HTML`);
 }
 
 if (failures.length) {

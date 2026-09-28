@@ -24,12 +24,12 @@
 	import {
 		downloadBlob, packageFilename, packagePermalink, provenanceLine, scenarioCsv, svgToPngBlob
 	} from '$lib/export';
-	import { exportTitle, isPublishable, presetState, proposalQuery, statusDa, type Proposal } from '$lib/proposal';
+	import { exportTitle, listedProposals, presetState, proposalQuery, statusDa, type Proposal } from '$lib/proposal';
 	import { PROPOSALS } from '$lib/proposals';
 	import { page } from '$app/state';
-	import { goto, replaceState } from '$app/navigation';
+	import { afterNavigate, goto, replaceState } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { onMount, tick } from 'svelte';
+	import { onMount, tick, untrack } from 'svelte';
 
 	let {
 		meta,
@@ -40,7 +40,8 @@
 		meta: Meta;
 		baseline: Baseline;
 		checks: Record<string, ProposalCheck>;
-		/** Set on /pakke/forslag/<id>/: the proposal the page opens with. */
+		/** Set on /pakke/forslag/<id>/: the proposal the page opens with. The workbench lives in the
+		 *  (workbench) layout, so this changes under a mounted instance when the route does. */
 		initialProposal?: string | null;
 	} = $props();
 
@@ -58,7 +59,7 @@
 	/** Proposal presets (makroskop-48o): the query parameter that remembers which proposal an
 	 *  edited package came from, the proposals the list offers, and the one the package was opened from. */
 	const FORSLAG_PARAM = 'forslag';
-	const listed = $derived(meta.sizing ? PROPOSALS.filter((p) => isPublishable(p, meta.sizing!, checks)) : []);
+	const listed = $derived(meta.sizing ? listedProposals(PROPOSALS, meta.sizing, checks) : []);
 	let proposalId: string | null = $state(null);
 
 	const shocksByName = $derived(new Map(meta.shocks.map((s) => [s.name, s])));
@@ -113,31 +114,64 @@
 		}
 	}
 
-	function apply(query: string) {
+	/** Set the package from a query without fetching anything, so it also runs while prerendering. */
+	function setPackage(query: string) {
 		const params = new URLSearchParams(query);
 		const parsed = parsePackageQuery(params, shocksByName.keys(), CLOSURES);
 		proposalId = params.get(FORSLAG_PARAM);
 		variant = parsed.variant;
 		components = parsed.components;
+	}
+
+	function loadPackage() {
 		for (const c of components) {
 			if (shocksByName.get(c.name)?.available.includes(variant)) void ensureLoaded(`${c.name}${variant}`);
 		}
 	}
 
+	function apply(query: string) {
+		setPackage(query);
+		loadPackage();
+	}
+
+	const proposalPackageQuery = (p: Proposal) => `${proposalQuery(p, meta.sizing!)}&${FORSLAG_PARAM}=${p.id}`;
+
 	/** A proposal opens unfinanced with its computed rows; the id rides along in the query. */
 	function openProposal(p: Proposal) {
-		apply(`${proposalQuery(p, meta.sizing!)}&${FORSLAG_PARAM}=${p.id}`);
+		apply(proposalPackageQuery(p));
 	}
 
 	// Deep link: /pakke/?Bundskat=-1&Offentligt_forbrug=0.5&variant=_perm
 	/** replaceState throws until SvelteKit's router is up, which is after hydration. */
 	let hydrated = $state(false);
 
+	/** The proposal page's preset is set before the first render, so the prerendered HTML carries the
+	 *  card and the rows; only the scenario files wait for the browser. */
+	untrack(() => {
+		const initial = initialProposal ? listed.find((x) => x.id === initialProposal) : undefined;
+		if (initial) setPackage(proposalPackageQuery(initial));
+	});
+
 	onMount(() => {
 		void tick().then(() => (hydrated = true));
+		if (initialProposal) loadPackage();
+		else if (page.url.search) apply(page.url.search);
+	});
+
+	/** True while the proposal page hands an edited package over to /pakke/ (our own navigation). */
+	let handingOff = false;
+
+	// A navigation this component did not start (a link to a proposal page or to a /pakke/ query)
+	// loads what the new URL names; the instance itself survives, being part of the layout.
+	afterNavigate(({ type }) => {
+		if (type === 'enter') return;
+		if (handingOff) {
+			handingOff = false;
+			return;
+		}
 		if (initialProposal) {
 			const p = listed.find((x) => x.id === initialProposal);
-			if (p) openProposal(p);
+			if (p && (preset?.proposal.id !== p.id || preset.edited)) openProposal(p);
 		} else if (page.url.search) apply(page.url.search);
 	});
 
@@ -290,14 +324,17 @@
 	// Sharing: the URL reproduces the package; every export carries the source stamp.
 	const query = $derived(packageQuery(components, variant));
 	const preset = $derived(meta.sizing ? presetState(query, proposalId, meta.sizing, listed) : null);
-	/** `&forslag=<id>` keeps "Tilpasset fra" across a reload of an edited preset. */
+	/** `&forslag=<id>` keeps "Tilpasset fra" across a reload of an edited preset — in the address
+	 *  bar only: an edited package is shared and exported without the proposal's id. */
 	const forslagSuffix = $derived(preset ? `&${FORSLAG_PARAM}=${preset.proposal.id}` : '');
-	/** The /pakke/ address of the package: what the address bar shows there. */
-	const packageUrl = $derived(components.length > 0 ? packagePermalink(page.url.origin, query) + forslagSuffix : '');
-	/** An unedited preset is shared as its citable proposal page. */
+	const permalink = $derived(components.length > 0 ? packagePermalink(page.url.origin, query) : '');
+	/** What the address bar shows on /pakke/. */
+	const addressUrl = $derived(permalink ? permalink + forslagSuffix : '');
+	/** The link in exports and "Kopiér link": an unedited preset's citable proposal page, else the package. */
 	const shareUrl = $derived(
-		preset && !preset.edited ? new URL(`/pakke/forslag/${preset.proposal.id}/`, page.url.origin).toString() : packageUrl
+		preset && !preset.edited ? new URL(`/pakke/forslag/${preset.proposal.id}/`, page.url.origin).toString() : permalink
 	);
+	const shockLabels = $derived(Object.fromEntries(meta.shocks.map((s) => [s.name, s.labelDa])));
 	/** Leads the exports while the package is the proposal itself. */
 	const title = $derived(exportTitle(preset));
 	const provenance = $derived(
@@ -312,36 +349,23 @@
 	const METHOD_LINE = 'Lineær sum af enkeltvis løste standardstød, skaleret i browseren — ikke en ny modelkørsel';
 
 	// Keep the address bar in sync, so the URL a reader copies reproduces the package.
-	/** Set once the proposal page hands an edited package over to /pakke/. */
-	let leaving = false;
-
-	/** Focus the element matching `selector` as soon as it exists, for up to about a second. */
-	function refocus(selector: string, frames = 60) {
-		const el = document.querySelector<HTMLElement>(selector);
-		if (el) el.focus();
-		else if (frames > 0) requestAnimationFrame(() => refocus(selector, frames - 1));
-	}
 	$effect(() => {
 		if (!hydrated) return;
 		if (initialProposal) {
-			// /pakke/forslag/<id>/ is the proposal; the first edit moves the package to /pakke/,
-			// so the page's title and URL stop carrying the proposal's name.
-			if ((preset && !preset.edited) || leaving) return;
-			leaving = true;
-			const target = components.length > 0 ? `${resolve('/pakke/')}?${query}${forslagSuffix}` : resolve('/pakke/');
-			// The new route mounts a fresh workbench, so keepFocus has nothing to keep: hand focus to
-			// the same control (its sliders appear once the scenario files are in).
-			const label = document.activeElement?.getAttribute('aria-label');
-			void goto(target, { replaceState: true, keepFocus: true, noScroll: true }).then(() => {
-				if (label) refocus(`[aria-label="${CSS.escape(label)}"]`);
-			});
+			// /pakke/forslag/<id>/ is the proposal; the first edit moves the package to /pakke/, so the
+			// page's title and URL stop carrying the proposal's name. The layout keeps this instance
+			// (and a slider mid-drag) alive across the navigation.
+			if ((preset && !preset.edited) || handingOff) return;
+			handingOff = true;
+			const target = permalink ? `${resolve('/pakke/')}?${query}${forslagSuffix}` : resolve('/pakke/');
+			void goto(target, { replaceState: true, keepFocus: true, noScroll: true });
 			return;
 		}
 		if (components.length === 0) {
 			if (location.search) replaceState(resolve('/pakke/'), {});
 			return;
 		}
-		const url = new URL(packageUrl);
+		const url = new URL(addressUrl);
 		if (url.search !== location.search) replaceState(url, {});
 	});
 
@@ -513,7 +537,8 @@
 			<section class="empty">
 				<h3>Pakken er tom</h3>
 				{#if listed.length > 0}
-					<h3>Forslag</h3>
+					<p>Vælg stød i kataloget – eller start fra et forslag eller et eksempel.</p>
+					<h4>Forslag</h4>
 					<ul class="examples">
 						{#each listed as p (p.id)}
 							<li>
@@ -528,9 +553,11 @@
 							</li>
 						{/each}
 					</ul>
-					<p class="muted"><a href={resolve('/pakke/metode/')}>Sådan regner vi forslag</a></p>
+					<p class="method-link"><a href={resolve('/pakke/metode/')}>Sådan regner vi forslag</a></p>
+					<h4>Eksempler</h4>
+				{:else}
+					<p>Vælg stød i kataloget – eller start fra et eksempel:</p>
 				{/if}
-				<p>Vælg stød i kataloget – eller start fra et eksempel:</p>
 				<ul class="examples">
 					{#each EXAMPLES as example (example.query)}
 						<li>
@@ -551,6 +578,7 @@
 				<ProposalCard
 					state={preset}
 					sizing={meta.sizing}
+					labels={shockLabels}
 					check={checks[preset.proposal.id]}
 					onreset={() => openProposal(preset.proposal)}
 				/>
@@ -798,6 +826,16 @@
 
 	.empty h3 {
 		margin-bottom: 6px;
+	}
+
+	.empty h4 {
+		font-size: 15px;
+		margin: 16px 0 6px;
+	}
+
+	.empty .method-link {
+		font-size: 13px;
+		margin: 0;
 	}
 
 	.empty p {
