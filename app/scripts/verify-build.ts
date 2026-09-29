@@ -8,10 +8,9 @@ import { QUESTIONS } from '../src/lib/frontpage';
 import { unzipSync } from 'fflate';
 import { derivedFiles, loadDataSet, readManifest, sha256, zipEntries, zipName } from '../src/lib/server/opendata-files';
 import { embedEntries } from '../src/lib/embed';
-import { maxScales, readMeta, readScenario } from '../src/lib/server/scenarios';
+import { maxScales, readMeta, readProposalChecks, readScenario } from '../src/lib/server/scenarios';
 import { PROPOSALS } from '../src/lib/proposals';
 import { isPublishable } from '../src/lib/proposal';
-import type { ProposalCheck } from '../src/lib/data';
 
 const build = join(process.cwd(), 'build');
 const failures: string[] = [];
@@ -137,7 +136,7 @@ for (const file of htmlFiles) {
 for (const [href, file] of dataLinks) check(existsSync(join(build, href)), `${file}: link to missing ${href}`);
 
 // Proposal pages (makroskop-48o): exactly the publishable proposals are prerendered, each with its own <title>.
-const proposalChecks: Record<string, ProposalCheck> = JSON.parse(readFileSync(join(process.cwd(), 'static/data/proposals.json'), 'utf8'));
+const proposalChecks = readProposalChecks();
 for (const p of PROPOSALS) {
 	const file = join(build, 'pakke', 'forslag', p.id, 'index.html');
 	const listed = meta.sizing != null && isPublishable(p, meta.sizing, proposalChecks);
@@ -153,10 +152,8 @@ check(metode.includes('<title>Sådan regner vi forslag · MAKROskop</title>'), '
 for (const id of ['optagelse', 'stoerrelse', 'strukturel', 'finansiering', 'ikke', 'rettelser']) {
 	check(metode.includes(`id="${id}"`), `/pakke/metode/: section #${id} missing`);
 }
-// PackageWorkbench links with resolve('/pakke/metode/'), which SvelteKit renders relative to the
-// current page's depth (paths.relative, the default) — "../pakke/metode/" here, not an absolute
-// href — so match on the resolved target rather than assuming an absolute path.
-check(/href="[^"]*pakke\/metode\/"/.test(readFileSync(join(build, 'pakke', 'index.html'), 'utf8')), '/pakke/: no link to the method note');
+// resolve() renders links relative to the page (paths.relative, the default): from /pakke/ that is "../pakke/metode/".
+check(readFileSync(join(build, 'pakke', 'index.html'), 'utf8').includes('href="../pakke/metode/"'), '/pakke/: no link to the method note');
 
 if (failures.length) {
 	console.error(`verify-build: ${failures.length} problem(s)\n` + failures.slice(0, 20).join('\n'));

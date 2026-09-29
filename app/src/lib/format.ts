@@ -10,6 +10,13 @@ export function formatValue(value: number): string {
 	return daNumber2.format(value);
 }
 
+/** A formatted number with a leading + for positives and a true minus sign; a value that rounds to
+ *  zero carries no sign at all. Shared by the share cards and the proposal chain. */
+export function signedDa(text: string, value: number): string {
+	if (!/[1-9]/.test(text)) return text.replace(/^-/, '');
+	return (value > 0 ? '+' : '') + text.replace('-', '−');
+}
+
 export function formatSigned(value: number): string {
 	return (value > 0 ? '+' : '') + formatValue(value);
 }

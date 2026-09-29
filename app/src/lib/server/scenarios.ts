@@ -6,7 +6,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { solvedScenarios, type CardLevels } from '../card';
-import type { Baseline, Meta, Scenario } from '../data';
+import type { Baseline, Meta, ProposalCheck, Scenario } from '../data';
 
 export const DATA_DIR = join(process.cwd(), 'static', 'data');
 const cache = new Map<string, unknown>();
@@ -22,6 +22,7 @@ function readJson<T>(relative: string): T {
 
 export const readMeta = (): Meta => readJson<Meta>('meta.json');
 export const readBaseline = (): Baseline => readJson<Baseline>('baseline.json');
+export const readProposalChecks = (): Record<string, ProposalCheck> => readJson<Record<string, ProposalCheck>>('proposals.json');
 export const readScenario = (file: string): Scenario => readJson<Scenario>(`shocks/${file}.json`);
 export const scenarioExists = (file: string): boolean => existsSync(join(DATA_DIR, 'shocks', `${file}.json`));
 

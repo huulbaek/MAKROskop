@@ -86,22 +86,21 @@ describe('proposalQuery', () => {
 	});
 });
 
+const LABELS = { Topskat: 'Topskat', Offentligt_forbrug: 'Offentligt forbrug', Arbejdsudbud_beskaeftigelse: 'Arbejdsudbud (beskæftigelse)' };
+
 describe('card text', () => {
 	it('words the conversion chain', () => {
 		const [row] = proposalPackage(BASE, SIZING).chain;
-		expect(chainLineDa(row)).toBe('Lavere topskat: −2,9 mia. kr. (2025) = −0,1 pct. af BNP → Topskat ×−2');
+		expect(chainLineDa(row, LABELS)).toBe('Lavere topskat: −2,9 mia. kr. (2025) = −0,1 pct. af BNP → Topskat ×−2');
 	});
 	it('words the structural row', () => {
 		const row = proposalPackage(BASE, SIZING).chain.find((r) => r.role === 'structural')!;
-		expect(chainLineDa(row)).toBe('Strukturel virkning – Finansministeriets skøn: +3.000 fuldtidspersoner → Arbejdsudbud ×0,1');
+		expect(chainLineDa(row, LABELS)).toBe('Strukturel virkning – Finansministeriets skøn: +3.000 fuldtidspersoner → Arbejdsudbud (beskæftigelse) ×0,1');
 	});
-	it('uses the catalog labels when given, the shock name otherwise', () => {
-		const [row, structural, financing] = proposalPackage(BASE, SIZING).chain;
-		const labels = { Topskat: 'Topskat', Offentligt_forbrug: 'Offentligt forbrug', Arbejdsudbud_beskaeftigelse: 'Arbejdsudbud (beskæftigelse)' };
-		expect(chainLineDa(row, labels)).toBe('Lavere topskat: −2,9 mia. kr. (2025) = −0,1 pct. af BNP → Topskat ×−2');
-		expect(chainLineDa(financing, labels)).toBe('Mindre offentligt forbrug: +2,9 mia. kr. (2025) = +0,1 pct. af BNP → Offentligt forbrug ×−0,4');
-		expect(chainLineDa(structural, labels)).toBe('Strukturel virkning – Finansministeriets skøn: +3.000 fuldtidspersoner → Arbejdsudbud (beskæftigelse) ×0,1');
-		expect(chainLineDa(financing, {})).toBe('Mindre offentligt forbrug: +2,9 mia. kr. (2025) = +0,1 pct. af BNP → Offentligt forbrug ×−0,4');
+	it('names the target by its catalog label, or its catalog name when the label is missing', () => {
+		const financing = proposalPackage(BASE, SIZING).chain[2];
+		expect(chainLineDa(financing, LABELS)).toBe('Mindre offentligt forbrug: +2,9 mia. kr. (2025) = +0,1 pct. af BNP → Offentligt forbrug ×−0,4');
+		expect(chainLineDa(financing, {})).toBe('Mindre offentligt forbrug: +2,9 mia. kr. (2025) = +0,1 pct. af BNP → Offentligt_forbrug ×−0,4');
 	});
 	it('shows kroner at source precision and pct. of GDP with 3 significant digits', () => {
 		const p: Proposal = { ...BASE, structural: null, financing: [], elements: [
@@ -109,7 +108,7 @@ describe('card text', () => {
 			{ shock: 'Topskat', labelDa: 'Top-top', kr: 1.0, priceYear: 2025, source: 0 },
 			{ shock: 'Topskat', labelDa: 'Fradrag', kr: -6.8, priceYear: 2025, source: 0 }
 		] };
-		const lines = proposalPackage(p, SIZING).chain.map((r) => chainLineDa(r));
+		const lines = proposalPackage(p, SIZING).chain.map((r) => chainLineDa(r, LABELS));
 		// −0,215 / 2.800 = −0,00767857 pct. of GDP; / 0,05 = −0,1536
 		expect(lines[0]).toBe('Senior: −0,215 mia. kr. (2024) = −0,00768 pct. af BNP → Topskat ×−0,15');
 		// 1,0 / 2.900 = 0,0344828 pct.; / 0,05 = 0,6897
@@ -125,7 +124,7 @@ describe('card text', () => {
 		const [row] = proposalPackage(p, SIZING).chain;
 		// 2,2333 / 2.800 = 0,0797619 pct.; / −0,25 = −0,3190
 		expect(row.scale).toBe(-0.319);
-		expect(chainLineDa(row)).toBe('Varekøb: 1/3 af 6,7 mia. kr. (2024) = +0,0798 pct. af BNP → Offentligt forbrug ×−0,32');
+		expect(chainLineDa(row, LABELS)).toBe('Varekøb: 1/3 af 6,7 mia. kr. (2024) = +0,0798 pct. af BNP → Offentligt forbrug ×−0,32');
 	});
 	it('formats kroner with 1-3 decimals and percentages with 3 significant digits', () => {
 		expect([-6.8, -0.5, -0.215, -3.7, 1.0, 2.2333333].map(formatKrDa)).toEqual(['−6,8', '−0,5', '−0,215', '−3,7', '+1,0', '+2,233']);

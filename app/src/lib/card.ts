@@ -4,6 +4,7 @@
  *  `scripts/og-images.ts` — bun, outside SvelteKit — computes exactly what the pages carry.
  *  Wording rules: docs/superpowers/specs/2026-09-10-share-cards-design.md. */
 import type { Meta, Scenario, ScenarioDefinition, ShockMeta } from './data';
+import { signedDa } from './format';
 
 /** Slider steps offered for every solved scenario. Negative steps mirror the shock. */
 export const ALL_SCALE_STEPS = [-1, -0.75, -0.5, -0.25, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
@@ -106,10 +107,7 @@ const da2 = new Intl.NumberFormat('da-DK', { minimumFractionDigits: 2, maximumFr
 const da0 = new Intl.NumberFormat('da-DK', { maximumFractionDigits: 0 });
 const daScale = new Intl.NumberFormat('da-DK', { maximumFractionDigits: 2 });
 
-function signed(text: string, value: number): string {
-	if (!/[1-9]/.test(text)) return text.replace(/^-/, ''); // rounds to zero: no sign at all
-	return (value > 0 ? '+' : '') + text.replace('-', MINUS);
-}
+const signed = signedDa;
 
 /** One decimal from 0.1 upwards, two below; signed; true minus. */
 export function formatTileValue(value: number): string {

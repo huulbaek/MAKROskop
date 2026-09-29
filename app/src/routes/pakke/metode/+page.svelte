@@ -168,8 +168,8 @@
 		<h2 id="finansiering">Finansiering</h2>
 		<p>
 			Finansieringen er forslagets egen: de rækker, forslagsstilleren selv har angivet som
-			finansiering, sættes i størrelse med samme metode som forslagets øvrige elementer og lægges
-			ind i pakken.
+			finansiering, lægges ind i pakken. De sættes i størrelse efter det beløb, kilden angiver for
+			finansieringen, og omregnes til pct. af BNP på samme måde som forslagets øvrige elementer.
 		</p>
 		<p>
 			Pakken åbner ufinansieret (uden lukkeskat); saldoen viser derfor, hvad der er tilbage, når
@@ -177,10 +177,10 @@
 			lukkeskatten resten – men så er pakken ikke længere forslaget, den bliver en tilpasset pakke.
 		</p>
 		<p>
-			Finansministeriet angiver ofte et forslags finansieringsbehov, efter tilbageløb og adfærd er
-			talt med, mens skatteelementerne er de umiddelbare (statiske) tal. MAKRO beregner sit eget
-			tilbageløb, så et forslags saldo bliver ikke nul, blot fordi finansieringen er talt med – det
-			er ikke en fejl, det er forskellen mellem de to opgørelser.
+			Skatteelementerne sættes i størrelse efter deres umiddelbare (statiske) provenu, mens
+			Finansministeriet ofte opgør finansieringsbehovet, efter tilbageløb og adfærd er talt med.
+			MAKRO beregner selv tilbageløbet og adfærden, så saldoen bliver ikke nødvendigvis nul, selv om
+			forslagets finansiering er talt med.
 		</p>
 		<p>
 			Hvert forslag lægges oven på MAKROs grundforløb. Elementer, grundforløbet allerede

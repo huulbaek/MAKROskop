@@ -3,7 +3,7 @@
  *  kr is the static saldo effect in mia. kr. in the price year, positive = strengthens the balance. */
 
 import type { ProposalCheck, Sizing } from './data';
-import { formatSigned, formatValue } from './format';
+import { formatSigned, formatValue, signedDa } from './format';
 import { formatScale, packageQuery, type PackageComponent } from './package';
 
 export type ProposalStatus = 'vedtaget' | 'forslag';
@@ -101,9 +101,8 @@ export function proposalQuery(p: Proposal, sizing: Sizing): string {
 	return packageQuery(proposalPackage(p, sizing).components, PROPOSAL_VARIANT);
 }
 
-const SHOCK_SHORT: Record<string, string> = { [STRUCTURAL_SHOCK]: 'Arbejdsudbud' };
+const signed = signedDa;
 const minus = (s: string) => s.replace('-', '−');
-const signed = (s: string, value: number) => minus((value > 0 ? '+' : '') + s);
 
 const daKr = new Intl.NumberFormat('da-DK', { minimumFractionDigits: 1, maximumFractionDigits: 3 });
 const daSig3 = new Intl.NumberFormat('da-DK', { maximumSignificantDigits: 3 });
@@ -125,9 +124,9 @@ export function splitFraction(fractionDa: string): number {
 }
 
 /** One conversion step in words. `labels` (catalog name → labelDa, from meta.shocks) names the
- *  target shock as the catalog does; without it the shock name stands in. */
-export function chainLineDa(row: ChainRow, labels?: Record<string, string>): string {
-	const name = labels?.[row.shock] ?? SHOCK_SHORT[row.shock] ?? row.shock.replaceAll('_', ' ');
+ *  target shock as the catalog does; a shock missing from it shows its catalog name. */
+export function chainLineDa(row: ChainRow, labels: Record<string, string>): string {
+	const name = labels[row.shock] ?? row.shock;
 	const target = `${name} ×${minus(formatScale(row.scale))}`;
 	if (row.role === 'structural') {
 		return `Strukturel virkning – Finansministeriets skøn: ${formatSigned(row.fte ?? 0)} fuldtidspersoner → ${target}`;
