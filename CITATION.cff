@@ -5,8 +5,8 @@ title: "MAKROskop: scenarieberegninger med MAKRO"
 authors:
   - given-names: Thomas
     family-names: Titanium
-version: "2026.09.28.2"
-date-released: "2026-09-28"
+version: "2026.09.29"
+date-released: "2026-09-29"
 url: "https://makroskop.nodalit.com/aabne-data/"
 repository-code: "https://github.com/huulbaek/makroskop"
 license: CC-BY-4.0
