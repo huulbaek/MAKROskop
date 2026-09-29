@@ -30,8 +30,7 @@ run shock_gdx_48o/Topskat_perm.gdx --shock-name tTop --shock-delta 0.01 --closur
 run shock_gdx_48o/Beskaeftigelsesfradrag_ufin.gdx --shock-name tBeskFradrag --shock-delta 0.01
 run shock_gdx_48o/Beskaeftigelsesfradrag_perm.gdx --shock-name tBeskFradrag --shock-delta 0.01 --closure tax-reaction
 
-for id in $(uv run python -c "import json; print(' '.join(json.load(open('proposal_specs.json'))))"); do
-  pkg=$(uv run python -c "import json,sys; print(json.load(open('proposal_specs.json'))[sys.argv[1]]['package'])" "$id")
-  run "proposal_gdx/Forslag_${id}.gdx" --package "$pkg"
-done
+while IFS=$'\t' read -r id pkg; do
+  run "proposal_gdx/Forslag_${id}.gdx" --package "$pkg" < /dev/null
+done < <(uv run python -c "import json; [print(f'{k}\t{v[\"package\"]}') for k, v in json.load(open('proposal_specs.json')).items()]")
 echo "=== $(date -Is) PROPOSAL RUNS DONE ==="
