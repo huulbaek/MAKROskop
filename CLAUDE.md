@@ -66,7 +66,14 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
 - `app/` — SvelteKit static site (Svelte 5 runes, bun). Pages: Grundforløb (baseline),
   Scenarier (shock explorer), Pakker (`/pakke/`: policy packages as a linear superposition of
   solved shocks, `?Bundskat=-1&Offentligt_forbrug=0.5&variant=_perm`; pure logic in
-  `lib/package.ts`), Validering (two-solver comparison, DREAM's 2021 multipliers via `etl/multipliers.py`,
+  `lib/package.ts`). Proposal presets (makroskop-48o): verbatim Finance Ministry figures in
+  `lib/proposals.ts`, sized by `lib/proposal.ts` from meta.json `sizing` (`etl/static_saldo.py`);
+  each checked by a joint `freesolver solve-export --package` run (`cloud/run_proposals.sh`,
+  `etl/proposals_check.py` → `static/data/proposals.json`, >10 % gap = not published); routes
+  `/pakke/forslag/<id>/`, `/pakke/metode/` (the `/pakke/` workbench and `/pakke/forslag/<id>/`
+  live in the route group `app/src/routes/pakke/(workbench)/`; the method note is
+  `app/src/routes/pakke/metode/`). Design: docs/superpowers/specs/2026-09-28-proposal-presets-design.md.
+  Validering (two-solver comparison, DREAM's 2021 multipliers via `etl/multipliers.py`,
   DREAM's May 2025 shock reactions via `etl/dream_comparison.py` from the figure readings in
   `etl/dream_may2025.json`).
   Share cards: one prerendered page per scenario view at `/scenarier/<view>/<skala>/`
@@ -199,6 +206,8 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
   calibration equations, `E_tLukning` present, `uDeltag`/`uh`/`rLoenNash`/`qProdHh_t` exogenous,
   `snLHh`/`shLHh` endogenous), evaluated at the deep-calibration point. Same endogeneity as
   DREAM's standard_shocks.gms — "calibration-configuration exogeneity" is not a source of gaps.
+- MAKRO June 2026 has one working topskat step: tMellem/tTopTop are set but rMellemSkatInd/
+  rTopTopSkatInd are 0 (GovRevenues.gms:826) — shocking them does nothing.
 
 ## Conventions
 

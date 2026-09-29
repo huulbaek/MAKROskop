@@ -25,6 +25,7 @@ from pathlib import Path
 import gams.transfer as gt
 import gamspy_base
 
+import static_saldo
 from catalog import (
     DISPLAY_SCALE, GROWTH, RATIOS, SECTOR_SERIES_TEMPLATES, SECTORS, SERIES, SHOCKS, VARIATIONS, SeriesDef,
     shock_definition, stamp_mismatches,
@@ -188,6 +189,27 @@ def lukning_share(container: gt.Container, gdp: dict[int, float], year: int) -> 
     if year not in revenue or not gdp.get(year):
         raise ValueError(f"no vtLukning/vBNP in {year}")
     return revenue[year] / gdp[year] * 100
+
+
+SIZING_YEARS = range(2022, 2031)
+
+
+def build_sizing(reference: gt.Container, detrended: dict[str, dict[int, float]],
+                 factors: dict[str, dict[int, float]]) -> dict:
+    """What proposal presets are sized with (makroskop-48o): nominal GDP in mia. kr. by price year,
+    the households' structural employment snLHh(tot) in 2030 (1.000 persons; the base that
+    Arbejdsudbud_beskaeftigelse moves by 1 %, which leaves out snLxDK and so is below snL(tot)) and
+    each fiscal shock's static saldo effect at ×1."""
+    vbnp = apply_trend(detrended["vBNP"], "fvt", factors)
+    snlhh = read_records(reference, SeriesDef("snLHh", "snLHh", ("tot",), "", "", "", "", None, "pct"))
+    if 2030 not in snlhh:
+        raise ValueError("no snLHh(tot,2030) in the reference")
+    return {
+        "year": 2030,
+        "vBNP": {str(year): sig_round(vbnp[year]) for year in SIZING_YEARS},
+        "snLHh2030": sig_round(snlhh[2030]),
+        "staticSaldoPct": {k: sig_round(v) for k, v in static_saldo.all_static(static_saldo.GdxReference(reference)).items()},
+    }
 
 
 def extract_shock(
@@ -406,9 +428,12 @@ def main() -> None:
     reference_path = args.shocks_dir / "_reference.gdx"
     if reference_path.exists():
         print("Reading solver reference (_reference.gdx) for shock comparisons ...")
-        shock_reference = extract_detrended(open_gdx(reference_path), factors)
+        reference_container = open_gdx(reference_path)
+        shock_reference = extract_detrended(reference_container, factors)
+        sizing = build_sizing(reference_container, shock_reference, factors)
     else:
         shock_reference = detrended
+        sizing = None
     (args.out / "baseline.json").write_text(
         json.dumps({"years": YEARS, "series": columns, "indicators": {"rHBI": read_hbi(baseline)}}),
         encoding="utf-8",
@@ -439,10 +464,10 @@ def main() -> None:
             (args.out / "shocks" / f"{shock_name}{suffix}.json").write_text(json.dumps(payload), encoding="utf-8")
             available.setdefault(shock_name, []).append(suffix)
 
-    (args.out / "meta.json").write_text(
-        json.dumps(build_meta(baseline, args.makro_root, available), ensure_ascii=False),
-        encoding="utf-8",
-    )
+    meta = build_meta(baseline, args.makro_root, available)
+    if sizing is not None:
+        meta["sizing"] = sizing
+    (args.out / "meta.json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
     print("  wrote meta.json")
 
 

@@ -73,3 +73,12 @@ def test_a_missing_stamp_field_is_reported() -> None:
     assert catalog.stamp_mismatches("Bundskat", "_ufin", partial, LAST) == [
         "closure: solved (missing), catalog none",
     ]
+
+
+def test_the_income_tax_steps_are_catalogued_as_rate_deltas() -> None:
+    top = catalog.expected_stamp("Topskat", "_ufin", LAST)
+    assert (top["shock"], top["factor"], top["delta"]) == ("tTop", 1.0, 0.01)
+    fradrag = catalog.expected_stamp("Beskaeftigelsesfradrag", "_perm", LAST)
+    assert (fradrag["shock"], fradrag["delta"], fradrag["closure"]) == ("tBeskFradrag", 0.01, "tax-reaction")
+    names = [s.name for s in catalog.SHOCKS]
+    assert names.index("Topskat") == names.index("Bundskat") + 1

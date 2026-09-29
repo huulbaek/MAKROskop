@@ -46,6 +46,8 @@ Flere stød: kopiér et `solve-export`-kald i `run.sh` og skift `--shock-name`
 (dict-navn), `--shock-years`, `--shock-factor`/`--shock-delta` og `--out`
 (filnavnet skal matche stød-kataloget i `catalog.py`: `<Navn><variant>.gdx`).
 
+`run_proposals.sh` — makroskop-48o: Topskat/Beskæftigelsesfradrag + one joint `--package` solve per proposal.
+
 Midlertidige stød: `--shock-profile ar` (0,9^dt — DREAMs AR_profile, filnavn `_midl`),
 `--shock-profile blip` (kun stødåret, `_blip`) eller `linear` (1 − 0,25·dt). Profilen
 vægter ændringen år for år fra det første stødår; alle varianter er ufinansierede.

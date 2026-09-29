@@ -17,10 +17,17 @@ export const DEFAULT_VARIANT = '_perm';
 const VARIANT_PARAM = 'variant';
 
 /** Steps allowed for one shock. Where the model has a boundary the solver could not
- *  cross, the catalog caps the magnitude, which trims the mirrored side too. */
-export function scaleSteps(maxScale: number | null | undefined): number[] {
-	const steps = maxScale == null ? ALL_SCALE_STEPS : ALL_SCALE_STEPS.filter((s) => Math.abs(s) <= maxScale);
-	return steps.includes(UNSCALED) ? steps : [...steps, UNSCALED].sort((a, b) => a - b);
+ *  cross, the catalog caps the magnitude, which trims the mirrored side too. Any current value
+ *  off the ladder (a proposal preset's computed scale, e.g. ×−0,63, or a hand-edited query) is
+ *  added in order, even beyond the cap, so the selector can show the package as it is; nothing
+ *  here checks that value against a solve. */
+export function scaleSteps(maxScale: number | null | undefined, current?: number): number[] {
+	const capped = maxScale == null ? ALL_SCALE_STEPS : ALL_SCALE_STEPS.filter((s) => Math.abs(s) <= maxScale);
+	const steps = capped.includes(UNSCALED) ? capped : [...capped, UNSCALED].sort((a, b) => a - b);
+	if (current != null && Number.isFinite(current) && current !== 0 && !steps.includes(current)) {
+		return [...steps, current].sort((a, b) => a - b);
+	}
+	return steps;
 }
 
 /** `?Bundskat=-1&Offentligt_forbrug=0.5&variant=_perm` → components in parameter order.

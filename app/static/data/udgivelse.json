@@ -1,6 +1,6 @@
 {
-	"version": "2026.09.28",
-	"date": "2026-09-28",
+	"version": "2026.09.29",
+	"date": "2026-09-29",
 	"format": 1,
 	"model": {
 		"name": "MAKRO 2026-June",
@@ -9,10 +9,10 @@
 		"dataBasisDa": "Nationalregnskabsdata fra marts 2026"
 	},
 	"license": "CC-BY-4.0",
-	"changelog": "Stødbeskrivelser: hvert scenarie angiver nu stødets størrelse og enhed (changeSize, changeUnitDa) og evt. en kort overskrift (shortDa); Husholdningernes diskontering beskrives som −0,1 pct. af diskonteringsfaktoren (jfDisk_t −0,001). Ingen tal er ændret.",
+	"changelog": "Topskat og beskæftigelsesfradrag: to nye stød i begge varianter med forklaringer; meta.json: størrelser til forslag i Pakker (makroskop-48o)",
 	"files": {
 		"baseline.json": "a7bc2fa58e0f29129221caad527a844a8239f83aafa28ba341f4f51fb2b33418",
-		"meta.json": "9e1e7fd388de5a103cbf5f29f08bd8d9e73ba76d483b3097ad2bb0042e2f7cd3",
+		"meta.json": "3291b874a1786d170b543488cc3a4e16e221147178763a9383609c0ccfcc4a41",
 		"shocks/AM_bidrag_perm.json": "029bc8220724aac7cf4c5003f320a4fefd2f4883718896a780393ce926364dbd",
 		"shocks/AM_bidrag_ufin.json": "ce7770cca7645bfc0b6b17f8d22e842ad9840ac5b19b49411a1864985d2f683b",
 		"shocks/Afgift_erhverv_perm.json": "4c095e9e2114a7a764feda722d3126bdf45af16290e0a7aa11f112b6d32b3fa9",
@@ -29,6 +29,8 @@
 		"shocks/Arbejdsudbud_timer_ufin.json": "e763a115fa4b84da7b9683a3df6592fd93cb581bb601a96f7fcc97d824bb41bd",
 		"shocks/Befolkning_perm.json": "2d2b685676f5e2a553d7f104ccd47aaac31dedc352683fd08b13ca38ddcfa18e",
 		"shocks/Befolkning_ufin.json": "7198ea181c4fc49b6f0f6d6d082c9653034359863c7d1bd438475e718366ac14",
+		"shocks/Beskaeftigelsesfradrag_perm.json": "0635ad900fdb6f882bd9ef73b15e483ea8ef94d0613cb0450d85cfae72358ebd",
+		"shocks/Beskaeftigelsesfradrag_ufin.json": "5f474427784a4a37c185844587b5f9714077b2039d67519fcf618038628cc67d",
 		"shocks/BoligRisiko_perm.json": "197084a3973532241c401e71a743c669d0a4e3f4390536b55a13716539f5858a",
 		"shocks/BoligRisiko_ufin.json": "1fa904fdd8ad6bf683ae218ac28c335dd2cf7cd08de812f3adfdd0e24ebc0cea",
 		"shocks/Bundskat_perm.json": "cb3f36f6e9e0e40d496ef479ad85a5e3b1f10cd39d267b21b5eb05a2d5c14783",
@@ -85,6 +87,8 @@
 		"shocks/Selskabsskat_ufin.json": "9c118aec80ddfb77665a7c0c034188dc2918cc58e03b8480b110e655ef74fefb",
 		"shocks/Skattepligtig_indkomstoverforsel_perm.json": "9337fd76eb1d0ae7debee6529cfffd1096169ec0f57f8f572880dbcf3407262f",
 		"shocks/Skattepligtig_indkomstoverforsel_ufin.json": "7d9bd6ab94af0c7fc18d1944de379ebb151b6f8c0a154abc474430ff823f103a",
+		"shocks/Topskat_perm.json": "519deb6411f8723838d99bb86f2164e31343343664d9d7bf0a5e54585016737a",
+		"shocks/Topskat_ufin.json": "e185089db903737d7098cd4a1a455c1c3c7fd6412f15476ab732f667b5f22bb7",
 		"shocks/Udenlandske_priser_perm.json": "d811080578dce569d5fc3fac482d18a174543cf92e91cd3714aec411f9e1484f",
 		"shocks/Udenlandske_priser_ufin.json": "b04064d85203ca978628c9ae20df466bf5c6ea2905782590703d699e99d787f7",
 		"shocks/Vaegtafgift_perm.json": "e61a5f6199f5d13c93d54ddfdab34760f198972e9c00ba06bddd3981d2fd60ca",
@@ -94,6 +98,12 @@
 	},
 	"earlier": [
 		{
+			"version": "2026.09.28",
+			"date": "2026-09-28",
+			"changelog": "Stødbeskrivelser: hvert scenarie angiver nu stødets størrelse og enhed (changeSize, changeUnitDa) og evt. en kort overskrift (shortDa); Husholdningernes diskontering beskrives som −0,1 pct. af diskonteringsfaktoren (jfDisk_t −0,001). Ingen tal er ændret.",
+			"url": "https://github.com/huulbaek/makroskop/releases/tag/data-2026.09.28"
+		},
+		{
 			"version": "2026.09.27",
 			"date": "2026-09-27",
 			"changelog": "Første udgivelse: 78 scenarier (39 stød, permanent finansieret og ufinansieret) fra MAKRO 2026-June.",
@@ -101,8 +111,8 @@
 		}
 	],
 	"zip": {
-		"name": "makroskop-data-2026.09.28.zip",
-		"bytes": 5632213,
-		"sha256": "0612566b0407797abec92dfe9a9899c1d7ef18921be9e52eecc75102fe0cdb4a"
+		"name": "makroskop-data-2026.09.29.zip",
+		"bytes": 5887627,
+		"sha256": "dde32d13c99dfb314f1f912a69034752caca208c408ee3aa9307a41c766862f3"
 	}
 }

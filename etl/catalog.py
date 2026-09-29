@@ -124,6 +124,8 @@ SHOCKS: list[ShockDef] = [
     ShockDef("Ikke_skattepligtig_indkomstoverforsel", "Ikke-skattepligtige overførsler", "Non-taxable transfers", "Offentlige udgifter"),
     ShockDef("Overforsel_privat", "Øvrige overførsler til husholdninger", "Other transfers to households", "Offentlige udgifter"),
     ShockDef("Bundskat", "Bundskat", "Income tax (bundskat)", "Skatter og afgifter"),
+    ShockDef("Topskat", "Topskat", "Top-bracket income tax", "Skatter og afgifter"),
+    ShockDef("Beskaeftigelsesfradrag", "Beskæftigelsesfradrag", "Earned income tax credit", "Skatter og afgifter"),
     ShockDef("AM_bidrag", "AM-bidrag", "Labor market contribution", "Skatter og afgifter"),
     ShockDef("Grundskyld", "Grundskyld", "Land tax", "Skatter og afgifter"),
     ShockDef("Ejendomsvaerdiskat", "Ejendomsværdiskat", "Property value tax", "Skatter og afgifter"),
@@ -280,6 +282,43 @@ SHOCK_RUNS: list[ShockRun] = [
              channel=("qC>qBNP>nL>ledighedsgrad>vhW>qX", "pBolig>qI>qBNP", "saldo2bnp"),
              explainer_da="Et højere arbejdsmarkedsbidrag virker som bundskatten: lavere disponibel indkomst, forbruget falder ca. 0,8 pct., og boligpriserne følger med. Lavere løn styrker eksporten lidt, og BNP ligger ca. 0,1 pct. lavere. Saldoen forbedres med ca. 0,25 pct. af BNP og mere over tid.",
              explainer_perm_da="Provenuet fra det højere arbejdsmarkedsbidrag – {lukning} af BNP – gives tilbage til husholdningerne via lukkeskatten, så deres samlede skat er næsten uændret. Forbrug, boligpriser, løn og BNP rører sig under 0,05 pct., og saldoen er uændret: beregningen er en omlægning af skatten, ikke en stramning."),
+    # makroskop-48o: the instruments of the personal income tax proposals. MAKRO June 2026 has one
+    # working topskat step: tMellem and tTopTop are set from 2026, but their bases rMellemSkatInd and
+    # rTopTopSkatInd are zero (GovRevenues.gms:826), so shocking them moves nothing.
+    ShockRun("Topskat", "tTop", "Topskattesats", 1.0, 0.01, "+1 pct.-point", 2030,
+             "DREAM har intet standardstød på topskatten; MAKROskop hæver satsen med 1 pct.-point. I denne "
+             "udgave af MAKRO er topskatten ét trin (15 pct. af indkomsten over topskattegrænsen); mellem- "
+             "og toptopskatten har endnu ikke data i modellen.",
+             channel=("qC>qBNP>nL>ledighedsgrad>vhW>qX", "pBolig>qI>qBNP", "saldo2bnp"),
+             explainer_da="En højere topskat rammer kun de øverste indkomster, så skattebasen er langt mindre "
+                          "end bundskattens: det private forbrug falder gradvist til knap 0,15 pct., og "
+                          "boligpriserne falder omtrent lige så meget. Løn og priser falder marginalt, hvilket "
+                          "styrker eksporten en anelse, så BNP ender kun ca. 0,02 pct. lavere. Saldoen "
+                          "forbedres med ca. 0,04 pct. af BNP og mere over tid. Beskæftigelsen falder kun "
+                          "kortvarigt, fordi topskatten i denne udgave af MAKRO ikke påvirker arbejdsudbuddet.",
+             explainer_perm_da="Provenuet fra den højere topskat – {lukning} af BNP – gives tilbage til "
+                          "husholdningerne via lukkeskatten, så deres samlede skat er næsten uændret. Forbrug, "
+                          "boligpriser, løn og BNP rører sig under 0,01 pct., og saldoen er stort set uændret: "
+                          "beregningen er en omlægning af skatten, ikke en stramning. Fordi topskatten i denne "
+                          "udgave af MAKRO ikke påvirker arbejdsudbuddet, ændrer omlægningen næsten intet."),
+    ShockRun("Beskaeftigelsesfradrag", "tBeskFradrag", "Beskæftigelsesfradrag, sats af lønindkomsten",
+             1.0, 0.01, "+1 pct.-point", 2030,
+             "DREAM har intet standardstød på beskæftigelsesfradraget; MAKROskop hæver fradragets sats "
+             "(ca. 7,4 pct. af lønindkomsten) med 1 pct.-point. Fradraget trækkes fra den skattepligtige "
+             "indkomst og er derfor værd som kommune- og kirkeskatten; det indgår ikke i MAKROs marginalskat.",
+             channel=("qC>qBNP>nL>ledighedsgrad>vhW>qX", "pBolig>qI>qBNP", "saldo2bnp"),
+             explainer_da="Et højere beskæftigelsesfradrag øger husholdningernes disponible indkomst: det "
+                          "private forbrug stiger godt 0,3 pct., og boligpriserne følger med op. Løn og priser "
+                          "stiger lidt, hvilket svækker eksporten en anelse, men BNP ender alligevel ca. 0,05 "
+                          "pct. højere. Saldoen forværres med ca. 0,1 pct. af BNP og mere over tid. "
+                          "Beskæftigelsen stiger kun kortvarigt, fordi fradraget i denne udgave af MAKRO ikke "
+                          "påvirker arbejdsudbuddet.",
+             explainer_perm_da="Provenuet fra det højere beskæftigelsesfradrag finansieres med højere skat: "
+                          "lukkeskatten hæver husholdningernes skat med {lukning} af BNP om året, så gevinsten "
+                          "fra fradraget stort set opvejes. Forbrug, boligpriser, løn og BNP rører sig højst "
+                          "ca. 0,02 pct., og saldoen er stort set uændret: beregningen er en omlægning af "
+                          "skatten, ikke en lempelse. Fordi fradraget i denne udgave af MAKRO ikke påvirker "
+                          "arbejdsudbuddet, ændrer omlægningen næsten intet."),
     ShockRun("Selskabsskat", "tSelskab", "Selskabsskattesats", 1.0, 0.01, "+1 pct.-point", 2030, _DREAM_GDP_NORM,
              channel=("qI>qBNP", "qC>qBNP", "saldo2bnp"),
              explainer_da="Højere selskabsskat gør investeringer dyrere: erhvervsinvesteringerne falder op til 0,9 pct. og de samlede investeringer ca. 0,2 pct. Med mindre kapital falder lønnen, og forbruget falder gradvist (ca. 0,25 pct. på langt sigt). BNP ender knap 0,1 pct. lavere, mens saldoen forbedres.",

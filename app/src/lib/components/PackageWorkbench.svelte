@@ -3,7 +3,10 @@
 	import StatTile from '$lib/components/StatTile.svelte';
 	import { changeText } from '$lib/card';
 	import { formatSigned } from '$lib/format';
-	import { devUnit, loadScenario, type Scenario, type ShockMeta } from '$lib/data';
+	import ProposalCard from '$lib/components/ProposalCard.svelte';
+	import {
+		devUnit, loadScenario, type Baseline, type Meta, type ProposalCheck, type Scenario, type ShockMeta
+	} from '$lib/data';
 	import { RECOMPUTING } from '$lib/notices';
 	import {
 		financedCostLine,
@@ -21,15 +24,28 @@
 	import {
 		downloadBlob, packageFilename, packagePermalink, provenanceLine, scenarioCsv, svgToPngBlob
 	} from '$lib/export';
+	import {
+		exportTitle, listedProposals, presetState, proposalDateDa, proposalQuery, statusDa, type Proposal
+	} from '$lib/proposal';
+	import { PROPOSALS } from '$lib/proposals';
 	import { page } from '$app/state';
-	import { replaceState } from '$app/navigation';
+	import { afterNavigate, goto, replaceState } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { onMount, tick } from 'svelte';
+	import { onMount, tick, untrack } from 'svelte';
 
-	let { data } = $props();
-
-	const meta = $derived(data.meta);
-	const baseline = $derived(data.baseline);
+	let {
+		meta,
+		baseline,
+		checks,
+		initialProposal = null
+	}: {
+		meta: Meta;
+		baseline: Baseline;
+		checks: Record<string, ProposalCheck>;
+		/** Set on /pakke/forslag/<id>/: the proposal the page opens with. The workbench lives in the
+		 *  (workbench) layout, so this changes under a mounted instance when the route does. */
+		initialProposal?: string | null;
+	} = $props();
 
 	/** The two closures a package can be solved under. Temporary profiles are not offered:
 	 *  they are unfinanced-only and not yet solved for the catalog. */
@@ -41,6 +57,12 @@
 	let cache: Map<string, Scenario | null> = $state.raw(new Map());
 	let loading = $state(0);
 	let indicator = $state('qBNP');
+
+	/** Proposal presets (makroskop-48o): the query parameter that remembers which proposal an
+	 *  edited package came from, the proposals the list offers, and the one the package was opened from. */
+	const FORSLAG_PARAM = 'forslag';
+	const listed = $derived(meta.sizing ? listedProposals(PROPOSALS, meta.sizing, checks) : []);
+	let proposalId: string | null = $state(null);
 
 	const shocksByName = $derived(new Map(meta.shocks.map((s) => [s.name, s])));
 	const closureLabel = $derived(meta.variations.find((v) => v.suffix === variant)?.labelDa ?? 'Permanent, finansieret');
@@ -74,6 +96,8 @@
 
 	function remove(name: string) {
 		components = components.filter((c) => c.name !== name);
+		// An emptied package is no longer adapted from anything.
+		if (components.length === 0) proposalId = null;
 	}
 
 	function toggle(name: string) {
@@ -92,22 +116,70 @@
 		}
 	}
 
-	function apply(query: string) {
-		const parsed = parsePackageQuery(new URLSearchParams(query), shocksByName.keys(), CLOSURES);
+	/** Set the package from a query without fetching anything, so it also runs while prerendering. */
+	function setPackage(query: string) {
+		const params = new URLSearchParams(query);
+		const parsed = parsePackageQuery(params, shocksByName.keys(), CLOSURES);
+		proposalId = params.get(FORSLAG_PARAM);
 		variant = parsed.variant;
 		components = parsed.components;
+	}
+
+	function loadPackage() {
 		for (const c of components) {
 			if (shocksByName.get(c.name)?.available.includes(variant)) void ensureLoaded(`${c.name}${variant}`);
 		}
+	}
+
+	function apply(query: string) {
+		setPackage(query);
+		loadPackage();
+	}
+
+	const proposalPackageQuery = (p: Proposal) => `${proposalQuery(p, meta.sizing!)}&${FORSLAG_PARAM}=${p.id}`;
+
+	/** A plain left click opens a list entry in place; ctrl/cmd/shift/alt or a middle click is left
+	 *  to the browser, so "open in new tab" follows the link's href. */
+	const plainClick = (e: MouseEvent) =>
+		e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
+
+	/** A proposal opens unfinanced with its computed rows; the id rides along in the query. */
+	function openProposal(p: Proposal) {
+		apply(proposalPackageQuery(p));
 	}
 
 	// Deep link: /pakke/?Bundskat=-1&Offentligt_forbrug=0.5&variant=_perm
 	/** replaceState throws until SvelteKit's router is up, which is after hydration. */
 	let hydrated = $state(false);
 
+	/** The proposal page's preset is set before the first render, so the prerendered HTML carries the
+	 *  card and the rows; only the scenario files wait for the browser. */
+	untrack(() => {
+		const initial = initialProposal ? listed.find((x) => x.id === initialProposal) : undefined;
+		if (initial) setPackage(proposalPackageQuery(initial));
+	});
+
 	onMount(() => {
 		void tick().then(() => (hydrated = true));
-		if (page.url.search) apply(page.url.search);
+		if (initialProposal) loadPackage();
+		else if (page.url.search) apply(page.url.search);
+	});
+
+	/** True while the proposal page hands an edited package over to /pakke/ (our own navigation). */
+	let handingOff = false;
+
+	// A navigation this component did not start (a link to a proposal page or to a /pakke/ query)
+	// loads what the new URL names; the instance itself survives, being part of the layout.
+	afterNavigate(({ type }) => {
+		if (type === 'enter') return;
+		if (handingOff) {
+			handingOff = false;
+			return;
+		}
+		if (initialProposal) {
+			const p = listed.find((x) => x.id === initialProposal);
+			if (p && (preset?.proposal.id !== p.id || preset.edited)) openProposal(p);
+		} else if (page.url.search) apply(page.url.search);
 	});
 
 	/** One row per component: its catalog entry, the loaded scenario (if any) and the
@@ -118,7 +190,7 @@
 			const available = shock?.available.includes(variant) ?? false;
 			const file = `${c.name}${variant}`;
 			const scenario = available ? (cache.get(file) ?? undefined) : undefined;
-			const steps = scaleSteps(scenario?.definition?.maxScale);
+			const steps = scaleSteps(scenario?.definition?.maxScale, c.scale);
 			return {
 				...c,
 				shock,
@@ -258,7 +330,20 @@
 	// ------------------------------------------------------------------------------------
 	// Sharing: the URL reproduces the package; every export carries the source stamp.
 	const query = $derived(packageQuery(components, variant));
-	const shareUrl = $derived(components.length > 0 ? packagePermalink(page.url.origin, query) : '');
+	const preset = $derived(meta.sizing ? presetState(query, proposalId, meta.sizing, listed) : null);
+	/** `&forslag=<id>` keeps "Tilpasset fra" across a reload of an edited preset — in the address
+	 *  bar only: an edited package is shared and exported without the proposal's id. */
+	const forslagSuffix = $derived(preset ? `&${FORSLAG_PARAM}=${preset.proposal.id}` : '');
+	const permalink = $derived(components.length > 0 ? packagePermalink(page.url.origin, query) : '');
+	/** What the address bar shows on /pakke/. */
+	const addressUrl = $derived(permalink ? permalink + forslagSuffix : '');
+	/** The link in exports and "Kopiér link": an unedited preset's citable proposal page, else the package. */
+	const shareUrl = $derived(
+		preset && !preset.edited ? new URL(`/pakke/forslag/${preset.proposal.id}/`, page.url.origin).toString() : permalink
+	);
+	const shockLabels = $derived(Object.fromEntries(meta.shocks.map((s) => [s.name, s.labelDa])));
+	/** Leads the exports while the package is the proposal itself. */
+	const title = $derived(exportTitle(preset));
 	const provenance = $derived(
 		provenanceLine({ model: meta.model.name, commit: meta.model.commit ?? '', dataBasis: meta.model.dataBasisDa, closure: closureLabel, date: __BUILD_DATE__ })
 	);
@@ -273,11 +358,21 @@
 	// Keep the address bar in sync, so the URL a reader copies reproduces the package.
 	$effect(() => {
 		if (!hydrated) return;
+		if (initialProposal) {
+			// /pakke/forslag/<id>/ is the proposal; the first edit moves the package to /pakke/, so the
+			// page's title and URL stop carrying the proposal's name. The layout keeps this instance
+			// (and a slider mid-drag) alive across the navigation.
+			if ((preset && !preset.edited) || handingOff) return;
+			handingOff = true;
+			const target = permalink ? `${resolve('/pakke/')}?${query}${forslagSuffix}` : resolve('/pakke/');
+			void goto(target, { replaceState: true, keepFocus: true, noScroll: true });
+			return;
+		}
 		if (components.length === 0) {
 			if (location.search) replaceState(resolve('/pakke/'), {});
 			return;
 		}
-		const url = new URL(shareUrl);
+		const url = new URL(addressUrl);
 		if (url.search !== location.search) replaceState(url, {});
 	});
 
@@ -307,6 +402,7 @@
 			years,
 			columns: charts.map((c) => ({ key: c.key, label: c.title, unit: c.suffix.trim(), values: c.values })),
 			provenance: [
+				...(title ? [title] : []),
 				packageDescription,
 				METHOD_LINE,
 				'Afvigelser fra grundforløbet: pct. for mængder og priser, pct.-point for satser og saldi',
@@ -328,7 +424,7 @@
 			const theme = getComputedStyle(document.documentElement);
 			const cssVar = (name: string) => theme.getPropertyValue(name).trim();
 			const blob = await svgToPngBlob(svg, {
-				header: [`${chart.title} — ${chart.unit}`, packageDescription, METHOD_LINE],
+				header: [...(title ? [title] : []), `${chart.title} — ${chart.unit}`, packageDescription, METHOD_LINE],
 				footer: [provenance, shareUrl],
 				colors: { background: cssVar('--surface'), ink: cssVar('--ink'), muted: cssVar('--ink-muted') },
 				fonts: { display: cssVar('--font-display'), body: cssVar('--font-body') }
@@ -447,13 +543,36 @@
 		{#if components.length === 0}
 			<section class="empty">
 				<h3>Pakken er tom</h3>
-				<p>Vælg stød i kataloget – eller start fra et eksempel:</p>
+				{#if listed.length > 0}
+					<p>Vælg stød i kataloget – eller start fra et forslag eller et eksempel.</p>
+					<h4>Forslag</h4>
+					<ul class="examples">
+						{#each listed as p (p.id)}
+							<li>
+								<a
+									href={resolve(`/pakke/forslag/${p.id}/`)}
+									onclick={(e) => {
+										if (!plainClick(e)) return;
+										e.preventDefault();
+										openProposal(p);
+									}}>{p.titleDa}</a
+								>
+								<span class="muted">{p.proposerDa} · {statusDa(p.status)} · {proposalDateDa(p.date)}</span>
+							</li>
+						{/each}
+					</ul>
+					<p class="method-link"><a href={resolve('/pakke/metode/')}>Sådan regner vi forslag</a></p>
+					<h4>Eksempler</h4>
+				{:else}
+					<p>Vælg stød i kataloget – eller start fra et eksempel:</p>
+				{/if}
 				<ul class="examples">
 					{#each EXAMPLES as example (example.query)}
 						<li>
 							<a
 								href={`${resolve('/pakke/')}?${example.query}`}
 								onclick={(e) => {
+									if (!plainClick(e)) return;
 									e.preventDefault();
 									apply(example.query);
 								}}>{example.title}</a
@@ -464,6 +583,15 @@
 				</ul>
 			</section>
 		{:else}
+			{#if preset && meta.sizing}
+				<ProposalCard
+					state={preset}
+					sizing={meta.sizing}
+					labels={shockLabels}
+					check={checks[preset.proposal.id]}
+					onreset={() => openProposal(preset.proposal)}
+				/>
+			{/if}
 			<section class="card package" aria-label="Pakkens stød">
 				<ol class="rows">
 					{#each rows as row (row.name)}
@@ -485,7 +613,16 @@
 										max={row.steps.length - 1}
 										step="1"
 										value={row.stepIdx < 0 ? row.steps.indexOf(1) : row.stepIdx}
-										oninput={(e) => setScale(row.name, row.steps[Number(e.currentTarget.value)])}
+										oninput={(e) => {
+											const input = e.currentTarget;
+											setScale(row.name, row.steps[Number(input.value)]);
+											// Leaving an off-ladder preset scale drops it from the ladder and shifts the
+											// indices; Svelte skips an unchanged value, so put the thumb on the new scale.
+											void tick().then(() => {
+												const idx = rows.find((r) => r.name === row.name)?.stepIdx ?? -1;
+												if (idx >= 0) input.value = String(idx);
+											});
+										}}
 										aria-label={`Størrelse af ${row.shock?.labelDa ?? row.name}`}
 										aria-valuetext={`${formatScale(row.scale)} gange stødet${row.scale < 0 ? ' — spejlet, altså en lempelse' : ''}`}
 									/>
@@ -698,6 +835,16 @@
 
 	.empty h3 {
 		margin-bottom: 6px;
+	}
+
+	.empty h4 {
+		font-size: 15px;
+		margin: 16px 0 6px;
+	}
+
+	.empty .method-link {
+		font-size: 13px;
+		margin: 0;
 	}
 
 	.empty p {

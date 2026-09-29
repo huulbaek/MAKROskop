@@ -23,6 +23,18 @@ export interface VariationMeta {
 	labelEn: string;
 }
 
+/** Proposal sizing from the solver reference (etl/extract.py build_sizing, makroskop-48o). */
+export interface Sizing {
+	year: number;
+	/** Nominal GDP in mia. kr. by year (price years of the Finance Ministry's figures). */
+	vBNP: Record<string, number>;
+	/** The households' structural employment snLHh(tot) in 2030, 1.000 persons: the base the
+	 *  Arbejdsudbud_beskaeftigelse shock moves by 1 %. */
+	snLHh2030: number;
+	/** Static saldo effect of each fiscal shock at ×1, pct. of 2030 GDP, positive = strengthens. */
+	staticSaldoPct: Record<string, number>;
+}
+
 export interface Meta {
 	model: { name: string; commit: string; fingerprint?: string; dataBasisDa?: string };
 	yearStart: number;
@@ -33,6 +45,7 @@ export interface Meta {
 	series: SeriesMeta[];
 	shocks: ShockMeta[];
 	variations: VariationMeta[];
+	sizing?: Sizing;
 }
 
 export interface Baseline {
@@ -128,6 +141,13 @@ export async function loadScenario(fetcher: typeof fetch, file: string): Promise
 	const response = await fetcher(`/data/shocks/${file}.json`);
 	if (!response.ok) return null;
 	return response.json();
+}
+
+/** Joint solve vs linear sum per proposal (etl/proposals_check.py, makroskop-48o). */
+export interface ProposalCheck { query: string; gapPct: Record<string, number>; maxGapPct: number; exported: string }
+export async function loadProposalChecks(fetcher: typeof fetch): Promise<Record<string, ProposalCheck>> {
+	const response = await fetcher('/data/proposals.json');
+	return response.ok ? response.json() : {};
 }
 
 /** Unfinanced first: that is how DREAM presents its shock reactions, and a financed run's

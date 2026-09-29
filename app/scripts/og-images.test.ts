@@ -40,7 +40,7 @@ describe('every real headline fits the image', () => {
 			for (const line of lines) expect(line.length * DISPLAY_EM * size).toBeLessThanOrEqual(HEADLINE_WIDTH);
 			checked++;
 		}
-		expect(checked).toBe(936); // +4: Moms lost its ×1,5 cap with the proportional re-solve (makroskop-gnp.2)
+		expect(checked).toBe(984); // +48: Topskat and Beskaeftigelsesfradrag, both variants (makroskop-48o)
 	});
 });
 
