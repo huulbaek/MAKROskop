@@ -145,6 +145,21 @@ def to_rpn(tokens: list[tuple[str, str]], code: "array", args: "array", consts: 
 EQ_START_RE = re.compile(r"^e(\d+)\.\.")
 
 
+def convert_variable_count(convert_dir: Path) -> int:
+    """Total variable count from the dict.txt header ("Variable counts" table) of a CONVERT dump.
+
+    The count changes with the model version (June 2026: 5,836,546; September 2026:
+    5,849,541), so it is read from the dump instead of being hard-coded.
+    """
+    with (convert_dir / "dict.txt").open(encoding="utf-8") as handle:
+        for line in handle:
+            if line.startswith("Variable counts"):
+                next(handle)  # column headers (x b i ...)
+                next(handle)  # Total cont binary ...
+                return int(next(handle).split()[0])
+    raise ValueError(f"no 'Variable counts' header in {convert_dir / 'dict.txt'}")
+
+
 def cmd_parse(convert_dir: Path) -> None:
     gams_path = convert_dir / "gams.gms"
     started = time.time()
@@ -155,7 +170,7 @@ def cmd_parse(convert_dir: Path) -> None:
     eq_offsets = array("q", [0])
     rhs_values = array("d")
 
-    n_vars = 5_836_546
+    n_vars = convert_variable_count(convert_dir)
     levels = np.zeros(n_vars, dtype=np.float64)
     is_fixed = np.zeros(n_vars, dtype=bool)
     suffix_counts: dict[str, int] = {}

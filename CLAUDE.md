@@ -3,7 +3,16 @@
 Public-facing explorer + license-free solver for MAKRO (DREAM's macroeconomic model
 of Denmark, used by the Finance Ministry). Upstream model: `~/vserver/MAKRO`
 (pristine clone — never modify; we read `Model/deep_dynamic_calibration.zip` and
-`Model/Gdx/baseline.gdx` from it).
+`Model/Gdx/baseline.gdx` from it). Current model: MAKRO 2026-September (031f71e, fingerprint
+bd46c0084e9b; makroskop-ba1): `etl/cache/convert`, `system.npz`, `etl/shock_gdx/` (82 scenarios +
+`_reference.gdx`, solved 2026-10-01/02) and data release 2026.10.02 are all September. The June
+2026 model and runs are parked: zip, baseline, dump and `system.npz` in
+`etl/cache/parked/model_jun2026/`, the 82 June scenario GDX files in
+`etl/cache/parked/shock_gdx_jun2026/`, the June-sized proposal solve in
+`etl/cache/parked/proposal_gdx_junesizing/`. A model-version bump = pull the clone, re-run
+`freesolver.py parse`/`check` (the variable count is read from `dict.txt`), export the reference,
+`cloud/run_sep_all.sh` on the box (generated from `catalog.expected_stamp`, so stamps match by
+construction), `extract.py`, `bun run proposals:specs` + `cloud/run_proposals.sh`, `data:release`.
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:6cd5cc61 -->
 ## Beads Issue Tracker
@@ -206,7 +215,7 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
   calibration equations, `E_tLukning` present, `uDeltag`/`uh`/`rLoenNash`/`qProdHh_t` exogenous,
   `snLHh`/`shLHh` endogenous), evaluated at the deep-calibration point. Same endogeneity as
   DREAM's standard_shocks.gms — "calibration-configuration exogeneity" is not a source of gaps.
-- MAKRO June 2026 has one working topskat step: tMellem/tTopTop are set but rMellemSkatInd/
+- MAKRO June and September 2026 have one working topskat step: tMellem/tTopTop are set but rMellemSkatInd/
   rTopTopSkatInd are 0 (GovRevenues.gms:826) — shocking them does nothing.
 
 ## Conventions

@@ -166,7 +166,7 @@ describe('buildAnswer', () => {
 			question, scenario, yearStart: readMeta().yearStart,
 			levels: levelsAt(baseline, y1), nL5: levelsAt(baseline, y1 + 4)?.nL ?? null
 		});
-		expect(answer.tiles.map((t) => t.value)).toEqual(['−10.900', '−1,2', '−1,0']);
+		expect(answer.tiles.map((t) => t.value)).toEqual(['−9.700', '−1,2', '−1,0']);
 		expect(answer.fiveYear).toMatch(/^Efter 5 år er beskæftigelseseffekten næsten væk/);
 	});
 });

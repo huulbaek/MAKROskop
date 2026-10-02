@@ -152,7 +152,7 @@ describe('published scenarios', () => {
 
 	it('answers the ECB rate with the numbers its tiles show', () => {
 		expect(answerFor('Rente_ufin', 'ECB-renten')).toMatch(
-			/^ECB-renten \+1 pct\.-point fra 2030, varigt og ufinansieret: Beskæftigelsen falder med 10\.900 personer det første år, men efter 5 år er effekten næsten væk\. BNP er 1,2 pct\. lavere efter 3 år\. De offentlige finanser svækkes med ca\. \d+ mia\. kr\. det første år \(−1,0 pct\. af BNP\)\.$/
+			/^ECB-renten \+1 pct\.-point fra 2030, varigt og ufinansieret: Beskæftigelsen falder med 9\.700 personer det første år, men efter 5 år er effekten næsten væk\. BNP er 1,2 pct\. lavere efter 3 år\. De offentlige finanser svækkes med ca\. \d+ mia\. kr\. det første år \(−1,0 pct\. af BNP\)\.$/
 		);
 	});
 

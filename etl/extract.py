@@ -252,7 +252,12 @@ def extract_shock(
 # Data vintage per MAKRO release, as DREAM asks results to be cited ("MAKRO 26-juni baseret på
 # Nationalregnskabsdata fra marts 2026", Martin Bonde, 2026-09-09). Not derivable from the repo,
 # so it is keyed on the README's version line; an unknown release gets no data-basis line.
-DATA_BASIS_DA = {"MAKRO 2026-June": "Nationalregnskabsdata fra marts 2026"}
+DATA_BASIS_DA = {
+    "MAKRO 2026-June": "Nationalregnskabsdata fra marts 2026",
+    # DREAM's version note (commit 7cdf9d4): "Med data fra juni-/juli-dataopdatering"; the exact
+    # Nationalregnskab vintage is still to be confirmed with DREAM (makroskop-7y5).
+    "MAKRO 2026-September": "Nationalregnskabsdata fra DREAMs juni/juli 2026-dataopdatering",
+}
 
 
 def model_version(makro_root: Path) -> dict[str, str]:

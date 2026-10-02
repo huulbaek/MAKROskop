@@ -1,5 +1,5 @@
 {
- "generated": "2026-09-07",
+ "generated": "2026-10-02",
  "shockYear": 2030,
  "definitionDa": "Multiplikator = ændring i nominelt BNP / ændring i instrumentets nominelle udgift (eller provenu) i samme år, permanent ufinansieret stød.",
  "reference": {
@@ -14,8 +14,8 @@
    "costSeries": "vtBund[tot]",
    "ours": {
     "year1": 0.61,
-    "year2": 0.9,
-    "impulsePctGdp": 0.515
+    "year2": 0.92,
+    "impulsePctGdp": 0.516
    },
    "dream": {
     "year1": 0.69,
@@ -29,8 +29,8 @@
    "costSeries": "vR[off]",
    "ours": {
     "year1": 0.61,
-    "year2": 0.73,
-    "impulsePctGdp": 0.085
+    "year2": 0.74,
+    "impulsePctGdp": 0.086
    },
    "dream": {
     "year1": 0.73,
@@ -43,9 +43,9 @@
    "labelDa": "Offentlig beskæftigelse",
    "costSeries": "vLoensum[off]",
    "ours": {
-    "year1": 0.91,
-    "year2": 0.92,
-    "impulsePctGdp": 0.175
+    "year1": 0.92,
+    "year2": 0.93,
+    "impulsePctGdp": 0.178
    },
    "dream": {
     "year1": 0.8,
@@ -59,8 +59,8 @@
    "costSeries": "vI_s[('iTot', 'off')]",
    "ours": {
     "year1": 0.68,
-    "year2": 0.88,
-    "impulsePctGdp": 0.038
+    "year2": 0.9,
+    "impulsePctGdp": 0.039
    },
    "dream": {
     "year1": 0.77,
@@ -73,9 +73,9 @@
    "labelDa": "Offentligt forbrug (alle input)",
    "costSeries": "vG[gTot]",
    "ours": {
-    "year1": 0.95,
-    "year2": 0.98,
-    "impulsePctGdp": 0.252
+    "year1": 0.96,
+    "year2": 1.0,
+    "impulsePctGdp": 0.255
    },
    "dream": {
     "year1": null,
