@@ -1,5 +1,7 @@
 <script lang="ts">
+	import LineChart from '$lib/components/LineChart.svelte';
 	import StatTile from '$lib/components/StatTile.svelte';
+	import type { DreamComparisonRow, DreamComparisonShock } from './+page';
 
 	let { data } = $props();
 
@@ -18,6 +20,11 @@
 	});
 	const daOne = new Intl.NumberFormat('da-DK', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 	const daTwo = new Intl.NumberFormat('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+	const daSignedTwo = new Intl.NumberFormat('da-DK', {
+		minimumFractionDigits: 2,
+		maximumFractionDigits: 2,
+		signDisplay: 'always'
+	});
 
 	/** "1,1 × 10⁻¹⁵"-style scientific notation as HTML. The superscript is for the eye;
 	 *  assistive tech gets a spoken form ("1,1 gange 10 i minus 15") instead. */
@@ -107,6 +114,7 @@
 
 	const dream = $derived(data.dreamComparison);
 	const meta = $derived(data.meta);
+	const lastYear = $derived(dream.years[dream.years.length - 1]);
 
 	/** Series label and DREAM unit for a comparison row. */
 	function dreamSeries(key: string): { labelDa: string; unitDa: string } {
@@ -114,12 +122,38 @@
 	}
 
 	/** Reading or scaled value with Danish decimal comma — one decimal for persons, two for
-	 *  percentages; "–" where DREAM's figure was not read. */
+	 *  percentages; "–" where a value is missing. */
 	function reading(value: number | null | undefined, key: string): string {
 		if (value === null || value === undefined) return '–';
 		const rounded = key === 'nL' ? Math.round(value * 10) / 10 : Math.round(value * 100) / 100;
 		const clean = rounded === 0 ? 0 : rounded; // never "-0,0"
 		return key === 'nL' ? daOne.format(clean) : daTwo.format(clean);
+	}
+
+	function gdpRow(shock: DreamComparisonShock): DreamComparisonRow | undefined {
+		return shock.rows.find((row) => row.series === 'qBNP');
+	}
+
+	/** The one-line summary on a collapsed shock: GDP in the shock year, both solvers. */
+	function headline(shock: DreamComparisonShock): string {
+		const gdp = gdpRow(shock);
+		const year = String(dream.shockYear);
+		if (!gdp) return '';
+		const dreamValue = gdp.dream[year];
+		const ours = gdp.ours?.[year];
+		const left = `BNP ${year}: DREAM ${dreamValue == null ? '–' : daSignedTwo.format(dreamValue)}`;
+		return ours == null ? `${left} · MAKROskop afventer beregning` : `${left} · MAKROskop ${daSignedTwo.format(ours)} pct.`;
+	}
+
+	/** DREAM in the second series colour, MAKROskop in the first — the same pairing as the tables. */
+	function chartSeries(gdp: DreamComparisonRow) {
+		const series = [{ key: 'dream', label: 'DREAM', values: gdp.dreamPct, color: 'var(--series-2)' }];
+		if (gdp.oursPct) series.push({ key: 'ours', label: 'MAKROskop', values: gdp.oursPct, color: 'var(--series-1)' });
+		return series;
+	}
+
+	function gapPct(value: number | undefined): string {
+		return value === undefined ? '–' : `${daSigned.format(value)} pct.`;
 	}
 </script>
 
@@ -396,25 +430,43 @@
 </section>
 
 <section class="block dream">
-	<h2>Sammenlignet med DREAMs stød-reaktioner (maj 2025)</h2>
+	<h2>Sammenlignet med DREAMs egne stød-kørsler</h2>
 	<p class="story">
-		I maj 2025 offentliggjorde DREAM notatet
-		<a href={dream.reference.url} target="_blank" rel="noopener noreferrer"
+		DREAM har lagt de {dream.shocks.length} permanente, ufinansierede standardstød fra notatet
+		<a href={dream.dream.paper.url} target="_blank" rel="noopener noreferrer"
 			>Shock Reactions in MAKRO<span class="sr-only"> (åbner i nyt vindue)</span></a
-		> med figurer for, hvordan {dream.reference.modelDa} reagerer på en række standardstød fra
-		{dream.shockYear}. Her står de aflæste værdier ved siden af MAKROskops egne, ufinansierede
-		scenarier omregnet til DREAMs enheder: beskæftigelse i 1.000 personer, eksport og privat
-		forbrug i pct.-point af BNP, BNP og timeløn i pct. Hvor DREAM normaliserer stødet til 1 pct.
-		af BNP, er MAKROskops scenarie løst i netop den størrelse. {dream.shockYear} er stødåret
-		(år 1).
+		> (maj 2025) ud som løsningsfiler i
+		<a href={dream.dream.url} target="_blank" rel="noopener noreferrer"
+			>MAKRO-repositoriet<span class="sr-only"> (åbner i nyt vindue)</span></a
+		>, løst på {dream.dream.modelDa} frem til {lastYear}. Her læses DREAMs tal direkte fra filerne
+		— ikke aflæst fra figurer — og stilles ved siden af MAKROskops egne ufinansierede scenarier på
+		samme modelversion ({meta.model.name}). Kurven viser BNP i pct. fra grundforløbet over hele
+		horisonten; tabellen bruger notatets enheder: beskæftigelse i 1.000 personer, eksport og privat
+		forbrug i pct.-point af BNP, resten i pct. {dream.shockYear} er stødåret (år 1).
 	</p>
-	<div class="dream-grid">
-		{#each dream.shocks as shock (shock.id)}
-			<div class="dream-item">
-				<!-- The caption sits outside the scroller so it wraps to the screen instead of scrolling away. -->
-				<p class="dream-caption" id="dream-caption-{shock.id}">
-					<strong>{shock.labelDa}</strong> · {shock.scaleNoteDa}
-				</p>
+	<div class="dream-list">
+		{#each dream.shocks as shock, index (shock.id)}
+			{@const gdp = gdpRow(shock)}
+			<details class="dream-item" open={index === 0}>
+				<summary>
+					<span class="dream-title">{shock.labelDa}</span>
+					<span class="dream-headline">{headline(shock)}</span>
+				</summary>
+				<p class="dream-caption" id="dream-caption-{shock.id}">{shock.scaleNoteDa}</p>
+				{#if gdp}
+					<div class="dream-chart">
+						<LineChart
+							title="BNP"
+							unit="pct. fra grundforløb"
+							years={dream.years}
+							series={chartSeries(gdp)}
+							fromYear={dream.shockYear}
+							toYear={lastYear}
+							zeroLine
+							height={170}
+						/>
+					</div>
+				{/if}
 				<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 				<!-- Focusable on purpose: the table scrolls sideways on narrow screens. -->
 				<div class="table-scroll" tabindex="0" role="region" aria-label="{shock.labelDa}, sammenligning med DREAM">
@@ -442,31 +494,50 @@
 								</tr>
 								<tr class="ours">
 									<td class="who">MAKROskop</td>
-									{#each dream.columns as year (year)}
-										<td>{reading(row.ours[String(year)], row.series)}</td>
-									{/each}
+									{#if row.ours}
+										{#each dream.columns as year (year)}
+											<td>{reading(row.ours[String(year)], row.series)}</td>
+										{/each}
+									{:else}
+										<td class="pending" colspan={dream.columns.length}>afventer beregning</td>
+									{/if}
 								</tr>
 							{/each}
 						</tbody>
 					</table>
 				</div>
 				{#if shock.noteDa}<p class="footnote">{shock.noteDa}</p>{/if}
-			</div>
+			</details>
 		{/each}
 	</div>
 	<p class="footnote">
-		<strong>Forbehold.</strong> DREAMs tal er {dream.reference.methodDa}, og notatet bygger på
-		{dream.reference.modelDa}, mens MAKROskop regner på {meta.model.name}
-		({meta.model.dataBasisDa}). Stødstørrelsen er ikke en fejlkilde: de tre stød, DREAM normerer
-		til 1 pct. af BNP, er løst i netop den størrelse, og en lineær opskalering af katalogets
-		1-pct.-stød afveg højst 3 pct. (varekøb) og 10 pct. (offentlig beskæftigelse) fra de fuldt
-		løste. Forskelle på 10–20 pct. bør derfor ikke overfortolkes; systematiske forskelle i forløbet
-		over tid — fx hvor hurtigt beskæftigelsen vender tilbage — er mere sigende.
+		<strong>Referencepunkt.</strong> DREAMs afvigelser måles mod modellens officielle grundforløb
+		(<code>Model/Gdx/baseline.gdx</code>, som nulstødet gengiver). MAKROskops måles mod
+		kalibreringspunktet i modellens zip-fil, der i {dream.shockYear} ligger
+		{gapPct(dream.ours.levelGapPct.vBNP)} (nominelt BNP) og {gapPct(dream.ours.levelGapPct.qBNP)}
+		(realt BNP) fra det officielle grundforløb — en anden dataårgang inde i zip-filen. Marginale
+		virkninger i pct. er robuste over for det, men det er den mest sandsynlige kilde til de
+		forskelle, der er tilbage: beskæftigelsen i år 1 er 15–25 pct. højere i MAKROskop ved
+		efterspørgselsstød og identisk fra år 3, og på langt sigt afviger rente- og
+		investeringsstødet 10–15 pct.
 	</p>
 	<p class="footnote">
-		Kilde:
-		<a href={dream.reference.url} target="_blank" rel="noopener noreferrer"
-			>{dream.reference.source}<span class="sr-only"> (åbner i nyt vindue)</span></a
+		<strong>Stødstørrelse.</strong> Hvor DREAM normerer stødet til 1 pct. af BNP, aflæses størrelsen
+		i DREAMs egen fil (instrumentets ændring i {dream.shockYear}), og MAKROskops 1-pct.-stød
+		skaleres lineært op med forholdet; faktoren står over hver tabel. Lineær opskalering afveg
+		højst 3 pct. (varekøb) og 10 pct. (offentlig beskæftigelse) fra fuldt løste kørsler i DREAMs
+		størrelse, så forskelle på 10–20 pct. bør ikke overfortolkes.
+	</p>
+	<p class="footnote">
+		<strong>Proveniens.</strong> {dream.dream.files.length} GDX-filer fra
+		<a href={dream.dream.url} target="_blank" rel="noopener noreferrer"
+			>Analysis/Standard_shocks/Gdx<span class="sr-only"> (åbner i nyt vindue)</span></a
+		> (commit {dream.dream.commit}), læst {dream.generated}; hver fil er kontrolleret med SHA-256
+		og skal ligge præcis på grundforløbet i året før stødet. MAKROskops scenarier er løst på
+		samme model (fingeraftryk {dream.ours.fingerprint}). Tak til DREAM for at stille filerne til
+		rådighed. Notatet:
+		<a href={dream.dream.paper.url} target="_blank" rel="noopener noreferrer"
+			>{dream.dream.paper.source}<span class="sr-only"> (åbner i nyt vindue)</span></a
 		>.
 	</p>
 </section>
@@ -599,6 +670,12 @@
 			præcision; den frie løsers egne residualer er 100-1000 gange strammere. I fuld skala er
 			de største afvigelser nutidsværdi-variable langt ude i horisonten, som er dårligt bestemte
 			i selve modellen.
+		</li>
+		<li>
+			Løser-testene på denne side (to-løser-testen, genfindingen og fuld horisont) er kørt på
+			{validation.model.name} (commit {validation.model.commit}); scenarierne, multiplikatorerne og
+			sammenligningen med DREAM gælder {meta.model.name}. Løseren er den samme — testene gentages,
+			når der er en grund til det.
 		</li>
 		<li>
 			Maskiner: {validation.machine}. Alt kan efterprøves: koden er open source, og MAKRO-modellen
@@ -838,36 +915,66 @@
 		margin-bottom: 16px;
 	}
 
-	.dream-grid {
+	.dream-list {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(560px, 1fr));
-		column-gap: 36px;
-		row-gap: 24px;
+		gap: 10px;
 	}
 
-	@media (max-width: 640px) {
-		.dream-grid {
-			grid-template-columns: 1fr;
-		}
+	.dream-item {
+		border: 1px solid var(--rule);
+		border-radius: 6px;
+		padding: 0 14px;
+		min-width: 0; /* a grid item defaults to its content's min width, which would let the table push the page wide */
+	}
+
+	.dream-item[open] {
+		padding-bottom: 14px;
+	}
+
+	.dream-item summary {
+		cursor: pointer;
+		padding: 10px 0;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 4px 14px;
+		align-items: baseline;
+		font-size: 14px;
+	}
+
+	.dream-item summary::-webkit-details-marker {
+		color: var(--ink-muted);
+	}
+
+	.dream-title {
+		font-weight: 600;
+		color: var(--ink);
+	}
+
+	.dream-headline {
+		font-size: 12.5px;
+		color: var(--ink-secondary);
+		font-variant-numeric: tabular-nums;
+	}
+
+	.dream-chart {
+		margin: 4px 0 10px;
+	}
+
+	.dream-table .pending {
+		text-align: left;
+		font-weight: 400;
+		color: var(--ink-muted);
+		font-style: italic;
 	}
 
 	.dream-table {
 		min-width: 560px;
 	}
 
-	/* a grid item defaults to its content's min width, which would let the 560px table push the page wide */
-	.dream-item {
-		min-width: 0;
-	}
-
 	.dream-caption {
 		color: var(--ink-secondary);
 		font-size: 12.5px;
 		margin: 0 0 6px;
-	}
-
-	.dream-caption strong {
-		color: var(--ink);
 	}
 
 	.dream-table th,

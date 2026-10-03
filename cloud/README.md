@@ -123,7 +123,11 @@ og publicér grundforløb + scenarier i ét push.
    (ustemplet fil). `meta.json` og hvert scenaries `modelVersion` skal have samme
    fingerprint — ellers viser appen en versionsadvarsel.
 6. **Validering:** opdatér tallene i `app/static/data/validation.json` fra `run.log`
-   (fuld-horisont-genfinding), eller lad dem stå med tydelig versionsangivelse.
+   (fuld-horisont-genfinding), eller lad dem stå med tydelig versionsangivelse (siden viser
+   deres modelversion). Kør `uv run python dream_comparison.py`, som læser DREAMs stød-filer
+   fra den rene klon (`Analysis/Standard_shocks/Gdx`, Git LFS) og stopper, hvis DREAMs
+   `baseline.gdx`-kopi afviger fra `Model/Gdx/baseline.gdx` eller en fil ikke ligger på
+   grundforløbet i 2029.
 7. **Én commit** med data-JSON (+ validering), `git push` → Dokploy bygger og deployer.
    Footeren viser den nye modelversion.
 

@@ -212,13 +212,18 @@ def build_sizing(reference: gt.Container, detrended: dict[str, dict[int, float]]
     }
 
 
-def extract_shock(
-    gdx_path: Path, baseline_detrended: dict[str, dict[int, float]], factors: dict[str, dict[int, float]] | None = None
-) -> dict:
-    """Compute deviation-from-baseline columns for one solved shock GDX."""
-    container = open_gdx(gdx_path)
-    solver_meta = read_solver_meta(container)
-    deviations: dict[str, list[float | None]] = {}
+def deviation_series(
+    container: gt.Container, baseline_detrended: dict[str, dict[int, float]],
+    factors: dict[str, dict[int, float]] | None = None,
+) -> tuple[dict[str, dict[int, float]], dict[str, dict[int, float]]]:
+    """Deviations from `baseline_detrended` for every year the GDX holds, as {key: {year: value}}.
+
+    Level series in pct., rates and the derived ratios/growth rates in pct.-points. Returns
+    (deviations, shock_detrended); the second is the shock's own detrended series, which the
+    closure-share stamp needs. Years are not clipped to the app's YEARS, so a caller comparing
+    whole horizons (dream_comparison.py) sees the model's last year, 2129.
+    """
+    deviations: dict[str, dict[int, float]] = {}
     shock_detrended: dict[str, dict[int, float]] = {}
     for sdef in all_series_defs():
         if sdef.key not in baseline_detrended:
@@ -229,17 +234,27 @@ def extract_shock(
         shock_detrended[sdef.key] = values
         base = baseline_detrended[sdef.key]
         if sdef.dev_mode == "pct":
-            dev = {y: (v / base[y] - 1) * 100 for y, v in values.items() if y in base and base[y] != 0}
+            deviations[sdef.key] = {y: (v / base[y] - 1) * 100 for y, v in values.items() if y in base and base[y] != 0}
         else:  # "pp" and "gdp_pp" handled below via ratios; raw pp here
-            dev = {y: (v - base[y]) * 100 for y, v in values.items() if y in base}
-        deviations[sdef.key] = to_column(dev)
+            deviations[sdef.key] = {y: (v - base[y]) * 100 for y, v in values.items() if y in base}
     add_derived(shock_detrended, factors)
     for key in DERIVED_KEYS:  # ratios and growth rates: pct.-point differences
         if key in shock_detrended and key in baseline_detrended:
             base = baseline_detrended[key]
-            deviations[key] = to_column({
+            deviations[key] = {
                 year: (value - base[year]) * 100 for year, value in shock_detrended[key].items() if year in base
-            })
+            }
+    return deviations, shock_detrended
+
+
+def extract_shock(
+    gdx_path: Path, baseline_detrended: dict[str, dict[int, float]], factors: dict[str, dict[int, float]] | None = None
+) -> dict:
+    """Compute deviation-from-baseline columns for one solved shock GDX."""
+    container = open_gdx(gdx_path)
+    solver_meta = read_solver_meta(container)
+    by_year, shock_detrended = deviation_series(container, baseline_detrended, factors)
+    deviations = {key: to_column(values) for key, values in by_year.items()}
     share = None
     if solver_meta.get("closure") == "tax-reaction":
         if not solver_meta.get("from_year"):

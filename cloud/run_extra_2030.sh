@@ -3,9 +3,9 @@
 #   setsid nohup bash cloud/run_extra_2030.sh > extra2030.log 2>&1 < /dev/null &
 # 1. Moms_ned: a real VAT cut (tMoms -0.5 pct.-point) instead of mirroring the increase.
 # 2. DREAM-size runs of the three shocks DREAM normalises to 1 pct. of GDP, written to
-#    etl/shock_gdx_dreamsize/ (NOT scanned by extract.py) for etl/dream_comparison.py, so the
-#    comparison with "Shock Reactions in MAKRO" needs no linear upscaling. Factors from
-#    etl/dream_may2025.json dreamShockOverOurs: uXMarked x1.261, qR(off) x11.785, hL(off) x6.553 of our +1 %.
+#    etl/shock_gdx_dreamsize/ (NOT scanned by extract.py). They measured the linear-upscaling error
+#    (makro-linearity); since makroskop-ba1.3 dream_comparison.py scales from the instrument in
+#    DREAM's own GDX files and no longer reads this folder. Factors below are the Dec-2024 note's.
 # Sequential (one factorization peaks at ~53 of 62 GB), idempotent, resumable from checkpoints.
 set -uo pipefail
 cd "$(dirname "$0")/../etl"

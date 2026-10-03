@@ -12,7 +12,8 @@ bd46c0084e9b; makroskop-ba1): `etl/cache/convert`, `system.npz`, `etl/shock_gdx/
 `etl/cache/parked/proposal_gdx_junesizing/`. A model-version bump = pull the clone, re-run
 `freesolver.py parse`/`check` (the variable count is read from `dict.txt`), export the reference,
 `cloud/run_sep_all.sh` on the box (generated from `catalog.expected_stamp`, so stamps match by
-construction), `extract.py`, `bun run proposals:specs` + `cloud/run_proposals.sh`, `data:release`.
+construction), `extract.py`, `dream_comparison.py` (DREAM's shock files are in the clone), `bun run proposals:specs` +
+`cloud/run_proposals.sh`, `data:release`.
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:6cd5cc61 -->
 ## Beads Issue Tracker
@@ -83,8 +84,11 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
   live in the route group `app/src/routes/pakke/(workbench)/`; the method note is
   `app/src/routes/pakke/metode/`). Design: docs/superpowers/specs/2026-09-28-proposal-presets-design.md.
   Validering (two-solver comparison, DREAM's 2021 multipliers via `etl/multipliers.py`,
-  DREAM's May 2025 shock reactions via `etl/dream_comparison.py` from the figure readings in
-  `etl/dream_may2025.json`).
+  DREAM's 11 published standard-shock GDX files via `etl/dream_comparison.py` (makroskop-ba1.3):
+  reads `Analysis/Standard_shocks/Gdx/*_ufin.gdx` from the pristine clone against
+  `Model/Gdx/baseline.gdx`, ours against `_reference.gdx`, scales ours from the instrument change
+  read in both files, verifies sha256 and the zero pre-shock year, writes the full 2030–2129
+  series to `static/data/dream_comparison.json`; the May 2025 figure readings are gone).
   Share cards: one prerendered page per scenario view at `/scenarier/<view>/<skala>/`
   (`src/routes/scenarier/[scenario]/[[skala]]/`, copy in `lib/card.ts`, image in
   `lib/card-svg.ts` rendered by `scripts/og-images.ts` during `bun run build`; fonts vendored
@@ -209,8 +213,10 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
   `--from-year 2030` on 2026-09-05..07 (`cloud/run_all_2030.sh`; `etl/verify_2030.py` checks the
   stamps and the zero-2029 invariant); the 2029 runs are parked in `etl/cache/parked/shock_gdx_2029`
   and on the box in `etl/shock_gdx_2029`. Comparisons with
-  DREAM must also scale to their shock sizes (1 % of GDP: export market ×1.26, offentligt varekøb
-  ×11.8, offentlig beskæftigelse ×6.55, bundskat ×1.88 of ours) — see `etl/dream_may2025.json`.
+  DREAM must also scale to their shock sizes (1 % of GDP; on the September files: export market
+  ×1.504, offentligt varekøb ×11.43, offentlig beskæftigelse ×6.56, offentlige investeringer ×25.9,
+  overførsler ×3.00 of ours) — `dream_comparison.py` reads the factor from the instrument in DREAM's
+  GDX rather than from a hand table.
 - The zip is the plain shock model: the CONVERT dump is `M_base` with `G_endo` (no `*_deep`
   calibration equations, `E_tLukning` present, `uDeltag`/`uh`/`rLoenNash`/`qProdHh_t` exogenous,
   `snLHh`/`shLHh` endogenous), evaluated at the deep-calibration point. Same endogeneity as

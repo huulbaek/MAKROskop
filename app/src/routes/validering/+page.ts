@@ -66,15 +66,23 @@ export interface Multipliers {
 
 export interface DreamComparisonRow {
 	series: string;
+	/** DREAM's pct. deviation per year of `DreamComparison.years` (null where the file has none). */
+	dreamPct: (number | null)[];
+	/** Ours, scaled to DREAM's shock size; null when the scenario is not solved yet. */
+	oursPct: (number | null)[] | null;
+	/** Table columns in the series' unit (`DreamComparison.series[].unitDa`), keyed by year. */
 	dream: Record<string, number | null>;
-	ours: Record<string, number | null>;
+	ours: Record<string, number | null> | null;
 }
 
 export interface DreamComparisonShock {
 	id: string;
 	labelDa: string;
 	scenario: string;
-	scale: number;
+	dreamFile: string;
+	solved: { exported: string | null; fingerprint: string | null } | null;
+	/** DREAM's shock size over ours, read from the instrument in both GDX files; null when unsolved. */
+	scale: number | null;
 	scaleNoteDa: string;
 	noteDa: string | null;
 	rows: DreamComparisonRow[];
@@ -83,8 +91,20 @@ export interface DreamComparisonShock {
 export interface DreamComparison {
 	generated: string;
 	shockYear: number;
+	years: number[];
 	columns: number[];
-	reference: { source: string; url: string; modelDa: string; methodDa: string };
+	dream: {
+		source: string;
+		url: string;
+		modelDa: string;
+		commit: string;
+		baselineDa: string;
+		baselineSha256: string;
+		baselineMarker: 'verified' | 'absent';
+		files: { name: string; sha256: string; bytes: number }[];
+		paper: { source: string; url: string };
+	};
+	ours: { fingerprint: string; baselineDa: string; levelGapPct: Record<string, number> };
 	series: { key: string; labelDa: string; unitDa: string }[];
 	shocks: DreamComparisonShock[];
 }
