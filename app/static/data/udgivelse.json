@@ -1,6 +1,6 @@
 {
-	"version": "2026.10.02",
-	"date": "2026-10-02",
+	"version": "2026.10.04",
+	"date": "2026-10-04",
 	"format": 1,
 	"model": {
 		"name": "MAKRO 2026-September",
@@ -9,10 +9,10 @@
 		"dataBasisDa": "Nationalregnskabsdata fra DREAMs juni/juli 2026-dataopdatering"
 	},
 	"license": "CC-BY-4.0",
-	"changelog": "MAKRO 2026-September: alle 82 scenarier (41 stød, permanent finansieret og ufinansieret) løst igen på DREAMs septemberversion af modellen (commit 031f71e); forslagspakken genberegnet med septembers størrelser.",
+	"changelog": "Nyt scenarie: DREAMs standardstød 'Kapitalproduktivitet' (KapitalProd), ufinansieret og finansieret, løst på MAKRO 2026-September og kontrolleret celle for celle mod DREAMs egen GDX-fil, så Validering nu sammenligner alle 11 af DREAMs offentliggjorte stød. NB: DREAMs formel (uK × 1,01^(e−1) pr. branche) sænker kapitalens produktivitet med 0,37 pct. i gennemsnit, så BNP falder ca. 0,13 pct.",
 	"files": {
 		"baseline.json": "0aa77efa9fbf01e5e16895372d6cec48114eee45854b19b581c528bff25bebfa",
-		"meta.json": "e0e5189926aa16926007c497177a239c0b7436954d506205132c84dea89dbb20",
+		"meta.json": "d910d97d87a7964ffd571cd18dcc84f61531c1937b19160a240ea5a05490ba95",
 		"shocks/AM_bidrag_perm.json": "9538a3f118d190d02a9bbe914c26b0375889d1b2fa88c39c85e8c3dade38e637",
 		"shocks/AM_bidrag_ufin.json": "1c188c56d54bb15ae6f617e3a084af775782262def35c2426821b84f680aee4c",
 		"shocks/Afgift_erhverv_perm.json": "735b0feed8673b92bca88c233c09b2f972fb471f60fc47708624226b3e48f602",
@@ -53,6 +53,8 @@
 		"shocks/Ikke_skattepligtig_indkomstoverforsel_ufin.json": "bde6031de6334e42186ea390e1060c2d9900fb108a2c098e8cb64181b2d00a50",
 		"shocks/Importpris_perm.json": "90ec3e81b3fe3f8e3fb6deb3b32b39e15dc1d8179f8b5ad4464eef28c153e830",
 		"shocks/Importpris_ufin.json": "eeaeafc499051b819bbcf69d22dde0ceb2b2ce17a0baf1617959cafcfa9a66f6",
+		"shocks/KapitalProd_perm.json": "030b71e0fb4f186cd615b126dc64706358102b5fc179199018ef71dfec1e13dc",
+		"shocks/KapitalProd_ufin.json": "79cd4f285eb368d40db48cf5944a225883c7e838b3bf387ab76dc050dc95de5b",
 		"shocks/Loen_perm.json": "f47be2247d6e1277a24ccff17f64cabd8991b2e8a553b61a91682bb7e3699f65",
 		"shocks/Loen_ufin.json": "d473b6498dc2c51bdd5ff9336963a580b360afd699965128687f11fdd3283e78",
 		"shocks/Lontilskud_perm.json": "21969e38c80228b5ea8a89a877901852d1493406b981016033584ec0df3f7f19",
@@ -98,6 +100,12 @@
 	},
 	"earlier": [
 		{
+			"version": "2026.10.02",
+			"date": "2026-10-02",
+			"changelog": "MAKRO 2026-September: alle 82 scenarier (41 stød, permanent finansieret og ufinansieret) løst igen på DREAMs septemberversion af modellen (commit 031f71e); forslagspakken genberegnet med septembers størrelser.",
+			"url": "https://github.com/huulbaek/makroskop/releases/tag/data-2026.10.02"
+		},
+		{
 			"version": "2026.09.29",
 			"date": "2026-09-29",
 			"changelog": "Topskat og beskæftigelsesfradrag: to nye stød i begge varianter med forklaringer; meta.json: størrelser til forslag i Pakker (makroskop-48o)",
@@ -117,8 +125,8 @@
 		}
 	],
 	"zip": {
-		"name": "makroskop-data-2026.10.02.zip",
-		"bytes": 5897281,
-		"sha256": "29f7677c85215d7c33fbf17dd8a15dc665734cbaec53267202472d420914bf40"
+		"name": "makroskop-data-2026.10.04.zip",
+		"bytes": 6031760,
+		"sha256": "b3f9dacf8bd129b8c218fc03d402e0acf185b1c7cc82825c56fd3741fd31d1d6"
 	}
 }

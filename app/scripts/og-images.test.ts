@@ -26,7 +26,7 @@ describe('scenario readers', () => {
 });
 
 describe('every real headline fits the image', () => {
-	it('fitHeadline neither throws nor drops words for any of the 936 views', () => {
+	it('fitHeadline neither throws nor drops words for any of the 1008 views', () => {
 		const meta = readMeta();
 		const baseline = readBaseline();
 		let checked = 0;
@@ -40,7 +40,7 @@ describe('every real headline fits the image', () => {
 			for (const line of lines) expect(line.length * DISPLAY_EM * size).toBeLessThanOrEqual(HEADLINE_WIDTH);
 			checked++;
 		}
-		expect(checked).toBe(984); // +48: Topskat and Beskaeftigelsesfradrag, both variants (makroskop-48o)
+		expect(checked).toBe(1008); // +24: KapitalProd, both variants (makroskop-ba1.5)
 	});
 });
 

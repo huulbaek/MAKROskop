@@ -606,8 +606,9 @@ def single_shock_targets(convert_dir: Path, system: "System", shock_name: str,
     `system.swap` before returning so the caller's Window sees it. Moved out of cmd_solve_export
     verbatim so solve-export --package can share the same machinery via package_targets."""
     # A comma-separated --shock-name is a bundle (e.g. 'pM,pXUdl' = DREAM's Udenlandske_priser):
-    # every listed instrument gets the same factor/delta/profile, scaled by its weight if it has one.
-    matched, scale = bundle_instances(convert_dir, shock_name, shock_years, system.levels)
+    # every listed instrument gets the same factor/delta/profile, scaled by its weight if it has one
+    # and raised to its exponent if it has one (relative_change).
+    matched, scale, exponent = bundle_instances(convert_dir, shock_name, shock_years, system.levels)
     if endogenize:
         pairs = find_swap_pairs(convert_dir, matched, endogenize)
         system.swap(np.array([s for s, _, _ in pairs]), np.array([e for _, e, _ in pairs]))
@@ -629,11 +630,12 @@ def single_shock_targets(convert_dir: Path, system: "System", shock_name: str,
         shock_vars = shock_vars[fixed_ok]
         weights = weights[fixed_ok]
     levels = system.levels[shock_vars]
-    targets = levels * (1.0 + (shock_factor - 1.0) * weights) + shock_delta * weights
-    active = shock_vars[weights > 0]
+    change = np.array([relative_change((shock_factor - 1.0) * w, exponent.get(var_id, 1.0))
+                       for var_id, w in zip(shock_vars.tolist(), weights)])
+    targets = levels * (1.0 + change) + shock_delta * weights
     print(f"shock: {shock_name} x {len(shock_vars)} instances (years {shock_years}), "
           f"factor {shock_factor}, delta {shock_delta}, profile {shock_profile} "
-          f"({len(active)} instances actually moved)")
+          f"({int((targets != levels).sum())} instances actually moved)")
     return shock_vars, targets
 
 
@@ -650,7 +652,8 @@ def cmd_solve_export(from_year: int, shock_name: str, shock_years: tuple[int, in
 
     shock_profile scales the change per year (see profile_weight): the instrument becomes
     level * (1 + (factor - 1) * w(t)) + delta * w(t), with dt counted from the first shock year;
-    a bundle member 'name@weight' has w(t) times its weight (BUNDLE_WEIGHTS).
+    a bundle member 'name@weight' has w(t) times its weight (BUNDLE_WEIGHTS), and a member
+    'name^exponent' becomes level * (1 + (factor - 1) * w(t))**exponent (BUNDLE_EXPONENTS).
 
     With `package`, a /pakke/ query ('Topskat=-0.8&Offentligt_forbrug=-0.3') is solved as one
     joint run instead of --shock-name's single instrument (package_members/package_targets).
@@ -1709,6 +1712,59 @@ def off_share(convert_dir: Path, levels: np.ndarray, years) -> dict[int, float]:
 # stays put (labor_market.gms:190-191).
 BUNDLE_WEIGHTS = {"off_share": off_share}
 
+MAKRO_CLONE = Path.home() / "vserver" / "MAKRO"
+
+
+def parameter_gdx() -> Path:
+    """DREAM's baseline.gdx, the only place the model's parameters keep their names (CONVERT folds them
+    into the equations as numbers): the box bundle's data/ (cloud/pack.sh copies it there), else the
+    pristine clone."""
+    candidates = (Path(__file__).resolve().parent.parent / "data" / "baseline.gdx",
+                  MAKRO_CLONE / "Model" / "Gdx" / "baseline.gdx")
+    for path in candidates:
+        if path.exists():
+            return path
+    raise SystemExit(f"no baseline.gdx for the model parameters; looked in {[str(p) for p in candidates]}")
+
+
+def parameter_table(name: str) -> dict[tuple[str, ...], float]:
+    """A model parameter by its domain keys (MAKRO writes parameters as GDX variables). Cells GAMS holds
+    at zero are absent from the GDX, so callers read a missing key as 0, as GAMS does."""
+    import gams.transfer as gt
+    import gamspy_base
+
+    path = parameter_gdx()
+    container = gt.Container(system_directory=gamspy_base.directory)
+    container.read(str(path), symbols=[name])
+    ndim = len(container[name].domain)
+    table = {tuple(str(key) for key in row[:ndim]): float(row[ndim])
+             for row in container[name].records.itertuples(index=False)}
+    print(f"  {name} from {path}: " + ", ".join(f"{','.join(k)} {v:g}" for k, v in table.items()), flush=True)
+    return table
+
+
+# Sector elasticities a bundle member can carry as 'name^exponent' (makroskop-ba1.5): the member's
+# instrument becomes level·(1 + (factor−1)·w)^(elasticity−1) (relative_change) instead of moving linearly.
+BUNDLE_EXPONENTS = ("eKEL", "eKELB")
+
+
+def elasticity_exponents(name: str, keys_by_id: dict[int, tuple[str, ...]]) -> dict[int, float]:
+    """Exponent `name`[sector]−1 per instance, the sector being the key just before the year: DREAM's
+    KapitalProd raises uK[k,sp] to eKEL[sp]−1 (standard_shocks.gms). GDX files leave zeros out, so a
+    missing sector is 0: eKELB['bol'] = 0 (housing's Leontief nest) gives uK(iB,bol) × 1/1.01."""
+    table = parameter_table(name)
+    return {var_id: table.get(keys[-2:-1], 0.0) - 1.0 for var_id, keys in keys_by_id.items()}
+
+
+def relative_change(gain: float, exponent: float) -> float:
+    """(1 + gain)^exponent − 1: `gain` itself for an ordinary member (exponent 1, the linear rule bit
+    for bit), DREAM's power rule for an exponent member."""
+    if exponent == 1.0:
+        return gain
+    if gain <= -1.0:
+        raise SystemExit(f"an exponent member's gain {gain:g} must stay above -100 pct.")
+    return math.expm1(exponent * math.log1p(gain))
+
 
 @dataclass(frozen=True)
 class PackageMember:
@@ -1752,14 +1808,14 @@ def package_members(query: str) -> list[PackageMember]:
 def package_targets(convert_dir: Path, system, members: list[PackageMember],
                     years: tuple[int, int] | None, profile: str) -> tuple[np.ndarray, np.ndarray]:
     """Shock variable ids and targets for a whole package. Each member moves its instances by
-    level·(factor−1)·w + delta·w with w = profile weight × bundle weight × scale — the rule a single
-    run uses at weight 1 — and members that share an instance add their increments (the package is
-    a linear combination of instruments). Exo/endo swaps are applied here; a swapped member may not
-    share instances with any other member."""
+    level·relative_change((factor−1)·w, exponent) + delta·w with w = profile weight × bundle weight ×
+    scale — the rule a single run uses at scale 1 — and members that share an instance add their
+    increments (the package is a linear combination of instruments). Exo/endo swaps are applied here;
+    a swapped member may not share instances with any other member."""
     increments: dict[int, float] = {}
     owner: dict[int, str] = {}
     for member in members:
-        matched, bundle_scale = bundle_instances(convert_dir, member.solver_shock, years, system.levels)
+        matched, bundle_scale, exponent = bundle_instances(convert_dir, member.solver_shock, years, system.levels)
         if member.endogenize:
             pairs = find_swap_pairs(convert_dir, matched, member.endogenize)
             system.swap(np.array([s for s, _, _ in pairs]), np.array([e for _, e, _ in pairs]))
@@ -1774,7 +1830,8 @@ def package_targets(convert_dir: Path, system, members: list[PackageMember],
                 continue  # aggregates of a symbol-level shock (e.g. nPop), as in the single-run path
             w = profile_weight(profile, year - first_year) * bundle_scale.get(var_id, 1.0) * member.scale
             level = system.levels[var_id]
-            increments[var_id] = increments.get(var_id, 0.0) + level * (member.factor - 1.0) * w + member.delta * w
+            change = relative_change((member.factor - 1.0) * w, exponent.get(var_id, 1.0))
+            increments[var_id] = increments.get(var_id, 0.0) + level * change + member.delta * w
             owner.setdefault(var_id, member.name)
             fixed += 1
         if fixed == 0:
@@ -1794,17 +1851,25 @@ def _run_endogenizes(members: list[PackageMember], name: str) -> bool:
     return any(m.name == name and m.endogenize for m in members)
 
 
-def bundle_instances(convert_dir: Path, spec: str, years: tuple[int, int] | None,
-                     levels: np.ndarray) -> tuple[list[tuple[int, int]], dict[int, float]]:
-    """(variable id, year) pairs for every member of a shock bundle, and the weight of each weighted
-    ('name@weight') instance by variable id; unweighted instances are absent (weight 1)."""
+def bundle_instances(convert_dir: Path, spec: str, years: tuple[int, int] | None, levels: np.ndarray
+                     ) -> tuple[list[tuple[int, int]], dict[int, float], dict[int, float]]:
+    """(variable id, year) pairs for every member of a shock bundle, the weight of each weighted
+    ('name@weight') instance and the exponent of each 'name^exponent' instance by variable id;
+    other instances are absent (weight 1, exponent 1)."""
     matched: list[tuple[int, int]] = []
     scale: dict[int, float] = {}
+    exponent: dict[int, float] = {}
     weight_cache: dict[tuple[str, frozenset[int]], dict[int, float]] = {}
     for item in split_bundle(spec):
         name, _, weight = item.partition("@")
-        pairs = find_shock_variables_with_years(convert_dir, name, years)
+        name, _, power = name.partition("^")
+        instances = find_shock_instances(convert_dir, name, years)
+        pairs = [(var_id, year) for var_id, year, _ in instances]
         matched += pairs
+        if power:
+            if power not in BUNDLE_EXPONENTS:
+                raise SystemExit(f"unknown bundle exponent {power!r}; choose from {sorted(BUNDLE_EXPONENTS)}")
+            exponent.update(elasticity_exponents(power, {var_id: keys for var_id, _, keys in instances}))
         if not weight:
             continue
         if weight not in BUNDLE_WEIGHTS:
@@ -1813,7 +1878,7 @@ def bundle_instances(convert_dir: Path, spec: str, years: tuple[int, int] | None
         if key not in weight_cache:
             weight_cache[key] = BUNDLE_WEIGHTS[weight](convert_dir, levels, key[1])
         scale.update({var_id: weight_cache[key][year] for var_id, year in pairs})
-    return matched, scale
+    return matched, scale, exponent
 
 
 def _position_matches(pattern: str, key: str) -> bool:
@@ -1827,7 +1892,13 @@ def _position_matches(pattern: str, key: str) -> bool:
 
 def find_shock_variables_with_years(convert_dir: Path, name: str,
                                     years: tuple[int, int] | None) -> list[tuple[int, int]]:
-    """(variable id, year) pairs for a shock spec.
+    """(variable id, year) pairs for a shock spec (see find_shock_instances)."""
+    return [(var_id, year) for var_id, year, _ in find_shock_instances(convert_dir, name, years)]
+
+
+def find_shock_instances(convert_dir: Path, name: str,
+                         years: tuple[int, int] | None) -> list[tuple[int, int, tuple[str, ...]]]:
+    """(variable id, year, domain keys) for a shock spec.
 
     'rRenteECB(2124)' -> that exact instance; 'rRenteECB' + years -> every instance
     (all domain combinations) whose final index falls in the year range; a pattern such
@@ -1842,12 +1913,12 @@ def find_shock_variables_with_years(convert_dir: Path, name: str,
         if any(token in args for token in ("*", "|", "!")):
             pattern = args.split(",")
         else:
-            year = args.rsplit(",", 1)[-1]
-            return [(find_variable(convert_dir, name), int(year) if year.isdigit() else 0)]
+            keys = tuple(args.split(","))
+            return [(find_variable(convert_dir, name), int(keys[-1]) if keys[-1].isdigit() else 0, keys)]
         prefix = stem + "("
     else:
         prefix = name + "("
-    ids: list[tuple[int, int]] = []
+    ids: list[tuple[int, int, tuple[str, ...]]] = []
     with (convert_dir / "dict.txt").open(encoding="utf-8") as handle:
         in_vars = False
         for line in handle:
@@ -1867,7 +1938,7 @@ def find_shock_variables_with_years(convert_dir: Path, name: str,
             if not last_key.isdigit():
                 continue
             if years is None or years[0] <= int(last_key) <= years[1]:
-                ids.append((int(parts[0][1:]) - 1, int(last_key)))
+                ids.append((int(parts[0][1:]) - 1, int(last_key), tuple(keys)))
     if not ids:
         raise SystemExit(f"no variables matched shock spec {name!r} in years {years}")
     return ids
@@ -2201,7 +2272,8 @@ def main() -> None:
     parser.add_argument("--shock-name", default="",
                         help="exact instance 'rRenteECB(2124)', symbol 'rRenteECB' with --shock-years, "
                              "or a comma-separated bundle 'pM,pXUdl' (solve-export); a member 'name@weight' "
-                             "moves by the shock times a per-year weight (BUNDLE_WEIGHTS)")
+                             "moves by the shock times a per-year weight (BUNDLE_WEIGHTS), a member 'name^exponent' "
+                             "by the factor raised to a per-instance power (BUNDLE_EXPONENTS)")
     parser.add_argument("--shock-years", default="",
                         help="year range for symbol-level shocks, e.g. '2030-2129'")
     parser.add_argument("--shock-factor", type=float, default=1.0)

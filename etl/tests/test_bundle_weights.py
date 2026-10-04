@@ -46,7 +46,7 @@ def write_convert_dir(tmp_path: Path) -> Path:
 
 
 def test_weighted_members_move_by_the_public_share_of_effective_hours(tmp_path: Path) -> None:
-    matched, scale = fs.bundle_instances(write_convert_dir(tmp_path), SPEC, (2030, 2031), LEVELS)
+    matched, scale, _ = fs.bundle_instances(write_convert_dir(tmp_path), SPEC, (2030, 2031), LEVELS)
     assert [v for v, _ in matched] == [0, 1, 8, 9, 10, 11]  # qProd(off), qProdHh_t, qProdxDK; not 2029
     share_2030, share_2031 = 0.3 * 100 / (0.4 * 400), 0.3 * 110 / (0.5 * 440)
     assert scale == pytest.approx({8: share_2030, 9: share_2031, 10: share_2030, 11: share_2031})

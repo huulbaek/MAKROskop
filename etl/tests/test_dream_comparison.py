@@ -1,6 +1,8 @@
 """dream_comparison: DREAM's shock GDX files next to ours — scale from the instrument, units, guards."""
 
 import hashlib
+import json
+from pathlib import Path
 
 import pytest
 
@@ -113,6 +115,34 @@ def test_sha256_matches_hashlib(tmp_path) -> None:
     assert dc.sha256(f) == hashlib.sha256(b"abc").hexdigest()
 
 
-def test_every_catalog_shock_in_the_comparison_has_an_instrument_or_is_marked_unsized() -> None:
+def test_every_shock_in_the_comparison_has_an_instrument() -> None:
     for shock_id, _note in dc.SHOCKS:
-        assert shock_id in dc.INSTRUMENTS, shock_id
+        assert isinstance(dc.INSTRUMENTS.get(shock_id), dc.Instrument), shock_id
+
+
+def test_cellwise_gap_compares_each_cells_relative_change() -> None:
+    # KapitalProd moves uK by a different power per sector, so there is no one size to read; both
+    # files must move every cell they share alike (uK(iM,bol) exists in DREAM's file only)
+    dream_base = {("iM", "tje"): 2.0, ("iB", "bol"): 4.0, ("iM", "bol"): 1.0}
+    dream = {("iM", "tje"): 2.0 * 0.998, ("iB", "bol"): 4.0 / 1.01, ("iM", "bol"): 1.0 / 1.01}
+    ours_base = {("iM", "tje"): 3.0, ("iB", "bol"): 5.0}
+    ours = {("iM", "tje"): 3.0 * 0.998, ("iB", "bol"): 5.0 / 1.01}
+    cells, gap = dc.cellwise_gap(ours, ours_base, dream, dream_base)
+    assert cells == 2 and gap < 1e-15
+    ours[("iB", "bol")] = 5.0
+    assert dc.cellwise_gap(ours, ours_base, dream, dream_base)[1] == pytest.approx(1 - 1 / 1.01)
+
+
+def test_cellwise_gap_needs_a_shared_nonzero_cell() -> None:
+    with pytest.raises(ValueError, match="no shared cells"):
+        dc.cellwise_gap({("a",): 1.0}, {("a",): 1.0}, {("b",): 1.0}, {("b",): 1.0})
+
+
+DATA_JSON = Path(__file__).parents[2] / "app/static/data/dream_comparison.json"
+
+
+@pytest.mark.skipif(not DATA_JSON.exists(), reason="no extracted comparison")
+def test_the_written_level_gap_is_the_per_series_table() -> None:
+    # /validering/ reads ours.levelGapPct.vBNP; a stray local once overwrote it with a float
+    gap = json.loads(DATA_JSON.read_text(encoding="utf-8"))["ours"]["levelGapPct"]
+    assert isinstance(gap, dict) and {"vBNP", "qBNP", "nL"} <= gap.keys()

@@ -19,7 +19,7 @@ describe('loadDataSet and checksums', () => {
 		expect(paths).toContain('meta.json');
 		expect(paths).toContain('baseline.json');
 		expect(paths.filter((p) => p.startsWith('shocks/'))).toHaveLength(ds.scenarios.length);
-		expect(ds.scenarios.length).toBe(82); // +4: Topskat and Beskaeftigelsesfradrag, both variants (makroskop-48o)
+		expect(ds.scenarios.length).toBe(84); // +2: KapitalProd, both variants (makroskop-ba1.5)
 	});
 });
 

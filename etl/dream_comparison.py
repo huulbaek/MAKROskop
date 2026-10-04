@@ -60,7 +60,10 @@ SHOCKS = [
     ("Arbejdsudbud_beskaeftigelse",
      "Begge fastlåser den strukturelle beskæftigelse 1 pct. højere for hver alder og frigiver deltagelsesparameteren (exo/endo-bytte)."),
     ("ArbejdsProd", None),
-    ("KapitalProd", "DREAMs stød er en eksponentfaktor på uK pr. branche; størrelsen kan ikke aflæses som én faktor."),
+    ("KapitalProd", "Begge ganger uK i hver branche med 1,01^(eKEL−1) for maskiner og 1,01^(eKELB−1) for "
+                    "bygninger, som DREAMs stød er defineret, så der er ingen samlet faktor at skalere med. NB: uK er "
+                    "kapitalens produktivitet i MAKRO, og formlen sænker den (i gennemsnit 0,37 pct.), selv om stødet "
+                    "hedder +1 pct. kapitalproduktivitet – derfor falder BNP i begge modeller."),
 ]
 
 
@@ -70,14 +73,15 @@ class Instrument:
 
     gdx_name: str
     selector: tuple[str, ...]  # domain elements before t; "*" = all cells, which must move alike
-    mode: str  # "rel": shock/base − 1 (DREAM's factor shocks); "abs": shock − base (additive ones)
+    mode: str  # "rel": shock/base − 1 (DREAM's factor shocks); "abs": shock − base (additive ones);
+    #            "cell": a different change per cell (KapitalProd's power per sector), which both files must
+    #            make alike in every shared cell, so the comparison runs at scale 1 (cellwise_gap)
     label_da: str
     unit_da: str = "pct."  # for "abs": the unit of the difference after `display`
     display: float = 100.0  # "rel" changes are shown ×100 as pct.; "abs" ones ×display
 
 
-# None = the same definition in both solvers but no single readable size (KapitalProd).
-INSTRUMENTS: dict[str, Instrument | None] = {
+INSTRUMENTS: dict[str, Instrument] = {
     "Rente": Instrument("rRenteECB", (), "abs", "ECB-renten", "pct.-point", 100.0),
     "Eksportmarkedsvaekst": Instrument("uXMarked", (), "rel", "eksportmarkedet"),
     "Offentlig_varekoeb": Instrument("qR", ("off",), "rel", "offentligt varekøb"),
@@ -89,7 +93,7 @@ INSTRUMENTS: dict[str, Instrument | None] = {
     "Udenlandske_priser": Instrument("pM", ("tje",), "rel", "import- og eksportkonkurrerende priser"),
     "Arbejdsudbud_beskaeftigelse": Instrument("snLHh", ("*",), "rel", "strukturel beskæftigelse"),
     "ArbejdsProd": Instrument("qProdHh_t", (), "rel", "arbejdskraftproduktiviteten"),
-    "KapitalProd": None,
+    "KapitalProd": Instrument("uK", (), "cell", "kapitalens produktivitet"),
 }
 
 PAPER = {
@@ -136,6 +140,18 @@ def instrument_change(shock: dict[tuple, float], base: dict[tuple, float], mode:
     if spread > tolerance:
         raise ValueError(f"instrument change is not uniform across cells: {min(changes):.6g}..{max(changes):.6g}")
     return sum(changes) / len(changes)
+
+
+def cellwise_gap(ours: dict[tuple, float], ours_base: dict[tuple, float],
+                 dream: dict[tuple, float], dream_base: dict[tuple, float]) -> tuple[int, float]:
+    """(shared cells, largest gap between the two files' relative changes) for an instrument that moves
+    by a different amount per cell; cells only one model has, or with a zero base, are left out."""
+    gaps = [abs(ours[cell] / ours_base[cell] - dream[cell] / dream_base[cell])
+            for cell in ours.keys() & dream.keys()
+            if ours_base.get(cell) and dream_base.get(cell)]
+    if not gaps:
+        raise ValueError("no shared cells with a nonzero base in both files")
+    return len(gaps), max(gaps)
 
 
 def shock_scale(dream_change: float, ours_change: float) -> float:
@@ -293,9 +309,12 @@ def main() -> None:
         dream_dev, _ = deviation_series(dream_gdx, dream_detrended)
         check_preshock(dream_dev, dream_path.name)
         instrument = INSTRUMENTS[shock_id]
-        dream_change = (instrument_change(cells_at(dream_gdx, instrument.gdx_name, instrument.selector, SHOCK_YEAR),
-                                          cells_at(dream_base, instrument.gdx_name, instrument.selector, SHOCK_YEAR),
-                                          instrument.mode) if instrument else None)
+
+        def at(container):
+            return cells_at(container, instrument.gdx_name, instrument.selector, SHOCK_YEAR)
+
+        cellwise = instrument.mode == "cell"
+        dream_change = None if cellwise else instrument_change(at(dream_gdx), at(dream_base), instrument.mode)
 
         ours_path = args.shocks_dir / f"{shock_id}_ufin.gdx"
         ours_dev = None
@@ -307,22 +326,25 @@ def main() -> None:
             stamp = read_solver_meta(ours_gdx)
             solved = {"exported": stamp.get("exported"), "fingerprint": stamp.get("fingerprint")}
             ours_model.setdefault("fingerprint", stamp.get("fingerprint", ""))
-            if instrument:
-                ours_change = instrument_change(
-                    cells_at(ours_gdx, instrument.gdx_name, instrument.selector, SHOCK_YEAR),
-                    cells_at(ours_base, instrument.gdx_name, instrument.selector, SHOCK_YEAR), instrument.mode)
+            if cellwise:
+                cells, worst = cellwise_gap(at(ours_gdx), at(ours_base), at(dream_gdx), at(dream_base))
+                if worst > 1e-9:
+                    raise SystemExit(f"{shock_id}: ours and DREAM's file move {instrument.gdx_name} differently in "
+                                     f"{SHOCK_YEAR} (largest gap {worst:.3g} over {cells} cells); not the same shock")
+                scale = 1.0
+                scale_note = (f"Samme stød i begge modeller: {instrument.gdx_name} ændres ens i alle {cells} fælles "
+                              f"celler i {SHOCK_YEAR} (kontrolleret i begge filer).")
+            else:
+                ours_change = instrument_change(at(ours_gdx), at(ours_base), instrument.mode)
                 scale = shock_scale(dream_change, ours_change)
                 scale_note = size_note(scale, instrument.label_da, dream_change, ours_change, instrument.mode,
                                        instrument.unit_da, instrument.display)
-            else:
-                scale = 1.0
-                scale_note = "Samme stød-definition i begge modeller."
-        elif instrument:
+        elif cellwise:
+            scale_note = "Samme stød-definition i begge modeller."
+        else:
             scale_note = (f"DREAMs stød aflæst i filen: {instrument.label_da} "
                           f"{format_change(dream_change, instrument.mode, instrument.unit_da, instrument.display)} "
                           f"i {SHOCK_YEAR}.")
-        else:
-            scale_note = "Samme stød-definition i begge modeller."
 
         rows = [build_row(key, dream_dev[key], ours_dev[key] if ours_dev and key in ours_dev else None, scale,
                           dream_ref, ours_ref, HORIZON, COLUMNS)

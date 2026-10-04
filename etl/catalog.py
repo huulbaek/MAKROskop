@@ -150,7 +150,7 @@ SHOCKS: list[ShockDef] = [
     ShockDef("Arbejdsudbud_beskaeftigelse", "Arbejdsudbud (beskæftigelse)", "Labor supply (employment)", "Udbud og struktur"),
     ShockDef("Arbejdsudbud_timer", "Arbejdsudbud (timer)", "Labor supply (hours)", "Udbud og struktur"),
     ShockDef("Befolkning", "Befolkning", "Population", "Udbud og struktur"),
-    ShockDef("KapitalProd", "Kapitalproduktivitet", "Capital productivity", "Udbud og struktur"),
+    ShockDef("KapitalProd", "Kapitalproduktivitet (DREAMs stød)", "Capital productivity (DREAM's shock)", "Udbud og struktur"),
     ShockDef("ArbejdsProd", "Arbejdskraftproduktivitet", "Labor productivity", "Udbud og struktur"),
     ShockDef("VirkDisk", "Virksomhedernes hurdle rates", "Firm hurdle rates", "Risikopræmier"),
     ShockDef("BoligRisiko", "Risikopræmie på bolig", "Housing risk premium", "Risikopræmier"),
@@ -479,6 +479,24 @@ SHOCK_RUNS: list[ShockRun] = [
              channel=("qBNP>saldo2bnp", "vhW>qC>qBNP", "qX>qBNP"),
              explainer_da="Højere produktivitet løfter BNP gradvist mod +1 pct.; reallønnen følger med, og eksporten vinder markedsandele. Beskæftigelsen falder kortvarigt lidt, men er uændret på sigt, fordi arbejdsudbuddet er strukturelt bestemt.",
              explainer_perm_da="Højere produktivitet løfter BNP gradvist til godt 1 pct.; lønnen følger med (ca. 1,4 pct. på langt sigt), og eksporten vinder markedsandele. De offentlige finanser styrkes, og lukkeskatten giver gevinsten tilbage som lavere skat ({lukning} af BNP om året), så forbruget stiger ca. 0,8 pct. det første år og 1,7 pct. på langt sigt. Beskæftigelsen falder kortvarigt lidt, men er uændret på sigt, fordi arbejdsudbuddet er strukturelt bestemt."),
+    # makroskop-ba1.5: DREAM's 'Kapitalproduktivitet' multiplies uK by 1.01^(e−1) per sector (standard_shocks.gms),
+    # reproduced cell for cell (freesolver BUNDLE_EXPONENTS, dream_comparison CELLWISE). uK is capital productivity
+    # itself in MAKRO (qKUdn = qK·uK, production_private.gms), and every elasticity is ≤ 1 (housing's eKELB is 0),
+    # so the shock LOWERS uK: −0.37 pct. on average, weighted by the 2030 capital value pK·qK in _reference.gdx.
+    ShockRun("KapitalProd", "uK", "Kapitalens produktivitet i private brancher (effektiv kapital pr. enhed kapital)",
+             1.01, 0.0, "−0,37 pct. i gennemsnit (uK × 1,01^(e−1) pr. branche: 0 til −0,99 pct.)", 2030,
+             "DREAMs standardstød 'Kapitalproduktivitet' (+1 pct.), gengivet præcist og kontrolleret celle for celle "
+             "mod DREAMs egen fil: uK ganges i hver branche med 1,01^(eKEL−1) for maskiner og 1,01^(eKELB−1) for "
+             "bygninger, hvor eKEL og eKELB er substitutionselasticiteterne. I MAKRO er uK selve kapitalens "
+             "produktivitet (effektiv kapital = uK × kapitalapparat), og da elasticiteterne er under 1, sænker formlen "
+             "uK: med 0,1–0,45 pct. i de fleste brancher og 0,99 pct. for boligbranchens bygninger (elasticitet 0), "
+             "mens søfarten og råstofudvindingens bygninger (elasticitet 1) ikke rører sig. Stødet virker derfor som "
+             "et fald i kapitalproduktiviteten, selv om DREAM kalder det en stigning.",
+             solver_shock="uK(iM,*,*)^eKEL,uK(iB,*,*)^eKELB",
+             change_size=-0.37, change_unit_da="pct. i gennemsnit", short_da="Kapitalens produktivitet",
+             channel=("vhW>qC>qBNP", "qX>qBNP", "qBNP>saldo2bnp"),
+             explainer_da="Stødet sænker kapitalens produktivitet med knap 0,4 pct. i gennemsnit, så virksomhederne får mindre ud af deres kapital, og omkostningerne stiger. Eksporten og lønnen falder ca. 0,15 pct., forbruget op mod 0,25 pct., og BNP ender ca. 0,13 pct. lavere. Beskæftigelsen er uændret på sigt, fordi arbejdsudbuddet er strukturelt bestemt, og saldoen svækkes lidt.",
+             explainer_perm_da="Stødet sænker kapitalens produktivitet med knap 0,4 pct. i gennemsnit, så virksomhedernes omkostninger stiger: eksporten og lønnen falder ca. 0,15 pct., og BNP ender ca. 0,13 pct. lavere. De offentlige finanser svækkes lidt, og lukkeskatten hæver husholdningernes skat med {lukning} af BNP om året, så forbruget falder knap 0,3 pct. Beskæftigelsen er uændret på sigt."),
     ShockRun("VirkDisk", "rVirkDiskPrem(!spTot,*)", "Virksomhedernes risikopræmie (hurdle rate)", 1.0, 0.001, "+0,1 pct.-point", 2030,
              "Samme instrument og størrelse som DREAMs standardstød.",
              channel=("qI>qBNP", "vhW>qC>qBNP"),
