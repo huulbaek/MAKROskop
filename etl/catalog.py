@@ -150,7 +150,7 @@ SHOCKS: list[ShockDef] = [
     ShockDef("Arbejdsudbud_beskaeftigelse", "Arbejdsudbud (beskæftigelse)", "Labor supply (employment)", "Udbud og struktur"),
     ShockDef("Arbejdsudbud_timer", "Arbejdsudbud (timer)", "Labor supply (hours)", "Udbud og struktur"),
     ShockDef("Befolkning", "Befolkning", "Population", "Udbud og struktur"),
-    ShockDef("KapitalProd", "Kapitalproduktivitet (DREAMs stød)", "Capital productivity (DREAM's shock)", "Udbud og struktur"),
+    ShockDef("KapitalProd", "Kapitalproduktivitet", "Capital productivity", "Udbud og struktur"),
     ShockDef("ArbejdsProd", "Arbejdskraftproduktivitet", "Labor productivity", "Udbud og struktur"),
     ShockDef("VirkDisk", "Virksomhedernes hurdle rates", "Firm hurdle rates", "Risikopræmier"),
     ShockDef("BoligRisiko", "Risikopræmie på bolig", "Housing risk premium", "Risikopræmier"),
@@ -479,24 +479,19 @@ SHOCK_RUNS: list[ShockRun] = [
              channel=("qBNP>saldo2bnp", "vhW>qC>qBNP", "qX>qBNP"),
              explainer_da="Højere produktivitet løfter BNP gradvist mod +1 pct.; reallønnen følger med, og eksporten vinder markedsandele. Beskæftigelsen falder kortvarigt lidt, men er uændret på sigt, fordi arbejdsudbuddet er strukturelt bestemt.",
              explainer_perm_da="Højere produktivitet løfter BNP gradvist til godt 1 pct.; lønnen følger med (ca. 1,4 pct. på langt sigt), og eksporten vinder markedsandele. De offentlige finanser styrkes, og lukkeskatten giver gevinsten tilbage som lavere skat ({lukning} af BNP om året), så forbruget stiger ca. 0,8 pct. det første år og 1,7 pct. på langt sigt. Beskæftigelsen falder kortvarigt lidt, men er uændret på sigt, fordi arbejdsudbuddet er strukturelt bestemt."),
-    # makroskop-ba1.5: DREAM's 'Kapitalproduktivitet' multiplies uK by 1.01^(e−1) per sector (standard_shocks.gms),
-    # reproduced cell for cell (freesolver BUNDLE_EXPONENTS, dream_comparison CELLWISE). uK is capital productivity
-    # itself in MAKRO (qKUdn = qK·uK, production_private.gms), and every elasticity is ≤ 1 (housing's eKELB is 0),
-    # so the shock LOWERS uK: −0.37 pct. on average, weighted by the 2030 capital value pK·qK in _reference.gdx.
+    # makroskop-l1q: the shock DREAM's shock-reaction paper describes, uK × 1.01 — uK is capital productivity itself
+    # in MAKRO (qKUdn = qK·uK, production_private.gms). standard_shocks.gms computes a weighted, negative variant
+    # instead (VALIDATION_RUNS KapitalProd_vaegtet); DREAM confirmed the mismatch on 2026-10-05.
     ShockRun("KapitalProd", "uK", "Kapitalens produktivitet i private brancher (effektiv kapital pr. enhed kapital)",
-             1.01, 0.0, "−0,37 pct. i gennemsnit (uK × 1,01^(e−1) pr. branche: 0 til −0,99 pct.)", 2030,
-             "DREAMs standardstød 'Kapitalproduktivitet' (+1 pct.), gengivet præcist og kontrolleret celle for celle "
-             "mod DREAMs egen fil: uK ganges i hver branche med 1,01^(eKEL−1) for maskiner og 1,01^(eKELB−1) for "
-             "bygninger, hvor eKEL og eKELB er substitutionselasticiteterne. I MAKRO er uK selve kapitalens "
-             "produktivitet (effektiv kapital = uK × kapitalapparat), og da elasticiteterne er under 1, sænker formlen "
-             "uK: med 0,1–0,45 pct. i de fleste brancher og 0,99 pct. for boligbranchens bygninger (elasticitet 0), "
-             "mens søfarten og råstofudvindingens bygninger (elasticitet 1) ikke rører sig. Stødet virker derfor som "
-             "et fald i kapitalproduktiviteten, selv om DREAM kalder det en stigning.",
-             solver_shock="uK(iM,*,*)^eKEL,uK(iB,*,*)^eKELB",
-             change_size=-0.37, change_unit_da="pct. i gennemsnit", short_da="Kapitalens produktivitet",
-             channel=("vhW>qC>qBNP", "qX>qBNP", "qBNP>saldo2bnp"),
-             explainer_da="Stødet sænker kapitalens produktivitet med knap 0,4 pct. i gennemsnit, så virksomhederne får mindre ud af deres kapital, og omkostningerne stiger. Eksporten og lønnen falder ca. 0,15 pct., forbruget op mod 0,25 pct., og BNP ender ca. 0,13 pct. lavere. Beskæftigelsen er uændret på sigt, fordi arbejdsudbuddet er strukturelt bestemt, og saldoen svækkes lidt.",
-             explainer_perm_da="Stødet sænker kapitalens produktivitet med knap 0,4 pct. i gennemsnit, så virksomhedernes omkostninger stiger: eksporten og lønnen falder ca. 0,15 pct., og BNP ender ca. 0,13 pct. lavere. De offentlige finanser svækkes lidt, og lukkeskatten hæver husholdningernes skat med {lukning} af BNP om året, så forbruget falder knap 0,3 pct. Beskæftigelsen er uændret på sigt."),
+             1.01, 0.0, "+1 pct.", 2030,
+             "Det stød, DREAMs stødreaktionspapir beskriver: kapitalens produktivitet hæves 1 pct. i alle private "
+             "brancher. DREAMs egen beregning i standard_shocks.gms – og papirets figurer – er i stedet et vægtet stød, "
+             "uK × 1,01^(e−1) pr. branche, som sænker produktiviteten (0,37 pct. i gennemsnit), så BNP falder. DREAM "
+             "har bekræftet forskellen (oktober 2026) og retter papiret. Valideringen sammenligner DREAMs fil med en "
+             "MAKROskop-kørsel af det vægtede stød.",
+             channel=("qI>qBNP", "vhW>qC>qBNP", "qX>qBNP", "qBNP>saldo2bnp"),
+             explainer_da="Når kapitalen bliver 1 pct. mere produktiv, kan virksomhederne producere billigere: investeringerne stiger (ca. 0,3 pct. efter fem år, 0,2 pct. på langt sigt), lønnen følger med (godt 0,5 pct.), og eksporten vinder markedsandele (ca. 0,5 pct.). BNP stiger ca. 0,25 pct. det første år og 0,4 pct. på langt sigt, og forbruget godt 0,5 pct. Beskæftigelsen er uændret på sigt, fordi arbejdsudbuddet er strukturelt bestemt, og de offentlige finanser styrkes.",
+             explainer_perm_da="Når kapitalen bliver 1 pct. mere produktiv, kan virksomhederne producere billigere: investeringerne stiger (ca. 0,35 pct. efter fem år, godt 0,2 pct. på langt sigt), lønnen følger med (ca. 0,6 pct.), og eksporten vinder markedsandele (ca. 0,5 pct.). BNP stiger ca. 0,3 pct. det første år og godt 0,4 pct. på langt sigt. De offentlige finanser styrkes, og lukkeskatten giver gevinsten tilbage som lavere skat ({lukning} af BNP om året), så forbruget stiger ca. 0,35 pct. det første år og ca. 0,7 pct. på langt sigt. Beskæftigelsen er uændret på sigt."),
     ShockRun("VirkDisk", "rVirkDiskPrem(!spTot,*)", "Virksomhedernes risikopræmie (hurdle rate)", 1.0, 0.001, "+0,1 pct.-point", 2030,
              "Samme instrument og størrelse som DREAMs standardstød.",
              channel=("qI>qBNP", "vhW>qC>qBNP"),
@@ -534,6 +529,19 @@ SHOCK_RUNS: list[ShockRun] = [
              channel=("vhW>nL", "vhW>qC>qBNP", "nL>saldo2bnp"),
              explainer_da="Når lønmodtagerne står stærkere i lønforhandlingen, stiger timelønnen (ca. +0,7 pct.), og virksomhederne slår færre stillinger op, så beskæftigelsen falder lidt (ca. −0,15 pct.). Den højere løn løfter forbruget (knap 0,5 pct. på langt sigt). BNP stiger alligevel svagt (ca. 0,2 pct.), fordi færre jobopslag frigør arbejdstid fra rekruttering til produktion. Saldoen svækkes lidt.",
              explainer_perm_da="Når lønmodtagerne står stærkere i lønforhandlingen, stiger timelønnen (ca. +0,7 pct.), og virksomhederne slår færre stillinger op, så beskæftigelsen falder lidt (ca. −0,15 pct.). BNP stiger alligevel svagt (ca. 0,2 pct.), fordi færre jobopslag frigør arbejdstid fra rekruttering til produktion. De offentlige finanser svækkes lidt, og lukkeskatten hæver husholdningernes skat med {lukning} af BNP om året, så forbruget først stiger efter et par år og ender ca. 0,35 pct. højere på langt sigt."),
+]
+
+# Runs solved only to check MAKROskop against DREAM's published files (dream_comparison.py), never published as
+# scenarios: stamp-checked like SHOCK_RUNS (expected_stamp), but absent from SHOCKS, so extract.py skips them.
+VALIDATION_RUNS: list[ShockRun] = [
+    # makroskop-ba1.5: what standard_shocks.gms computes for 'Kapitalproduktivitet', uK × 1.01^(e−1) per sector
+    # (freesolver BUNDLE_EXPONENTS), which LOWERS uK: −0.37 pct. on average, weighted by the 2030 capital value
+    # pK·qK in _reference.gdx (housing's eKELB is 0, so uK(iB,bol) × 1/1.01). The paper's shock is KapitalProd.
+    ShockRun("KapitalProd_vaegtet", "uK", "Kapitalens produktivitet, vægtet som i DREAMs standard_shocks.gms",
+             1.01, 0.0, "−0,37 pct. i gennemsnit (uK × 1,01^(e−1) pr. branche: 0 til −0,99 pct.)", 2030,
+             "DREAMs egen beregning af standardstødet 'Kapitalproduktivitet'.",
+             solver_shock="uK(iM,*,*)^eKEL,uK(iB,*,*)^eKELB",
+             change_size=-0.37, change_unit_da="pct. i gennemsnit"),
 ]
 
 _UNFINANCED = (
@@ -577,7 +585,7 @@ def expected_stamp(shock_name: str, suffix: str, last_year: int) -> dict | None:
     text is compared by value). The shock years run from the shock year to the model horizon,
     and the year before stays at the reference (DREAM's shock_year, makroskop-7cd).
     """
-    run = next((r for r in SHOCK_RUNS if r.shock == shock_name), None)
+    run = next((r for r in SHOCK_RUNS + VALIDATION_RUNS if r.shock == shock_name), None)
     if run is None or suffix not in VARIATION_PROFILES:
         return None
     return {

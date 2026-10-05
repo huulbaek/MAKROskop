@@ -47,23 +47,27 @@ SERIES = [
     ("saldo2bnp", "Offentlig saldo", "pct.-point af BNP"),
 ]
 
-# (catalog shock id, Danish note or None) — page order; the same-definition shock first
+# (DREAM's shock id, our catalog run compared with it, Danish note or None) — page order. Our run is the
+# public scenario of the same name, or a validation-only run (catalog.VALIDATION_RUNS) where DREAM's file
+# computes another shock than its name says.
 SHOCKS = [
-    ("Rente", None),
-    ("Eksportmarkedsvaekst", None),
-    ("Offentlig_varekoeb", None),
-    ("Offentlig_Beskaeftigelse", None),
-    ("Offentlige_investeringer", None),
-    ("Overforsel_privat", None),
-    ("Importpris", None),
-    ("Udenlandske_priser", None),
-    ("Arbejdsudbud_beskaeftigelse",
+    ("Rente", "Rente", None),
+    ("Eksportmarkedsvaekst", "Eksportmarkedsvaekst", None),
+    ("Offentlig_varekoeb", "Offentlig_varekoeb", None),
+    ("Offentlig_Beskaeftigelse", "Offentlig_Beskaeftigelse", None),
+    ("Offentlige_investeringer", "Offentlige_investeringer", None),
+    ("Overforsel_privat", "Overforsel_privat", None),
+    ("Importpris", "Importpris", None),
+    ("Udenlandske_priser", "Udenlandske_priser", None),
+    ("Arbejdsudbud_beskaeftigelse", "Arbejdsudbud_beskaeftigelse",
      "Begge fastlåser den strukturelle beskæftigelse 1 pct. højere for hver alder og frigiver deltagelsesparameteren (exo/endo-bytte)."),
-    ("ArbejdsProd", None),
-    ("KapitalProd", "Begge ganger uK i hver branche med 1,01^(eKEL−1) for maskiner og 1,01^(eKELB−1) for "
-                    "bygninger, som DREAMs stød er defineret, så der er ingen samlet faktor at skalere med. NB: uK er "
-                    "kapitalens produktivitet i MAKRO, og formlen sænker den (i gennemsnit 0,37 pct.), selv om stødet "
-                    "hedder +1 pct. kapitalproduktivitet – derfor falder BNP i begge modeller."),
+    ("ArbejdsProd", "ArbejdsProd", None),
+    ("KapitalProd", "KapitalProd_vaegtet",
+     "Begge sider er det stød, DREAM faktisk har regnet: uK ganges i hver branche med 1,01^(eKEL−1) for maskiner "
+     "og 1,01^(eKELB−1) for bygninger, så der er ingen samlet faktor at skalere med. Da uK er kapitalens "
+     "produktivitet i MAKRO, sænker formlen den (0,37 pct. i gennemsnit), og BNP falder i begge modeller. DREAM har "
+     "bekræftet (oktober 2026), at stødreaktionspapiret i stedet beskriver uK × 1,01 – det er MAKROskops scenarie "
+     "Kapitalproduktivitet – og retter papiret."),
 ]
 
 
@@ -264,7 +268,7 @@ def level_gap(ours_detrended: dict[str, dict[int, float]], dream_detrended: dict
 
 
 def main() -> None:
-    from catalog import SHOCKS as CATALOG
+    from catalog import SHOCKS as CATALOG, stamp_mismatches
     from extract import deviation_series, extract_detrended, model_version, open_gdx, read_solver_meta
 
     here = Path(__file__).parent
@@ -299,7 +303,7 @@ def main() -> None:
     files = []
     shocks = []
     ours_model: dict[str, str] = {}
-    for shock_id, note in SHOCKS:
+    for shock_id, ours_run, note in SHOCKS:
         dream_path = dream_dir / f"{shock_id}_ufin.gdx"
         if not dream_path.exists():
             print(f"{shock_id}: DREAM file missing, skipped")
@@ -316,7 +320,7 @@ def main() -> None:
         cellwise = instrument.mode == "cell"
         dream_change = None if cellwise else instrument_change(at(dream_gdx), at(dream_base), instrument.mode)
 
-        ours_path = args.shocks_dir / f"{shock_id}_ufin.gdx"
+        ours_path = args.shocks_dir / f"{ours_run}_ufin.gdx"
         ours_dev = None
         scale = None
         solved = None
@@ -324,6 +328,8 @@ def main() -> None:
             ours_gdx = open_gdx(ours_path)
             ours_dev, _ = deviation_series(ours_gdx, ours_detrended)
             stamp = read_solver_meta(ours_gdx)
+            if mismatches := stamp_mismatches(ours_run, "_ufin", stamp, HORIZON_END):
+                raise SystemExit(f"{ours_path.name}: solver stamp disagrees with the catalog: {mismatches}")
             solved = {"exported": stamp.get("exported"), "fingerprint": stamp.get("fingerprint")}
             ours_model.setdefault("fingerprint", stamp.get("fingerprint", ""))
             if cellwise:
@@ -350,7 +356,7 @@ def main() -> None:
                           dream_ref, ours_ref, HORIZON, COLUMNS)
                 for key, _, _ in SERIES if key in dream_dev]
         shocks.append({
-            "id": shock_id, "labelDa": labels[shock_id], "scenario": f"{shock_id}_ufin",
+            "id": shock_id, "labelDa": labels[shock_id], "scenario": f"{ours_run}_ufin",
             "dreamFile": dream_path.name, "solved": solved,
             "scale": None if scale is None else round(scale, 4), "scaleNoteDa": scale_note, "noteDa": note,
             "rows": rows,

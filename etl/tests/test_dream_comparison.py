@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+import catalog
 import dream_comparison as dc
 
 
@@ -116,8 +117,16 @@ def test_sha256_matches_hashlib(tmp_path) -> None:
 
 
 def test_every_shock_in_the_comparison_has_an_instrument() -> None:
-    for shock_id, _note in dc.SHOCKS:
+    for shock_id, _ours, _note in dc.SHOCKS:
         assert isinstance(dc.INSTRUMENTS.get(shock_id), dc.Instrument), shock_id
+
+
+def test_each_dream_file_is_compared_with_a_catalogued_run_of_ours() -> None:
+    # ours may be validation-only: KapitalProd is DREAM's weighted shock, solved as KapitalProd_vaegtet
+    ours = {shock_id: run for shock_id, run, _note in dc.SHOCKS}
+    assert ours["KapitalProd"] == "KapitalProd_vaegtet" and ours["Rente"] == "Rente"
+    for run in ours.values():
+        assert catalog.expected_stamp(run, "_ufin", 2129) is not None, run
 
 
 def test_cellwise_gap_compares_each_cells_relative_change() -> None:

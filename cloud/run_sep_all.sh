@@ -2,7 +2,8 @@
 # makroskop-ba1.4: every catalogued scenario of the June 2026 release re-solved on MAKRO 2026-September.
 # GENERATED from etl/catalog.py SHOCK_RUNS + VARIATION_PROFILES/CLOSURES by the ba1.4 session (2026-10-02),
 # so every stamp matches extract.py's check by construction. Order: _ufin, _perm (tax-reaction), _midl, _blip.
-# makroskop-ba1.5 (2026-10-04) added KapitalProd, the last of DREAM's 11 shock-paper runs.
+# makroskop-ba1.5/l1q (2026-10-05): KapitalProd is the paper's uK x 1.01; KapitalProd_vaegtet_ufin is DREAM's
+# weighted standard_shocks formula, solved for the Validering comparison only (catalog.VALIDATION_RUNS).
 # Run detached on the box:   setsid nohup bash cloud/run_sep_all.sh > sep_all.log 2>&1 < /dev/null &
 # Sequential and idempotent: existing GDX files are skipped, killed runs resume from their last checkpoint.
 set -uo pipefail
@@ -41,7 +42,8 @@ run Forbrugsafgift_ufin.gdx --from-year 2030 --shock-name "tAfg_y(cVar,*,*),tAfg
 run Grundskyld_ufin.gdx --from-year 2030 --shock-name "tGrund" --shock-years 2030-2129 --shock-factor 1.1
 run Ikke_skattepligtig_indkomstoverforsel_ufin.gdx --from-year 2030 --shock-name "uvOvfSats(boernyd|boligyd|iskatpl|groen|lumpsumovf,*)" --shock-years 2030-2129 --shock-factor 1.01
 run Importpris_ufin.gdx --from-year 2030 --shock-name "pM" --shock-years 2030-2129 --shock-factor 1.01
-run KapitalProd_ufin.gdx --from-year 2030 --shock-name "uK(iM,*,*)^eKEL,uK(iB,*,*)^eKELB" --shock-years 2030-2129 --shock-factor 1.01
+run KapitalProd_ufin.gdx --from-year 2030 --shock-name "uK" --shock-years 2030-2129 --shock-factor 1.01
+run KapitalProd_vaegtet_ufin.gdx --from-year 2030 --shock-name "uK(iM,*,*)^eKEL,uK(iB,*,*)^eKELB" --shock-years 2030-2129 --shock-factor 1.01
 run Loen_ufin.gdx --from-year 2030 --shock-name "rLoenNash" --shock-years 2030-2129 --shock-delta -0.01
 run Lontilskud_ufin.gdx --from-year 2030 --shock-name "rSubLoen(!tot,*)" --shock-years 2030-2129 --shock-factor 1.1
 run Moms_ufin.gdx --from-year 2030 --shock-name "tMoms_y,tMoms_m" --shock-years 2030-2129 --shock-factor 1.02
@@ -83,7 +85,7 @@ run Forbrugsafgift_perm.gdx --from-year 2030 --shock-name "tAfg_y(cVar,*,*),tAfg
 run Grundskyld_perm.gdx --from-year 2030 --shock-name "tGrund" --shock-years 2030-2129 --shock-factor 1.1 --closure tax-reaction
 run Ikke_skattepligtig_indkomstoverforsel_perm.gdx --from-year 2030 --shock-name "uvOvfSats(boernyd|boligyd|iskatpl|groen|lumpsumovf,*)" --shock-years 2030-2129 --shock-factor 1.01 --closure tax-reaction
 run Importpris_perm.gdx --from-year 2030 --shock-name "pM" --shock-years 2030-2129 --shock-factor 1.01 --closure tax-reaction
-run KapitalProd_perm.gdx --from-year 2030 --shock-name "uK(iM,*,*)^eKEL,uK(iB,*,*)^eKELB" --shock-years 2030-2129 --shock-factor 1.01 --closure tax-reaction
+run KapitalProd_perm.gdx --from-year 2030 --shock-name "uK" --shock-years 2030-2129 --shock-factor 1.01 --closure tax-reaction
 run Loen_perm.gdx --from-year 2030 --shock-name "rLoenNash" --shock-years 2030-2129 --shock-delta -0.01 --closure tax-reaction
 run Lontilskud_perm.gdx --from-year 2030 --shock-name "rSubLoen(!tot,*)" --shock-years 2030-2129 --shock-factor 1.1 --closure tax-reaction
 run Moms_perm.gdx --from-year 2030 --shock-name "tMoms_y,tMoms_m" --shock-years 2030-2129 --shock-factor 1.02 --closure tax-reaction
