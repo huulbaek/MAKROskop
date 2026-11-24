@@ -84,12 +84,8 @@ def test_the_income_tax_steps_are_catalogued_as_rate_deltas() -> None:
     assert names.index("Topskat") == names.index("Bundskat") + 1
 
 
-def test_kapitalprod_is_the_papers_shock_and_dreams_weighted_one_is_validation_only() -> None:
-    # makroskop-l1q: DREAM confirmed (2026-10-05) that the shock-reaction paper describes uK x 1.01,
-    # while standard_shocks.gms computes a weighted, negative uK x 1.01^(e-1)
+def test_kapitalprod_is_the_papers_shock_uk_times_1_01() -> None:
+    # makroskop-l1q/big: the shock-reaction paper's uK x 1.01, which DREAM's standard_shocks.gms computes too
+    # since 2026-10-09 (before that a weighted, negative uK x 1.01^(e-1))
     paper = catalog.expected_stamp("KapitalProd", "_ufin", LAST)
     assert (paper["shock"], paper["factor"]) == ("uK", 1.01)
-    weighted = catalog.expected_stamp("KapitalProd_vaegtet", "_ufin", LAST)
-    assert weighted["shock"] == "uK(iM,*,*)^eKEL,uK(iB,*,*)^eKELB"
-    assert "KapitalProd_vaegtet" not in {shock.name for shock in catalog.SHOCKS}
-    assert catalog.shock_definition("KapitalProd_vaegtet", "_ufin", LAST) is None

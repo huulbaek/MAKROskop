@@ -515,9 +515,10 @@
 		(<code>Model/Gdx/baseline.gdx</code>, som nulstødet gengiver). MAKROskops måles mod
 		kalibreringspunktet i modellens zip-fil, der i {dream.shockYear} ligger
 		{gapPct(dream.ours.levelGapPct.vBNP)} (nominelt BNP) og {gapPct(dream.ours.levelGapPct.qBNP)}
-		(realt BNP) fra det officielle grundforløb — en anden dataårgang inde i zip-filen. Marginale
-		virkninger i pct. er robuste over for det, men det er den mest sandsynlige kilde til de
-		forskelle, der er tilbage: beskæftigelsen i år 1 er 15–25 pct. højere i MAKROskop ved
+		(realt BNP) fra det officielle grundforløb.
+		{dream.ours.referenceFilesDa ?? ''}
+		Marginale virkninger i pct. er robuste over for niveauforskellen, men den er den mest
+		sandsynlige kilde til de forskelle, der er tilbage: beskæftigelsen i år 1 er 15–25 pct. højere i MAKROskop ved
 		efterspørgselsstød og identisk fra år 3, og på langt sigt afviger rente- og
 		investeringsstødet 10–15 pct.
 	</p>
@@ -534,7 +535,8 @@
 			>Analysis/Standard_shocks/Gdx<span class="sr-only"> (åbner i nyt vindue)</span></a
 		> (commit {dream.dream.commit}), læst {dream.generated}; hver fil er kontrolleret med SHA-256
 		og skal ligge præcis på grundforløbet i året før stødet. MAKROskops scenarier er løst på
-		samme model (fingeraftryk {dream.ours.fingerprint}). Tak til DREAM for at stille filerne til
+		zip-filen fra samme modelversion (fingeraftryk {dream.ours.fingerprint}). Tak til DREAM for at
+		stille filerne til
 		rådighed. Notatet:
 		<a href={dream.dream.paper.url} target="_blank" rel="noopener noreferrer"
 			>{dream.dream.paper.source}<span class="sr-only"> (åbner i nyt vindue)</span></a

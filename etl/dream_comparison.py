@@ -47,9 +47,7 @@ SERIES = [
     ("saldo2bnp", "Offentlig saldo", "pct.-point af BNP"),
 ]
 
-# (DREAM's shock id, our catalog run compared with it, Danish note or None) — page order. Our run is the
-# public scenario of the same name, or a validation-only run (catalog.VALIDATION_RUNS) where DREAM's file
-# computes another shock than its name says.
+# (DREAM's shock id, our published scenario compared with it, Danish note or None) — page order.
 SHOCKS = [
     ("Rente", "Rente", None),
     ("Eksportmarkedsvaekst", "Eksportmarkedsvaekst", None),
@@ -62,12 +60,12 @@ SHOCKS = [
     ("Arbejdsudbud_beskaeftigelse", "Arbejdsudbud_beskaeftigelse",
      "Begge fastlåser den strukturelle beskæftigelse 1 pct. højere for hver alder og frigiver deltagelsesparameteren (exo/endo-bytte)."),
     ("ArbejdsProd", "ArbejdsProd", None),
-    ("KapitalProd", "KapitalProd_vaegtet",
-     "Begge sider er det stød, DREAM faktisk har regnet: uK ganges i hver branche med 1,01^(eKEL−1) for maskiner "
-     "og 1,01^(eKELB−1) for bygninger, så der er ingen samlet faktor at skalere med. Da uK er kapitalens "
-     "produktivitet i MAKRO, sænker formlen den (0,37 pct. i gennemsnit), og BNP falder i begge modeller. DREAM har "
-     "bekræftet (oktober 2026), at stødreaktionspapiret i stedet beskriver uK × 1,01 – det er MAKROskops scenarie "
-     "Kapitalproduktivitet – og retter papiret."),
+    # makroskop-big: DREAM's file is uK × 1.01 since 2026-10-09 (commits 9774450, 5fd09a3). Until then
+    # standard_shocks.gms computed uK × 1.01^(e−1), which we mirrored in a validation-only run (parked).
+    ("KapitalProd", "KapitalProd",
+     "DREAM rettede 9. oktober 2026 standard_shocks.gms, så filen nu er det stød, stødreaktionspapiret beskriver: "
+     "uK × 1,01 i alle private brancher. Den tidligere fil og figurerne i papiret fra maj 2025 viste et vægtet "
+     "stød, uK × 1,01^(e−1) pr. branche, som sænker kapitalens produktivitet, så BNP falder."),
 ]
 
 
@@ -78,8 +76,8 @@ class Instrument:
     gdx_name: str
     selector: tuple[str, ...]  # domain elements before t; "*" = all cells, which must move alike
     mode: str  # "rel": shock/base − 1 (DREAM's factor shocks); "abs": shock − base (additive ones);
-    #            "cell": a different change per cell (KapitalProd's power per sector), which both files must
-    #            make alike in every shared cell, so the comparison runs at scale 1 (cellwise_gap)
+    #            "cell": checked cell by cell (KapitalProd's uK per capital type and sector): both files must
+    #            move every shared cell alike, so the comparison runs at scale 1 (cellwise_gap)
     label_da: str
     unit_da: str = "pct."  # for "abs": the unit of the difference after `display`
     display: float = 100.0  # "rel" changes are shown ×100 as pct.; "abs" ones ×display
@@ -105,6 +103,62 @@ PAPER = {
     "url": "https://dreamgruppen.dk/Media/638833322447461188/shock_reactions_in_makro_may_2025.pdf",
 }
 GDX_URL = "https://github.com/DREAM-DK/MAKRO/tree/main/Analysis/Standard_shocks/Gdx"
+# What this script reads from the MAKRO checkout; the commit cited next to DREAM's files is where these
+# last changed (extract.input_commit), not the scenario data's model commit.
+DREAM_INPUTS = ("Analysis/Standard_shocks/Gdx", "Model/Gdx/baseline.gdx")
+
+
+def dream_files_version(makro_root: Path) -> dict[str, str]:
+    """extract.model_version for the files this script reads from the checkout."""
+    from extract import model_version
+
+    return model_version(makro_root, DREAM_INPUTS)
+
+DA_MONTHS = ("januar", "februar", "marts", "april", "maj", "juni", "juli", "august", "september", "oktober",
+             "november", "december")
+
+
+def date_da(iso: str) -> str:
+    """'2026-09-07' -> '7. september 2026'."""
+    year, month, day = (int(part) for part in iso.split("-"))
+    return f"{day}. {DA_MONTHS[month - 1]} {year}"
+
+
+def reference_file_facts(makro_root: Path) -> dict[str, str]:
+    """When the two reference points' files entered the MAKRO checkout: the calibration zip MAKROskop
+    solves on (dump date from its members, last commit) and DREAM's baseline.gdx (last commit)."""
+    from extract import input_commit, input_date, zip_dump_date
+
+    zip_path, baseline_path = ["Model/deep_dynamic_calibration.zip"], ["Model/Gdx/baseline.gdx"]
+    return {
+        "dumped": zip_dump_date(makro_root),
+        "zip_commit": input_commit(makro_root, zip_path),
+        "zip_committed": input_date(makro_root, zip_path),
+        "baseline_commit": input_commit(makro_root, baseline_path),
+        "baseline_committed": input_date(makro_root, baseline_path),
+    }
+
+
+def reference_files_note(dumped: str, zip_commit: str, zip_committed: str,
+                         baseline_commit: str, baseline_committed: str) -> str | None:
+    """Danish sentence for the page's reference-point note, or None when there is nothing to state:
+    a fact is missing, or both files came in one commit (which says nothing about separate runs)."""
+    if not all((dumped, zip_commit, zip_committed, baseline_commit, baseline_committed)):
+        return None
+    if zip_commit == baseline_commit:
+        return None
+    return (f"De to filer er lagt i MAKRO-repositoriet hver for sig: zip-filen er dannet {date_da(dumped)} og lagt ud "
+            f"{date_da(zip_committed)} (commit {zip_commit}), grundforløbet {date_da(baseline_committed)} "
+            f"(commit {baseline_commit}).")
+
+
+def checkout_reference_note(makro_root: Path, solved_fingerprint: str) -> str | None:
+    """reference_files_note for the checkout, withheld unless its zip is the one our scenarios were solved on."""
+    from extract import model_fingerprint
+
+    if not solved_fingerprint or model_fingerprint(makro_root) != solved_fingerprint:
+        return None
+    return reference_files_note(**reference_file_facts(makro_root))
 
 
 @dataclass(frozen=True)
@@ -269,7 +323,7 @@ def level_gap(ours_detrended: dict[str, dict[int, float]], dream_detrended: dict
 
 def main() -> None:
     from catalog import SHOCKS as CATALOG, stamp_mismatches
-    from extract import deviation_series, extract_detrended, model_version, open_gdx, read_solver_meta
+    from extract import deviation_series, extract_detrended, open_gdx, read_solver_meta
 
     here = Path(__file__).parent
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -285,7 +339,7 @@ def main() -> None:
     dream_baseline = args.dream_baseline or args.makro_root / "Model" / "Gdx" / "baseline.gdx"
 
     marker = check_baseline_marker(dream_dir / "baseline.gdx", dream_baseline)
-    dream_model = model_version(args.makro_root)
+    dream_model = dream_files_version(args.makro_root)
     dream_base = open_gdx(dream_baseline)
     dream_detrended = extract_detrended(dream_base)
     dream_ref = reference_levels(dream_base)
@@ -386,6 +440,7 @@ def main() -> None:
             "fingerprint": ours_model.get("fingerprint", ""),
             "baselineDa": "kalibreringspunktet i Model/deep_dynamic_calibration.zip (etl/shock_gdx/_reference.gdx)",
             "levelGapPct": gap,
+            "referenceFilesDa": checkout_reference_note(args.makro_root, ours_model.get("fingerprint", "")),
         },
         "series": [{"key": key, "labelDa": label, "unitDa": unit} for key, label, unit in SERIES],
         "shocks": shocks,

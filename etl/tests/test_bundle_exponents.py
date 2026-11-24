@@ -1,5 +1,6 @@
-"""Exponent bundle members, 'name^exponent' (makroskop-ba1.5): DREAM's KapitalProd raises uK to a
-per-sector power, uK[k,sp] * (1 + 0.01*profile)**(eKEL[sp]-1) (standard_shocks.gms)."""
+"""Exponent bundle members, 'name^exponent' (makroskop-ba1.5): until 2026-10-09 DREAM's KapitalProd raised
+uK to a per-sector power, uK[k,sp] * (1 + 0.01*profile)**(eKEL[sp]-1) (standard_shocks.gms). The check of
+these exponents against DREAM's own file went with that file (makroskop-big): it is uK x 1.01 now."""
 
 from pathlib import Path
 
@@ -92,26 +93,20 @@ def test_linear_members_keep_the_linear_rule(convert_dir: Path) -> None:
     assert dict(zip(ids.tolist(), targets.tolist())) == {6: 0.12 + 0.01}
 
 
-DREAM_FILE = fs.MAKRO_CLONE / "Analysis" / "Standard_shocks" / "Gdx" / "KapitalProd_ufin.gdx"
+def _has_parameter_gdx() -> bool:
+    try:
+        fs.parameter_gdx()
+    except SystemExit:
+        return False
+    return True
 
 
-@pytest.mark.skipif(not DREAM_FILE.exists(), reason="no MAKRO clone with DREAM's shock files")
-def test_reproduces_dreams_kapitalprod_shock_on_every_uk_cell() -> None:
-    """Our exponents x 1.01 against uK in DREAM's own KapitalProd_ufin.gdx / baseline.gdx, all cells."""
-    import gams.transfer as gt
-    import gamspy_base
+@pytest.mark.skipif(not _has_parameter_gdx(), reason="no baseline.gdx with the model's parameters")
+def test_the_elasticities_are_read_by_sector_and_a_zero_nest_is_absent() -> None:
+    """The real loader behind 'name^exponent' (stubbed above): what elasticity_exponents assumes of it."""
+    machines, buildings = fs.parameter_table("eKEL"), fs.parameter_table("eKELB")
+    for table in (machines, buildings):
+        assert ("tje",) in table  # keyed by a one-element sector tuple
+        assert ("bol",) not in table  # housing's Leontief nest: GAMS drops the zero, callers read it as 0
+        assert all(value > 0 for value in table.values())
 
-    def uk(path: Path) -> dict[tuple[str, ...], float]:
-        container = gt.Container(system_directory=gamspy_base.directory)
-        container.read(str(path), symbols=["uK"])
-        records = container["uK"].records
-        return {tuple(row[:3]): row[3] for row in records.itertuples(index=False)}
-
-    base, shocked = uk(fs.MAKRO_CLONE / "Model" / "Gdx" / "baseline.gdx"), uk(DREAM_FILE)
-    cells = [keys for keys in base if int(keys[2]) >= 2030 and base[keys] != 0]
-    keys_by_id = dict(enumerate(cells))
-    exponents = {**fs.elasticity_exponents("eKEL", {i: k for i, k in keys_by_id.items() if k[0] == "iM"}),
-                 **fs.elasticity_exponents("eKELB", {i: k for i, k in keys_by_id.items() if k[0] == "iB"})}
-    assert len(exponents) == len(cells)
-    worst = max(abs(base[keys_by_id[i]] * 1.01 ** b / shocked[keys_by_id[i]] - 1) for i, b in exponents.items())
-    assert worst < 1e-12

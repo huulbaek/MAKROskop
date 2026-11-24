@@ -121,17 +121,18 @@ def test_every_shock_in_the_comparison_has_an_instrument() -> None:
         assert isinstance(dc.INSTRUMENTS.get(shock_id), dc.Instrument), shock_id
 
 
-def test_each_dream_file_is_compared_with_a_catalogued_run_of_ours() -> None:
-    # ours may be validation-only: KapitalProd is DREAM's weighted shock, solved as KapitalProd_vaegtet
-    ours = {shock_id: run for shock_id, run, _note in dc.SHOCKS}
-    assert ours["KapitalProd"] == "KapitalProd_vaegtet" and ours["Rente"] == "Rente"
-    for run in ours.values():
+def test_each_dream_file_is_compared_with_a_published_scenario_of_ours() -> None:
+    # the page sets DREAM's file against the scenario MAKROskop publishes for that shock (scenario page,
+    # open data); a run outside catalog.SHOCKS must not stand in for it
+    published = {shock.name for shock in catalog.SHOCKS}
+    for shock_id, run, _note in dc.SHOCKS:
+        assert run in published, f"{shock_id} is compared with {run}, which is not a published scenario"
         assert catalog.expected_stamp(run, "_ufin", 2129) is not None, run
 
 
 def test_cellwise_gap_compares_each_cells_relative_change() -> None:
-    # KapitalProd moves uK by a different power per sector, so there is no one size to read; both
-    # files must move every cell they share alike (uK(iM,bol) exists in DREAM's file only)
+    # an instrument checked cell by cell (KapitalProd's uK): whatever each cell's change is, both files
+    # must move every cell they share alike (uK(iM,bol) exists in DREAM's file only)
     dream_base = {("iM", "tje"): 2.0, ("iB", "bol"): 4.0, ("iM", "bol"): 1.0}
     dream = {("iM", "tje"): 2.0 * 0.998, ("iB", "bol"): 4.0 / 1.01, ("iM", "bol"): 1.0 / 1.01}
     ours_base = {("iM", "tje"): 3.0, ("iB", "bol"): 5.0}
@@ -155,3 +156,20 @@ def test_the_written_level_gap_is_the_per_series_table() -> None:
     # /validering/ reads ours.levelGapPct.vBNP; a stray local once overwrote it with a float
     gap = json.loads(DATA_JSON.read_text(encoding="utf-8"))["ours"]["levelGapPct"]
     assert isinstance(gap, dict) and {"vBNP", "qBNP", "nL"} <= gap.keys()
+
+
+def test_reference_files_note_is_silent_when_both_files_came_in_one_commit() -> None:
+    # one commit says nothing about separate runs, so the page must not suggest it
+    assert dc.reference_files_note(dumped="2026-09-07", zip_commit="abc1234", zip_committed="2026-09-14",
+                                   baseline_commit="abc1234", baseline_committed="2026-09-14") is None
+
+
+def test_reference_files_note_is_silent_without_the_facts() -> None:
+    # no zip in the checkout, or a path git has never seen: nothing to state
+    assert dc.reference_files_note(dumped="", zip_commit="", zip_committed="",
+                                   baseline_commit="7cdf9d4", baseline_committed="2026-09-24") is None
+
+
+def test_danish_dates_are_written_out() -> None:
+    assert dc.date_da("2026-09-07") == "7. september 2026"
+    assert dc.date_da("2027-01-31") == "31. januar 2027"

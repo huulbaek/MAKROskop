@@ -104,7 +104,14 @@ export interface DreamComparison {
 		files: { name: string; sha256: string; bytes: number }[];
 		paper: { source: string; url: string };
 	};
-	ours: { fingerprint: string; baselineDa: string; levelGapPct: Record<string, number> };
+	ours: {
+		fingerprint: string;
+		baselineDa: string;
+		levelGapPct: Record<string, number>;
+		/** When the zip and baseline.gdx entered DREAM's repository (read from the checkout by the ETL);
+		 *  null when both came in one commit or the checkout holds another zip. */
+		referenceFilesDa: string | null;
+	};
 	series: { key: string; labelDa: string; unitDa: string }[];
 	shocks: DreamComparisonShock[];
 }

@@ -20,6 +20,7 @@ import json
 import math
 import subprocess
 import zipfile
+from collections.abc import Sequence
 from pathlib import Path
 
 import gams.transfer as gt
@@ -275,13 +276,63 @@ DATA_BASIS_DA = {
 }
 
 
-def model_version(makro_root: Path) -> dict[str, str]:
-    readme_first_line = (makro_root / "README.md").read_text(encoding="utf-8").splitlines()[0]
-    commit = subprocess.run(
-        ["git", "-C", str(makro_root), "rev-parse", "--short", "HEAD"],
-        capture_output=True, text=True, check=False,
-    ).stdout.strip()
-    name = readme_first_line.lstrip("# ").strip()
+# The files in the MAKRO checkout the published data is read from: scenarios are solved on the zip
+# (its fingerprint is stamped in every GDX), the baseline pages come from baseline.gdx.
+MODEL_INPUTS = ("Model/deep_dynamic_calibration.zip", "Model/Gdx/baseline.gdx")
+
+
+def _git(makro_root: Path, *args: str) -> str:
+    return subprocess.run(["git", "-C", str(makro_root), *args],
+                          capture_output=True, text=True, check=False).stdout.strip()
+
+
+def input_commit(makro_root: Path, paths: Sequence[str]) -> str:
+    """Short hash of the last commit in the checkout's history that changed any of `paths`.
+
+    This, not HEAD, identifies the upstream state behind data read from those files: DREAM commits
+    other things to main between model versions (shock files, databanks), and stamping HEAD would
+    relabel every published file each time the checkout moves (makroskop-big). Paths git has never
+    seen fall back to HEAD.
+    """
+    return _git(makro_root, "log", "-1", "--format=%h", "--", *paths) or _git(makro_root, "rev-parse", "--short", "HEAD")
+
+
+def input_date(makro_root: Path, paths: Sequence[str]) -> str:
+    """ISO date of that commit (committer date), or "" for paths git has never seen."""
+    return _git(makro_root, "log", "-1", "--format=%cs", "--", *paths)
+
+
+def zip_dump_date(makro_root: Path) -> str:
+    """ISO date the CONVERT dump was written: the newest member timestamp in the calibration zip ("" without one)."""
+    zip_path = makro_root / "Model/deep_dynamic_calibration.zip"
+    if not zip_path.exists():
+        return ""
+    with zipfile.ZipFile(zip_path) as archive:
+        year, month, day = max(info.date_time for info in archive.infolist())[:3]
+    return f"{year:04d}-{month:02d}-{day:02d}"
+
+
+def inputs_differ_from(makro_root: Path, commit: str, paths: Sequence[str]) -> bool:
+    """True when the checkout's files at `paths` are not the ones in `commit`: edited without a commit, or
+    changed by a commit a path-limited log does not land on (a merge)."""
+    return subprocess.run(["git", "-C", str(makro_root), "diff", "--quiet", commit, "--", *paths],
+                          capture_output=True, check=False).returncode == 1
+
+
+def model_version(makro_root: Path, inputs: Sequence[str] = MODEL_INPUTS) -> dict[str, str]:
+    """Name, commit, zip fingerprint and data basis of the checkout's model.
+
+    The commit is where `inputs` last changed and the name is the README's version line at that commit,
+    so both describe the files the data is read from, whatever DREAM has committed since. Refuses a
+    checkout whose inputs are not that commit's files: the fingerprint is read from the working tree.
+    """
+    commit = input_commit(makro_root, inputs)
+    if commit and inputs_differ_from(makro_root, commit, inputs):
+        raise SystemExit(f"{makro_root}: {', '.join(inputs)} differ from commit {commit} (uncommitted changes?); "
+                         "data read from them cannot be labelled with that commit")
+    readme = (_git(makro_root, "show", f"{commit}:README.md") if commit else "") \
+        or (makro_root / "README.md").read_text(encoding="utf-8")
+    name = readme.splitlines()[0].lstrip("# ").strip()
     return {"name": name, "commit": commit, "fingerprint": model_fingerprint(makro_root),
             "dataBasisDa": DATA_BASIS_DA.get(name, "")}
 

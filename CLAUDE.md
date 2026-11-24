@@ -3,9 +3,22 @@
 Public-facing explorer + license-free solver for MAKRO (DREAM's macroeconomic model
 of Denmark, used by the Finance Ministry). Upstream model: `~/vserver/MAKRO`
 (pristine clone — never modify; we read `Model/deep_dynamic_calibration.zip` and
-`Model/Gdx/baseline.gdx` from it). Current model: MAKRO 2026-September (031f71e, fingerprint
-bd46c0084e9b; makroskop-ba1): `etl/cache/convert`, `system.npz`, `etl/shock_gdx/` (82 scenarios +
-`_reference.gdx`, solved 2026-10-01/02) and data release 2026.10.02 are all September. The June
+`Model/Gdx/baseline.gdx` from it). Current model: MAKRO 2026-September (release commit 7cdf9d4,
+fingerprint bd46c0084e9b; makroskop-ba1): `etl/cache/convert`, `system.npz`, `etl/shock_gdx/` (84 scenarios +
+`_reference.gdx`, solved 2026-10-01/02, KapitalProd 2026-10-04) and the data releases from 2026.10.02 on are all September. The model
+commit in the data is where the files we read (`extract.MODEL_INPUTS`: the zip and `baseline.gdx`)
+last changed upstream, not the clone's HEAD (`extract.input_commit`, makroskop-big); the clone sits
+at 5fd09a3 (DREAM's shock files as re-published 2026-10-09 with KapitalProd = uK × 1.01). Provenance
+of the zip: dumped 2026-09-07 from DREAM's tree `Data_26juli_konjunktur`, committed in fd33edd
+(2026-09-14, README still 2026-June) and not regenerated for the September release, so it carries an
+older formulation (the jrUdl* pole terms, ratio-form CES) than the sources published with it
+(product-form CES since fd33edd, additive jvUdl* terms since 7cdf9d4); `baseline.gdx` is from
+7cdf9d4. Do not pull to `origin/main` outside a model bump: a947c84 (2026-10-29) replaced the zip
+(fingerprint da9b8e59d651, tree `MAKRO-dev\prod`: jv terms and product-form CES like the published
+sources, plus `jrBVTGabError`, which the 2026-September README lists as a new variable although no published
+`.gms` has it, and no `E_snSoc_boern`, which the published `struk.gms` still has; its 2025 nominal GDP is
+2.0 % above the September zip's. Whether it is the September model's own dump or something newer is the
+open question to DREAM; makroskop-7y5, makroskop-rtx), and `extract.py` reads the fingerprint from the clone. The June
 2026 model and runs are parked: zip, baseline, dump and `system.npz` in
 `etl/cache/parked/model_jun2026/`, the 82 June scenario GDX files in
 `etl/cache/parked/shock_gdx_jun2026/`, the June-sized proposal solve in

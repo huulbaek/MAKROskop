@@ -2,8 +2,9 @@
 # makroskop-ba1.4: every catalogued scenario of the June 2026 release re-solved on MAKRO 2026-September.
 # GENERATED from etl/catalog.py SHOCK_RUNS + VARIATION_PROFILES/CLOSURES by the ba1.4 session (2026-10-02),
 # so every stamp matches extract.py's check by construction. Order: _ufin, _perm (tax-reaction), _midl, _blip.
-# makroskop-ba1.5/l1q (2026-10-05): KapitalProd is the paper's uK x 1.01; KapitalProd_vaegtet_ufin is DREAM's
-# weighted standard_shocks formula, solved for the Validering comparison only (catalog.VALIDATION_RUNS).
+# makroskop-ba1.5/l1q (2026-10-05): KapitalProd is the paper's uK x 1.01. The weighted run that mirrored DREAM's
+# earlier standard_shocks formula (KapitalProd_vaegtet_ufin, --shock-name "uK(iM,*,*)^eKEL,uK(iB,*,*)^eKELB") left
+# the catalog when DREAM changed the script to uK x 1.01 (makroskop-big, 2026-11-24).
 # Run detached on the box:   setsid nohup bash cloud/run_sep_all.sh > sep_all.log 2>&1 < /dev/null &
 # Sequential and idempotent: existing GDX files are skipped, killed runs resume from their last checkpoint.
 set -uo pipefail
@@ -43,7 +44,6 @@ run Grundskyld_ufin.gdx --from-year 2030 --shock-name "tGrund" --shock-years 203
 run Ikke_skattepligtig_indkomstoverforsel_ufin.gdx --from-year 2030 --shock-name "uvOvfSats(boernyd|boligyd|iskatpl|groen|lumpsumovf,*)" --shock-years 2030-2129 --shock-factor 1.01
 run Importpris_ufin.gdx --from-year 2030 --shock-name "pM" --shock-years 2030-2129 --shock-factor 1.01
 run KapitalProd_ufin.gdx --from-year 2030 --shock-name "uK" --shock-years 2030-2129 --shock-factor 1.01
-run KapitalProd_vaegtet_ufin.gdx --from-year 2030 --shock-name "uK(iM,*,*)^eKEL,uK(iB,*,*)^eKELB" --shock-years 2030-2129 --shock-factor 1.01
 run Loen_ufin.gdx --from-year 2030 --shock-name "rLoenNash" --shock-years 2030-2129 --shock-delta -0.01
 run Lontilskud_ufin.gdx --from-year 2030 --shock-name "rSubLoen(!tot,*)" --shock-years 2030-2129 --shock-factor 1.1
 run Moms_ufin.gdx --from-year 2030 --shock-name "tMoms_y,tMoms_m" --shock-years 2030-2129 --shock-factor 1.02
