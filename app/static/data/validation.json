@@ -101,7 +101,7 @@
  ],
  "solver": {
   "newton": "ikke-monoton Newton med adaptiv stød-kontinuation og diskcheckpoints pr. trin",
-  "linear": "UMFPACK (via kvxopt) som arbejdshest; Pardiso probes og afvises ved fejlfaktorisering; SuperLU som sidste udvej",
+  "linear": "MKL Pardiso med tunet pivotering som hurtig vej, med UMFPACK (via kvxopt) og SuperLU som reserve",
   "refinement": "rækkeekvilibrering + iterativ forbedring til relativ rest 1e-11"
  },
  "fullHorizon": {
@@ -129,22 +129,24 @@
   "id": "Rente_ufin",
   "labelDa": "Rente (ECB) +100 basispoint, permanent fra 2030, ufinansieret",
   "shock": "rRenteECB(2030–2129): +0,01 (100 bp) — kontinuation i trin fra 1 pct. til 100 pct. af stødet",
-  "windowEquations": 2052825,
-  "windowYears": "2029–2129",
-  "stagesConverged": 7,
-  "stagesRejected": 1,
-  "freshFactorizations": 19,
-  "factorHours": 10.3,
-  "finalResidual": 9.792e-10,
+  "windowEquations": 2038474,
+  "windowYears": "2030–2129",
+  "stagesConverged": 6,
+  "stagesRejected": 0,
+  "freshFactorizations": 18,
+  "factorBackend": "MKL Pardiso",
+  "factorMinutes": 15,
+  "finalResidual": 8.149e-10,
   "lastStageIterations": [
-   0.001778,
-   225900.0,
-   7653.0,
-   0.3098,
-   0.0001075,
-   4.346e-08,
-   9.792e-10
+   0.003556,
+   2114000.0,
+   100100.0,
+   33.99,
+   0.001143,
+   1.376e-06,
+   8.905e-07,
+   8.149e-10
   ],
-  "lastStageLabelDa": "Sidste kontinuationstrin (82,2 pct. → 100 pct. af stødet)"
+  "lastStageLabelDa": "Sidste kontinuationstrin (64,4 pct. → 100 pct. af stødet)"
  }
 }

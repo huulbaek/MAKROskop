@@ -21,7 +21,7 @@
 <div class="page">
 	<h1>Hent tallene bag MAKROskop</h1>
 	<p class="lede">
-		Alle scenarier, siden viser, som afvigelser fra MAKROs referenceforløb – i CSV til regneark og
+		Alle scenarier, siden viser, som afvigelser fra MAKROs grundforløb – i CSV til regneark og
 		statistikprogrammer og i JSON til kode. Frit til genbrug under
 		<a href="https://creativecommons.org/licenses/by/4.0/deed.da" rel="external license">CC BY 4.0</a>.
 	</p>
@@ -43,7 +43,7 @@
 		<p>
 			Hvert scenarie er ét stød til MAKRO, DREAM-gruppens makroøkonomiske model af Danmark, løst med
 			MAKROskops frie løser over hele modellens horisont (til 2129; filerne går til 2100). Tallene er
-			afvigelser fra modellens kalibrerede referenceforløb: pct. for mængder og priser, pct.-point for
+			afvigelser fra modellens grundforløb (DREAMs <code>baseline.gdx</code>): pct. for mængder og priser, pct.-point for
 			satser, andele og saldi – ordbogen nedenfor siger hvilken.
 		</p>
 		<p>

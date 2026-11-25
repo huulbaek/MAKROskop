@@ -41,7 +41,9 @@ export interface ScenarioSolve {
 	stagesConverged: number;
 	stagesRejected: number;
 	freshFactorizations: number;
-	factorHours: number;
+	/** Linear solver behind the factorizations, e.g. "MKL Pardiso". */
+	factorBackend: string;
+	factorMinutes: number;
 	finalResidual: number;
 	lastStageIterations: number[];
 	lastStageLabelDa: string;
@@ -85,6 +87,19 @@ export interface DreamComparisonShock {
 	scale: number | null;
 	scaleNoteDa: string;
 	noteDa: string | null;
+	/** Our solver's replay of DREAM's own run (same inputs, same baseline) against DREAM's file;
+	 *  null when it has not been solved. Counted are the variables that respond to the shock (2030
+	 *  and later); differences are scaled by max(1, |ours|, |DREAM's|). The ETL refuses a replay whose
+	 *  largest difference exceeds 1e-6, so a replay shown here is a reproduction. */
+	replay: {
+		variables: number;
+		within1e6Pct: number;
+		medianDiff: number;
+		maxDiff: number;
+		/** Largest difference over the eight table series and all years, in pct.-points. */
+		maxSeriesGap: number;
+		file: string;
+	} | null;
 	rows: DreamComparisonRow[];
 }
 
@@ -107,6 +122,10 @@ export interface DreamComparison {
 	ours: {
 		fingerprint: string;
 		baselineDa: string;
+		/** The point our runs started from, as the solver stamps it ("baseline.gdx <sha256[:12]>"). */
+		reference: string;
+		/** True when that point is DREAM's own baseline.gdx: both sides are measured from the same path. */
+		sharedBaseline: boolean;
 		levelGapPct: Record<string, number>;
 		/** When the zip and baseline.gdx entered DREAM's repository (read from the checkout by the ETL);
 		 *  null when both came in one commit or the checkout holds another zip. */

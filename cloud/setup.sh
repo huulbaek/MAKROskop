@@ -19,5 +19,11 @@ echo "parsing the scalar system (~1 min) ..."
 uv run python freesolver.py parse
 echo "verifying residuals at the solution point ..."
 uv run python freesolver.py check
+# makroskop-f67: every scenario starts from DREAM's own grundforløb, not from the dump's
+# deep-calibration point. Refuses a baseline that does not solve the dump's equations from 2030.
+echo "taking DREAM's baseline.gdx as the reference point ..."
+uv run python freesolver.py reference --gdx ../data/baseline.gdx
+uv run python freesolver.py check
 echo
-echo "Setup done. Now run:  bash cloud/run.sh"
+echo "Setup done. Check one of DREAM's runs first (cloud/README.md), then:"
+echo "  setsid nohup bash cloud/run_baseline_all.sh > baseline_all.log 2>&1 < /dev/null &"

@@ -9,9 +9,10 @@ export PYTHONUNBUFFERED=1
 
 echo "=============================================================="
 echo "STEP 1  Full-horizon factorization + Newton recovery test"
-echo "        (2,197,277 equations; measures memory + time per iteration)"
+echo "        (the window from 2030; measures memory + time per iteration)"
 echo "=============================================================="
-uv run python freesolver.py newton --from-year 2022 --perturb 1e-4 --max-iter 6
+# from 2030: with DREAM's baseline as the reference point (setup.sh) no window may start before 2026
+uv run python freesolver.py newton --from-year 2030 --perturb 1e-4 --max-iter 6
 
 echo "=============================================================="
 echo "STEP 2  Export the unshocked reference (deviations are measured against this)"

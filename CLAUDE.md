@@ -3,30 +3,28 @@
 Public-facing explorer + license-free solver for MAKRO (DREAM's macroeconomic model
 of Denmark, used by the Finance Ministry). Upstream model: `~/vserver/MAKRO`
 (pristine clone — never modify; we read `Model/deep_dynamic_calibration.zip` and
-`Model/Gdx/baseline.gdx` from it). Current model: MAKRO 2026-September (release commit 7cdf9d4,
-fingerprint bd46c0084e9b; makroskop-ba1): `etl/cache/convert`, `system.npz`, `etl/shock_gdx/` (84 scenarios +
-`_reference.gdx`, solved 2026-10-01/02, KapitalProd 2026-10-04) and the data releases from 2026.10.02 on are all September. The model
-commit in the data is where the files we read (`extract.MODEL_INPUTS`: the zip and `baseline.gdx`)
-last changed upstream, not the clone's HEAD (`extract.input_commit`, makroskop-big); the clone sits
-at 5fd09a3 (DREAM's shock files as re-published 2026-10-09 with KapitalProd = uK × 1.01). Provenance
-of the zip: dumped 2026-09-07 from DREAM's tree `Data_26juli_konjunktur`, committed in fd33edd
-(2026-09-14, README still 2026-June) and not regenerated for the September release, so it carries an
-older formulation (the jrUdl* pole terms, ratio-form CES) than the sources published with it
-(product-form CES since fd33edd, additive jvUdl* terms since 7cdf9d4); `baseline.gdx` is from
-7cdf9d4. Do not pull to `origin/main` outside a model bump: a947c84 (2026-10-29) replaced the zip
-(fingerprint da9b8e59d651, tree `MAKRO-dev\prod`: jv terms and product-form CES like the published
-sources, plus `jrBVTGabError`, which the 2026-September README lists as a new variable although no published
-`.gms` has it, and no `E_snSoc_boern`, which the published `struk.gms` still has; its 2025 nominal GDP is
-2.0 % above the September zip's. Whether it is the September model's own dump or something newer is the
-open question to DREAM; makroskop-7y5, makroskop-rtx), and `extract.py` reads the fingerprint from the clone. The June
-2026 model and runs are parked: zip, baseline, dump and `system.npz` in
-`etl/cache/parked/model_jun2026/`, the 82 June scenario GDX files in
-`etl/cache/parked/shock_gdx_jun2026/`, the June-sized proposal solve in
-`etl/cache/parked/proposal_gdx_junesizing/`. A model-version bump = pull the clone, re-run
-`freesolver.py parse`/`check` (the variable count is read from `dict.txt`), export the reference,
-`cloud/run_sep_all.sh` on the box (generated from `catalog.expected_stamp`, so stamps match by
-construction), `extract.py`, `dream_comparison.py` (DREAM's shock files are in the clone), `bun run proposals:specs` +
-`cloud/run_proposals.sh`, `data:release`.
+`Model/Gdx/baseline.gdx` from it). Current model: MAKRO 2026-September on the zip of
+2026-10-29 (clone at origin/main 41f0b5c; model commit a947c84, fingerprint da9b8e59d651;
+makroskop-f67). Every scenario starts from DREAM's own grundforløb: `freesolver.py reference --gdx
+baseline.gdx` loads all 5.85 mio. variables of `Model/Gdx/baseline.gdx` into `system.npz` (it solves
+the dump's equations from 2026 on, max residual 9e-11), `_reference.gdx` is that point exported, and
+every scenario GDX is stamped with the reference it started from; `extract.py` and
+`dream_comparison.py` refuse a mix. The model commit in the data is where the files we read
+(`extract.MODEL_INPUTS`: the zip and `baseline.gdx`) last changed upstream, not the clone's HEAD
+(`extract.input_commit`, makroskop-big). Parked: the September model as published until 2026.11.24
+(zip of 2026-09-07, fingerprint bd46c0084e9b, solved from the zip's own calibration point) in
+`etl/cache/parked/model_sep2026/` with its scenario GDX files in `etl/cache/parked/shock_gdx_sep2026/`
+(on the box: `etl/shock_gdx_sep2026`, `proposal_gdx_sep2026`); the June 2026 model in
+`etl/cache/parked/model_jun2026/`, its 82 scenario GDX files in `etl/cache/parked/shock_gdx_jun2026/`,
+the June-sized proposal solve in `etl/cache/parked/proposal_gdx_junesizing/`. A model-version bump = park the
+current model, pull the clone, re-run `freesolver.py parse`/`check` (the variable count is read from
+`dict.txt`), `freesolver.py reference --gdx <clone>/Model/Gdx/baseline.gdx` and `check` again (both are
+in `cloud/setup.sh`), `cloud/run_baseline_all.sh` on the box (exports `_reference.gdx`, then the
+`cloud/run_sep_all.sh` list, generated from `catalog.expected_stamp`, so stamps match by
+construction), `extract.py`, `multipliers.py`, `cloud/run_dream_replay.sh` on the box (DREAM's shock files replayed: the
+exact check; results in the gitignored `etl/shock_gdx_replay/`, without which `dream_comparison.py`
+writes `replay: null`), `dream_comparison.py` (DREAM's shock files are in the clone), `bun run
+proposals:specs` + `cloud/run_proposals.sh` + `proposals_check.py`, `data:release`.
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:6cd5cc61 -->
 ## Beads Issue Tracker
@@ -125,8 +123,9 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
   closure, profile, from_year) disagrees with its `catalog.SHOCK_RUNS` entry, so re-solving at
   a new size means updating the catalog (and its Danish wording) first; the stamp ships as
   `solved` in each scenario JSON (makroskop-gnp.1). Tests: `uv run --with pytest pytest tests`.
-  `freesolver.py` is the license-free solver: parse / check / jacobian / newton /
-  oracle / solve-export / export-baseline. Cache in `etl/cache/` (regenerable).
+  `freesolver.py` is the license-free solver: parse / check / reference (take a solution file as the
+  starting point) / jacobian / newton / oracle / solve-export (`--replay FILE` re-runs another solver's
+  run from its exogenous values) / export-baseline. Cache in `etl/cache/` (regenerable).
 - Deploy: `Dockerfile` (bun build → nginx), built by a Dockerfile-based PaaS from this repo;
   push to `main` redeploys the public instance. Host details: `bd memories deploy`.
 - `cloud/` — rented-box workflow: `pack.sh` (local bundle) → `setup.sh` → `run.sh` /
@@ -134,9 +133,30 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
 
 ## Critical knowledge (learned the hard way)
 
-- Solver scenarios MUST be compared against `etl/shock_gdx/_reference.gdx` (the zip's
-  calibration point), never `baseline.gdx` — they differ 0.3–9% on levels. extract.py
-  handles this automatically when `_reference.gdx` exists.
+- REFERENCE POINT (makroskop-f67, 2026-11-24/25). The zip holds the model at DREAM's
+  deep-dynamic-calibration savepoint (`Model/gekko_equations.py`), while `baseline.gdx` is that plus
+  the calibration to 2023–2025 data (`Model/run_calibration.py`): two points of the same model,
+  apart on levels (2030, the 29 Oct dump: employment 0.05 %, real GDP 1.8 %, nominal GDP 7 %, house prices
+  12.5 %). Until release 2026.11.24 scenarios were solved from the zip's point and
+  compared with DREAM's runs from `baseline.gdx`; that was the "two reference points" gap. Now
+  `freesolver.py reference` makes `baseline.gdx` the starting point, and scenarios are compared against
+  `etl/shock_gdx/_reference.gdx`, its export (extract.py does this when the file exists and refuses
+  scenarios stamped with another reference). The baseline does not solve the equations before 2026
+  (calibration years), so no window may start earlier (`reference_valid_from`; solve-export refuses).
+  A new zip + baseline pair is checked the same way: `reference` aborts unless the baseline solves
+  the dump from 2030. `etl/residuals_at.py TARGET.gdx [--overlay baseline.gdx]` evaluates any solution
+  file in the cached dump's equations and names the ones it violates.
+- DREAM'S FIRST-PERIOD RULE (makroskop-f67). Equations the model source restricts to `tx1[t]` are not
+  defined in the first period of a run: firms' discount rate and factor (`rVirkDisk`, `fVirkDisk`), the
+  financial-friction terms (`rFinAccelPrem`, `dFinFriktion`), `rVirkDiskPrem[spTot]`, `rAktieDrift`,
+  `sfVirkDisk`, `sdOpslagOmk2dnLlag` — 11 equation symbols, 39 instances. DREAM's shock runs start in
+  the shock year, so these variables stay at baseline in 2030; the dump (first period 2022) has their
+  2030 equations, and solving them let the discount rate jump in the shock year (Rente: BNP 2030 −0.83
+  instead of DREAM's −0.77). `Window` now leaves them out and holds the variables
+  (`first_period_instances`); the list is read from the conditions in `raw.gms`, because the dump cannot
+  tell `tx1[t]` from `tforecast[t]` (E_fhL, E_fqProd_spTot, E_jfnOrlov_spTot, E_rVirkAkt_Guld are
+  missing in 2022 for the calendar reason and ARE solved in the shock year). Found by evaluating
+  DREAM's own Rente_ufin.gdx in our equations: 12 instances of 2030 failed, nothing else.
 - Full-horizon (2.2M eq) direct factorization needs ~64GB → rented x86 Ubuntu box
   (see `cloud/README.md`). A 16GB laptop manages ≤ ~12-year windows.
 - Linear solvers: verified backend chain in `make_direct_solver` — MKL Pardiso with
@@ -160,7 +180,8 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
   converged stages; the checkpoint carries `prev_x`/`prev_share`), falling back to the
   zero-order start when its residual is lower — 2–80× smaller start residuals on the
   12-year test, identical solution to 1e-11.
-- THE POLE: in the calibration configuration the implied-rate j-terms `jrUdlAktRenter`,
+- THE POLE (dumps up to 2026-09-07 only; from the 2026-10-29 dump DREAM's j-terms are additive
+  `jvUdl*`, there is no pole and the code below is a no-op): in the calibration configuration the implied-rate j-terms `jrUdlAktRenter`,
   `jrUdlPasRenter`, `jrUdlAktOmv`, `jrUdlPasOmv` are endogenous (`jr = income·fv/stock − r`),
   and `vUdlAkt(Obl)` crosses zero in 2064/65 → jr has a pole that every shock moves. That
   single equation instance caused all the "line search failed"/tiny-alpha grinds (found with

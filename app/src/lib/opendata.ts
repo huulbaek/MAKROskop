@@ -210,7 +210,7 @@ ${m.changelog}
 
 Hvert scenarie er ét stød til MAKRO – DREAM-gruppens makroøkonomiske model af Danmark – løst med
 MAKROskops frie løser over hele modellens horisont (til 2129; filerne går til 2100). Tallene er
-afvigelser fra modellens kalibrerede referenceforløb: pct. for mængder og priser, pct.-point for
+afvigelser fra modellens grundforløb (DREAMs baseline.gdx): pct. for mængder og priser, pct.-point for
 satser, andele og saldi (se \`ordbog.csv\`). Stødet sættes ind i 2030. Varianterne:
 _ufin = permanent og ufinansieret; _perm = permanent og finansieret med den beregningstekniske
 lukkeskat, så den offentlige nettoformue i 2129 udgør samme andel af BNP som i grundforløbet.

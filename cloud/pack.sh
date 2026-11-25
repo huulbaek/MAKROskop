@@ -9,7 +9,7 @@ STAGE="$(mktemp -d)/makroskop-cloud"
 mkdir -p "$STAGE/etl/shock_gdx" "$STAGE/data" "$STAGE/cloud"
 
 cp "$ROOT"/etl/*.py "$ROOT"/etl/proposal_specs.json "$ROOT"/etl/pyproject.toml "$ROOT"/etl/uv.lock "$STAGE/etl/"
-cp "$ROOT"/cloud/setup.sh "$ROOT"/cloud/run.sh "$ROOT"/cloud/run_batch2.sh "$ROOT"/cloud/run_batch3.sh "$ROOT"/cloud/run_batch4.sh "$ROOT"/cloud/run_all_2030.sh "$ROOT"/cloud/run_extra_2030.sh "$ROOT"/cloud/run_sep11.sh "$ROOT"/cloud/run_sep_all.sh "$ROOT"/cloud/run_proposals.sh "$ROOT"/cloud/relaunch_after_stage.sh "$STAGE/cloud/"
+cp "$ROOT"/cloud/setup.sh "$ROOT"/cloud/run.sh "$ROOT"/cloud/run_batch2.sh "$ROOT"/cloud/run_batch3.sh "$ROOT"/cloud/run_batch4.sh "$ROOT"/cloud/run_all_2030.sh "$ROOT"/cloud/run_extra_2030.sh "$ROOT"/cloud/run_sep11.sh "$ROOT"/cloud/run_sep_all.sh "$ROOT"/cloud/run_baseline_all.sh "$ROOT"/cloud/run_dream_replay.sh "$ROOT"/cloud/run_proposals.sh "$ROOT"/cloud/relaunch_after_stage.sh "$STAGE/cloud/"
 cp "$MAKRO/Model/deep_dynamic_calibration.zip" "$STAGE/data/"
 cp "$MAKRO/Model/Gdx/baseline.gdx" "$STAGE/data/"
 

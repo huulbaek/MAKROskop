@@ -377,6 +377,39 @@ def stamp_errors(found: dict[str, list[tuple[str, Path]]]) -> list[str]:
     ]
 
 
+def reference_errors(reference_stamp: dict[str, str], scenario_stamps: dict[str, dict[str, str]]) -> list[str]:
+    """Scenarios that did not start from the point in _reference.gdx (makroskop-f67).
+
+    Every deviation is measured against that file, so a scenario solved from another point (the zip's
+    calibration point, or another baseline.gdx) would ship the gap between the two points as an effect.
+    Files stamped before the field existed started from the calibration point.
+    """
+    want = reference_stamp.get("reference", "calibration point")
+    return [f"{name}: solved from '{got}', but _reference.gdx is '{want}'"
+            for name, stamp in scenario_stamps.items()
+            if (got := stamp.get("reference", "calibration point")) != want]
+
+
+def reference_baseline_errors(reference_stamp: dict[str, str], baseline_sha256: str) -> list[str]:
+    """A reference taken from another baseline.gdx than the checkout's (makroskop-f67): baseline.json and
+    the model commit are read from the checkout, so the scenarios must have started from that very file."""
+    got = reference_stamp.get("reference", "calibration point")
+    if got.startswith("baseline.gdx ") and got != f"baseline.gdx {baseline_sha256[:12]}":
+        return [f"_reference.gdx was taken from '{got}', but the MAKRO checkout's baseline.gdx is {baseline_sha256[:12]}"]
+    return []
+
+
+def first_period_errors(scenario_stamps: dict[str, dict[str, str]]) -> list[str]:
+    """Scenarios solved under another first-period rule than the rest (freesolver Window.first_period):
+    with and without it, the shock year differs."""
+    stamped = {name: stamp.get("first_period", "not stamped") for name, stamp in scenario_stamps.items()}
+    if len(set(stamped.values())) <= 1:
+        return []
+    common = max(set(stamped.values()), key=list(stamped.values()).count)
+    return [f"{name}: first period '{got}', the other scenarios '{common}'"
+            for name, got in stamped.items() if got != common]
+
+
 def solved_spec(solver_meta: dict[str, str]) -> dict | None:
     """The shock as the solver ran it, for the scenario JSON (the catalog `definition` is the wording).
 
@@ -486,6 +519,16 @@ def main() -> None:
         raise SystemExit("solver stamp disagrees with the catalog (etl/catalog.py SHOCK_RUNS):\n  "
                          + "\n  ".join(errors))
 
+    reference_path = args.shocks_dir / "_reference.gdx"
+    if reference_path.exists():
+        stamps = {gdx_path.name: read_stamp(gdx_path) for variants in found.values() for _, gdx_path in variants}
+        reference_stamp = read_stamp(reference_path)
+        baseline_sha = hashlib.sha256((args.makro_root / "Model/Gdx/baseline.gdx").read_bytes()).hexdigest()
+        if errors := (reference_errors(reference_stamp, stamps) + reference_baseline_errors(reference_stamp, baseline_sha)
+                      + first_period_errors(stamps)):
+            raise SystemExit("scenarios, _reference.gdx and the MAKRO checkout do not belong together:\n  "
+                             + "\n  ".join(errors))
+
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "shocks").mkdir(exist_ok=True)
 
@@ -494,8 +537,9 @@ def main() -> None:
     factors = read_trend_factors(baseline)
     detrended, columns = extract_baseline(baseline)
 
-    # Solver-produced shock GDXs must be compared against the solver's own unshocked
-    # reference (the calibration point), which can differ slightly from baseline.gdx.
+    # Solver-produced shock GDXs are compared against the point they started from, exported as
+    # _reference.gdx: DREAM's baseline.gdx since makroskop-f67 (the stamps were checked above), the
+    # zip's own calibration point before that.
     reference_path = args.shocks_dir / "_reference.gdx"
     if reference_path.exists():
         print("Reading solver reference (_reference.gdx) for shock comparisons ...")

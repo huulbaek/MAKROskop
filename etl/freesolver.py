@@ -430,6 +430,7 @@ class System:
         self.rhs = data["rhs"]
         self.levels = data["levels"]
         self.is_fixed = data["is_fixed"]
+        self.reference = stored_reference(data)  # None: the dump's own calibration point
         self.n_eq = len(self.rhs)
         self._index_free()
         var_counts = np.add.reduceat((self.code == OP_VAR).astype(np.int64), self.eq_offsets[:-1])
@@ -598,6 +599,225 @@ def export_solution_gdx(convert_dir: Path, x: np.ndarray, out_path: Path,
     print(f"wrote {out_path} ({written:,} symbols, {sum(len(v) for v in records.values()):,} records)")
 
 
+# ---------------------------------------------------------------------------------------------------
+# Reference point (makroskop-f67). The zip holds the model at DREAM's deep-dynamic-calibration savepoint
+# (Model/gekko_equations.py), while DREAM's baseline.gdx is that plus the calibration to newer national
+# accounts (Model/run_calibration.py) - a different point of the same model: it solves the dump's
+# equations from 2030 on (etl/residuals_at.py, 2026-11-24). `reference --gdx baseline.gdx` makes
+# that point the one every scenario starts from and is measured against, as in DREAM's own shock runs.
+# ---------------------------------------------------------------------------------------------------
+REFERENCE_TOL = 1e-6  # |residual| a reference point may leave in an equation it is said to solve
+
+
+def dict_variable_names(convert_dir: Path, n_vars: int) -> list[str]:
+    """The dump's variables by name ('vBNP(2030)') in x order."""
+    names: list[str] = []
+    with (convert_dir / "dict.txt").open(encoding="utf-8") as handle:
+        in_vars = False
+        for line in handle:
+            if line.startswith("Variables "):
+                in_vars = True
+                continue
+            if not in_vars:
+                continue
+            parts = line.split()
+            if len(parts) >= 2 and parts[0][0] == "x" and parts[0][1:].isdigit():
+                names.append(parts[1])
+    if len(names) != n_vars:
+        raise SystemExit(f"{convert_dir / 'dict.txt'} lists {len(names)} variables, the parsed system has {n_vars}")
+    return names
+
+
+def gdx_point(path: Path) -> tuple[dict[str, float], set[str]]:
+    """A solution file as {'name(keys)': value} plus the symbols it declares, all lower-cased (GAMS
+    names are case-insensitive). Variables give their level, parameters their value."""
+    import gams.transfer as gt
+    import gamspy_base
+
+    container = gt.Container(str(path), system_directory=gamspy_base.directory)
+    point: dict[str, float] = {}
+    symbols: set[str] = set()
+    for name, symbol in container.data.items():
+        if isinstance(symbol, gt.Variable):
+            column = "level"
+        elif isinstance(symbol, gt.Parameter):
+            column = "value"
+        else:
+            continue
+        symbols.add(name.lower())
+        records = symbol.records
+        if records is None or not len(records):
+            continue
+        values = records[column].to_numpy(dtype=float)
+        ndim = symbol.dimension
+        if ndim == 0:
+            point[name.lower()] = float(values[0])
+            continue
+        keys = records.iloc[:, 0].astype(str)
+        for i in range(1, ndim):
+            keys = keys + "," + records.iloc[:, i].astype(str)
+        point.update(zip((name + "(" + keys + ")").str.lower().tolist(), values.tolist()))
+    return point, symbols
+
+
+def reference_point(names: list[str], dump_levels: np.ndarray, point: dict[str, float],
+                    symbols: set[str]) -> tuple[np.ndarray, dict[str, int]]:
+    """Every variable of the dump at the value a solution file gives it.
+
+    A record the file does not hold is 0 where the file declares the symbol (GAMS drops a free variable
+    at level 0 from the GDX). A symbol the file lacks altogether, or an undefined value, is an error:
+    there is nothing to start from. The report counts the matches and the zeros (`dump_levels` only
+    tells how many of the zeros replace a nonzero level of the dump).
+    """
+    x = np.zeros(len(names))
+    matched = zero = zero_but_nonzero = 0
+    missing: dict[str, int] = {}
+    undefined: list[str] = []
+    for i, name in enumerate(names):
+        key = name.lower()
+        value = point.get(key)
+        if value is None:
+            symbol = name.partition("(")[0]
+            if symbol.lower() not in symbols:
+                missing[symbol] = missing.get(symbol, 0) + 1
+                continue
+            zero += 1
+            zero_but_nonzero += bool(dump_levels[i] != 0)
+        elif value != value:
+            undefined.append(name)
+        else:
+            x[i] = value
+            matched += 1
+    if missing:
+        raise SystemExit("the reference file holds no symbol for: "
+                         + ", ".join(f"{symbol} ({count} instances)" for symbol, count in missing.items()))
+    if undefined:
+        raise SystemExit(f"the reference file leaves {len(undefined)} variables undefined (UNDF/NA), e.g. "
+                         + ", ".join(undefined[:5]))
+    return x, {"matched": matched, "zero": zero, "zero_but_nonzero_in_dump": zero_but_nonzero}
+
+
+def reference_valid_from(eq_year: np.ndarray, residual: np.ndarray, tol: float = REFERENCE_TOL) -> int | None:
+    """First year from which every dated equation holds at the reference point, or None when the last
+    year has one that does not. Equations without a year are in no window and are left out."""
+    dated = eq_year > 0
+    years = eq_year[dated]
+    violated = ~(np.abs(residual[dated]) <= tol)  # a NaN residual counts as violated
+    if not violated.any():
+        return int(years.min())
+    later = years[years > years[violated].max()]
+    return int(later.min()) if len(later) else None
+
+
+def stored_reference(data) -> dict | None:
+    """The reference point recorded in system.npz by `reference`, or None for the dump's own point."""
+    import json
+
+    return json.loads(str(data["reference"])) if "reference" in data else None
+
+
+def require_window_on_reference(reference: dict | None, from_year: int) -> None:
+    """A window may only start where the reference point solves the equations: before that the
+    unshocked start is not a solution, and Newton would 'correct' the baseline itself."""
+    if reference is not None and from_year < reference["valid_from"]:
+        raise SystemExit(f"--from-year {from_year} starts before the reference point holds: {reference['file']} "
+                         f"solves the equations from {reference['valid_from']} on")
+
+
+def reference_stamp(reference: dict | None) -> str:
+    """How a GDX names the point it started from (makroskop_meta 'reference')."""
+    return "calibration point" if reference is None else f"{reference['file']} {reference['sha256'][:12]}"
+
+
+def replay_targets(names: list[str], levels: np.ndarray, is_fixed: np.ndarray, var_year: np.ndarray,
+                   point: dict[str, float], symbols: set[str], from_year: int) -> tuple[np.ndarray, np.ndarray]:
+    """The exogenous path of another solver's run, read off its solution file: every fixed variable dated
+    `from_year` or later that the file moved against the reference, with the file's value as target.
+
+    That covers the instrument and anything an exo/endo swap freed in the other solver (DREAM's
+    Arbejdsudbud run frees uDeltag: here it is simply set to their solved values). Symbols the file does
+    not hold are left alone, a dropped record is 0. A fixed variable moved before `from_year` is an
+    error - the file's run did not start from this reference in that year.
+    """
+    shock_vars: list[int] = []
+    targets: list[float] = []
+    history: list[str] = []
+    for i in np.where(is_fixed)[0]:
+        name = names[i]
+        key = name.lower()
+        if key.partition("(")[0] not in symbols:
+            continue
+        value = point.get(key, 0.0)
+        if value != value:
+            raise SystemExit(f"the file leaves the exogenous {name} undefined (UNDF/NA): nothing to replay it to")
+        if abs(value - levels[i]) <= 1e-12 * max(1.0, abs(levels[i])):
+            continue
+        if 0 < var_year[i] < from_year:
+            history.append(name)
+        else:
+            shock_vars.append(int(i))
+            targets.append(value)
+    if history:
+        raise SystemExit(f"the file moves {len(history)} exogenous values before {from_year}, e.g. "
+                         + ", ".join(history[:5]) + ": it was not solved from this reference from that year")
+    if not shock_vars:
+        raise SystemExit("the file moves no exogenous variable against the reference: nothing to replay")
+    return np.array(shock_vars, dtype=np.int64), np.array(targets)
+
+
+def cmd_reference(convert_dir: Path, gdx_path: Path, valid_by: int) -> None:
+    """Make the point in `gdx_path` the cached system's levels (after `parse`), provided it solves the
+    dump's equations from `valid_by` at the latest."""
+    import hashlib
+    import json
+
+    cache = CACHE_DIR / "system.npz"
+    data = dict(np.load(cache))
+    if "reference" in data:
+        raise SystemExit(f"{cache} already holds the reference point {reference_stamp(stored_reference(data))}; "
+                         "run 'parse' first to start from the dump again")
+    names = dict_variable_names(convert_dir, len(data["levels"]))
+    point, symbols = gdx_point(gdx_path)
+    print(f"{gdx_path.name}: {len(point):,} records in {len(symbols):,} symbols", flush=True)
+    x, report = reference_point(names, data["levels"], point, symbols)
+    del names, point
+    print(f"  {report['matched']:,} variables set from the file, {report['zero']:,} absent records read as 0 "
+          f"({report['zero_but_nonzero_in_dump']:,} of them nonzero in the dump)", flush=True)
+
+    out = np.empty(len(data["rhs"]))
+    make_kernel()(data["code"], data["args"], data["consts"], data["eq_offsets"], data["rhs"], x, out)
+    eq_year, _ = load_years(convert_dir, len(out), len(x))
+    valid_from = reference_valid_from(eq_year, out)
+    absres = np.abs(out)
+    undated = eq_year == 0
+    if undated.any():
+        print(f"  {int(undated.sum()):,} equations carry no year (in no window): max |residual| {absres[undated].max():.3e}")
+    if valid_from is None or valid_from > valid_by:
+        worst = np.argsort(-np.where(eq_year >= valid_by, absres, -1.0))[:10]
+        names_by_eq = equation_names(convert_dir, {int(i) + 1 for i in worst})
+        lines = "\n".join(f"  {names_by_eq.get(int(i) + 1, '?'):<45} res = {out[i]: .3e}" for i in worst)
+        raise SystemExit(f"{gdx_path.name} does not solve the equations from {valid_by} on "
+                         f"(holds from {valid_from}); worst equations from {valid_by}:\n{lines}")
+    scope = eq_year >= valid_from
+    early = (eq_year > 0) & ~scope
+    print(f"  equations from {valid_from} on: {int(scope.sum()):,}, max |residual| {absres[scope].max():.3e}")
+    if early.any():
+        print(f"  equations before {valid_from}: {int(early.sum()):,}, of which {int((absres[early] > REFERENCE_TOL).sum()):,} "
+              f"do not hold at this point (max {absres[early].max():.3e}) - no window may start there")
+    digest = hashlib.sha256()
+    with gdx_path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    reference = {"file": gdx_path.name, "sha256": digest.hexdigest(), "valid_from": valid_from,
+                 "max_residual": float(absres[scope].max()), "set": datetime.date.today().isoformat(), **report}
+    data["levels"] = x
+    data["reference"] = np.array(json.dumps(reference))
+    staged = cache.with_name("system.staged.npz")  # a killed write must not leave half a cache behind
+    np.savez_compressed(staged, **data)
+    os.replace(staged, cache)
+    print(f"reference point {reference_stamp(reference)} written to {cache}: windows may start in {valid_from} or later")
+
+
 def single_shock_targets(convert_dir: Path, system: "System", shock_name: str,
                          shock_years: tuple[int, int] | None, shock_factor: float, shock_delta: float,
                          shock_profile: str, endogenize: str) -> tuple[np.ndarray, np.ndarray]:
@@ -643,7 +863,7 @@ def cmd_solve_export(from_year: int, shock_name: str, shock_years: tuple[int, in
                      shock_factor: float, shock_delta: float, out_path: Path,
                      convert_dir: Path, tol: float, export_stages: bool = False,
                      shock_profile: str = "permanent", endogenize: str = "",
-                     closure: str = "none", package: str = "") -> None:
+                     closure: str = "none", package: str = "", replay: Path | None = None) -> None:
     """Solve a (possibly multi-year) shock with continuation and export the solution as GDX.
 
     With `endogenize`, the shock targets an endogenous variable (e.g. snLHh) and the named
@@ -663,8 +883,24 @@ def cmd_solve_export(from_year: int, shock_name: str, shock_years: tuple[int, in
     permille, ETL symbols only) — free data for measuring how linear the response is.
     """
     system = System()
+    require_window_on_reference(system.reference, from_year)
 
-    if package:
+    replay_label = ""
+    if replay is not None:
+        # the other solver's exogenous path, value for value (makroskop-f67): the result should be its file
+        import hashlib
+
+        _, var_year = load_years(convert_dir, system.n_eq, len(system.levels))
+        point, symbols = gdx_point(replay)
+        shock_vars, targets = replay_targets(dict_variable_names(convert_dir, len(system.levels)), system.levels,
+                                             system.is_fixed, var_year, point, symbols, from_year)
+        del point
+        years = var_year[shock_vars]
+        dated = years[years > 0]
+        shock_years = (int(dated.min()), int(dated.max())) if len(dated) else None
+        replay_label = f"{replay.name} {hashlib.sha256(replay.read_bytes()).hexdigest()[:12]}"
+        print(f"shock: replay of {replay_label} x {len(shock_vars)} exogenous instances (years {shock_years})", flush=True)
+    elif package:
         members = package_members(package)
         shock_vars, targets = package_targets(convert_dir, system, members, shock_years, shock_profile)
         print(f"shock: package {package} x {len(shock_vars)} instances (years {shock_years})", flush=True)
@@ -678,8 +914,9 @@ def cmd_solve_export(from_year: int, shock_name: str, shock_years: tuple[int, in
     meta = {
         "fingerprint": model_fingerprint(convert_dir),
         "solver": "makroskop-freesolver",
-        "shock": "package" if package else shock_name,
+        "shock": "replay" if replay is not None else "package" if package else shock_name,
         "package": package,
+        "replay": replay_label,
         "shock_years": f"{shock_years[0]}-{shock_years[1]}" if shock_years else "",
         "factor": repr(shock_factor),
         "delta": repr(shock_delta),
@@ -687,6 +924,8 @@ def cmd_solve_export(from_year: int, shock_name: str, shock_years: tuple[int, in
         "endogenized": endogenize,
         "closure": closure,
         "from_year": str(from_year),
+        "reference": reference_stamp(system.reference),
+        "first_period": f"{len(window.first_period[0])} equations held",
         "exported": datetime.date.today().isoformat(),
     }
 
@@ -723,6 +962,7 @@ def cmd_lutest(methods: tuple[str, ...], convert_dir: Path, from_year: int = 202
     Guards: child RSS cap AND total swap growth (RSS alone hides swapped-out pages
     — the flaw that let the first run freeze this 16GB machine).
     """
+    require_window_on_reference(stored_reference(np.load(CACHE_DIR / "system.npz")), from_year)
     import subprocess
     import sys
 
@@ -1328,6 +1568,103 @@ def tax_reaction_closure(system: "System", convert_dir: Path, from_year: int) ->
     return extra
 
 
+# DREAM's first-period rule (makroskop-f67). Some equations are only defined after the first period of a
+# run, `$(tx1[t])` in the model source: firms' discount rate E_rVirkDisk_sp, its factor, the financial-
+# friction terms and the share drift rate (finance.gms), the structural discount factor E_sfVirkDisk and
+# the lagged hiring-cost term E_sdOpslagOmk2dnLlag (struk.gms). In the period a run starts, their
+# variables are exogenous - decided the year before. DREAM's shock runs start in the shock year
+# (set_time_periods(shock_year-1, ...)), so there the discount rate does not react in the shock year. The
+# dump was written with 2022 as its first period and therefore has these equations for 2030: solving them
+# let the discount rate jump in the shock year, which DREAM's runs do not (found 2026-11-24/25: DREAM's
+# Rente_ufin.gdx violates exactly these 2030 instances of our system, and holds 39 variables at baseline).
+# The dump cannot tell `tx1[t]` from `tforecast[t]` (E_fhL, E_fqProd_spTot, E_jfnOrlov_spTot,
+# E_rVirkAkt_Guld: missing in 2022 because it is the last data year; DREAM solves them in the shock year),
+# so the conditions are read from raw.gms, gamY's expanded equation listing in the zip.
+_EQUATION_HEAD_RE = re.compile(r"^(E_\w+)(?:\[[^\]]*\])?\$(.*?)\.\.")
+
+
+def first_period_equations(convert_dir: Path) -> set[str]:
+    """Equation symbols whose condition in raw.gms includes tx1[t]: not defined in a run's first period."""
+    listing = convert_dir / "raw.gms"
+    if not listing.exists():
+        raise SystemExit(f"{listing} is missing: the first-period rule is read from the dump's equation listing")
+    symbols: set[str] = set()
+    mentions = 0
+    with listing.open(encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            if "tx1" not in line.lower():
+                continue
+            mentions += 1
+            head = _EQUATION_HEAD_RE.match(line)
+            if head and "tx1[t]" in head.group(2).lower():
+                symbols.add(head.group(1))
+    if mentions != len(symbols):
+        # a wrapped equation head, another spelling of the condition, a new construction: missing one
+        # silently would solve that equation in the shock year again
+        raise SystemExit(f"{listing}: tx1 is mentioned on {mentions} lines, but {len(symbols)} equation heads with a "
+                         "tx1[t] condition were recognised; check first_period_equations against the listing")
+    return symbols
+
+
+def first_period_instances(convert_dir: Path, is_fixed: np.ndarray, from_year: int) -> tuple[np.ndarray, np.ndarray]:
+    """Equation and variable instances dated `from_year` that DREAM's model does not solve in the first
+    period of a run (0-based indices, each sorted).
+
+    The equations are the `from_year` instances of first_period_equations. Each defines the variable gamY
+    named it after (E_<variable>[_<tag>]); its free `from_year` instances are held. The counts must agree
+    per variable, else the window would not be square.
+    """
+    late = {name.lower() for name in first_period_equations(convert_dir)}  # GAMS names are case-insensitive
+    eq_now: dict[str, list[int]] = {}          # tx1 equation symbol -> indices dated from_year
+    free_now: dict[str, list[int]] = {}        # variable symbol -> free indices dated from_year
+    variable_symbols: set[str] = set()
+    tail = f"{from_year})"
+    section = ""
+    with (convert_dir / "dict.txt").open(encoding="utf-8") as handle:
+        for line in handle:
+            if line.startswith("Equations "):
+                section = "e"
+                continue
+            if line.startswith("Variables "):
+                section = "x"
+                continue
+            if not section:
+                continue
+            parts = line.split()
+            if len(parts) < 2 or not parts[0][1:].isdigit():
+                continue
+            symbol, _, rest = parts[1].partition("(")
+            if section == "x" and parts[0][0] == "x":
+                variable_symbols.add(symbol)
+            if not rest.endswith(tail) or (len(rest) > len(tail) and rest[-len(tail) - 1] != ","):
+                continue
+            index = int(parts[0][1:]) - 1
+            if section == "e" and parts[0][0] == "e":
+                if symbol.lower() in late:
+                    eq_now.setdefault(symbol, []).append(index)
+            elif section == "x" and parts[0][0] == "x" and not is_fixed[index]:
+                free_now.setdefault(symbol, []).append(index)
+
+    wanted: dict[str, list[str]] = {}           # variable symbol -> the tx1 equation symbols defining it
+    for equation in sorted(eq_now):
+        rest = equation[2:].lower()
+        owners = [v for v in variable_symbols if rest == v.lower() or rest.startswith(v.lower() + "_")]
+        if not owners:
+            raise SystemExit(f"first period: no variable matches the equation {equation}")
+        wanted.setdefault(max(owners, key=len), []).append(equation)
+    equations: list[int] = []
+    variables: list[int] = []
+    for symbol, names in wanted.items():
+        dropped = [index for name in names for index in eq_now[name]]
+        held = free_now.get(symbol, [])
+        if len(dropped) != len(held):
+            raise SystemExit(f"first period {from_year}: {', '.join(names)} have {len(dropped)} instances but "
+                             f"{symbol} has {len(held)} free ones to hold; the window would not be square")
+        equations += dropped
+        variables += held
+    return np.array(sorted(equations), dtype=np.int64), np.array(sorted(variables), dtype=np.int64)
+
+
 class Window:
     """A trailing time-window of the system: equations/free vars with year >= from_year.
 
@@ -1343,6 +1680,7 @@ class Window:
 
     def __init__(self, system: System, convert_dir: Path, from_year: int,
                  extra: ExtraEquations | None = None):
+        require_window_on_reference(getattr(system, "reference", None), from_year)
         self.system = system
         self.extra = extra
         self.convert_dir = convert_dir
@@ -1361,6 +1699,13 @@ class Window:
         keep_eq[[e for e, _ in pairs]] = False
         keep_var = np.ones(len(system.levels), dtype=bool)
         keep_var[[v for _, v in pairs]] = False
+        # DREAM's first-period rule: not solved in the window's first year, their variables stay put
+        self.first_period = first_period_instances(convert_dir, system.is_fixed, from_year)
+        keep_eq[self.first_period[0]] = False
+        keep_var[self.first_period[1]] = False
+        if len(self.first_period[0]):
+            print(f"first period {from_year}: {len(self.first_period[0])} equations the model only defines after the "
+                  f"first period of a run are left out; their variables stay at the reference", flush=True)
         self.eq_sel = np.where((eq_year >= from_year) & keep_eq)[0]
         free_year = var_year[system.free_ids]
         var_sel = np.where((free_year >= from_year) & keep_var[system.free_ids])[0]
@@ -1568,6 +1913,22 @@ def solve_window(system: System, window: Window, x: np.ndarray,
     return norm
 
 
+def checkpoint_matches(checkpoint: np.ndarray, share: float, x: np.ndarray, shock_vars: np.ndarray,
+                       base_values: np.ndarray, deltas: np.ndarray, is_fixed: np.ndarray) -> bool:
+    """Whether a continuation checkpoint is a stage of THIS run: same dump (length), the instruments at
+    `share` of this shock, and every other exogenous value as in the current reference. A checkpoint left
+    by a run from another reference point or another shock size carries the old name and must not be
+    resumed (they are keyed by output file only)."""
+    if len(checkpoint) != len(x):
+        return False
+    want = base_values + share * deltas
+    if not np.allclose(checkpoint[shock_vars], want, rtol=1e-9, atol=1e-12):
+        return False
+    others = is_fixed.copy()
+    others[shock_vars] = False
+    return bool(np.array_equal(checkpoint[others], x[others]))
+
+
 def solve_shock(system: System, window: Window, x: np.ndarray, shock_vars: np.ndarray,
                 target_values: np.ndarray, tol: float = 1e-9,
                 checkpoint_path: Path | None = None,
@@ -1599,6 +1960,9 @@ def solve_shock(system: System, window: Window, x: np.ndarray, shock_vars: np.nd
 
     if checkpoint_path is not None and checkpoint_path.exists():
         saved = np.load(checkpoint_path)
+        if not checkpoint_matches(saved["x"], float(saved["share"]), x, shock_vars, base_values, deltas, system.is_fixed):
+            raise SystemExit(f"{checkpoint_path} is not a stage of this run (another reference point, shock or dump): "
+                             "delete it to start the continuation afresh")
         checkpoint = saved["x"]
         solved_share = float(saved["share"])
         step = float(saved["step"])
@@ -2154,6 +2518,9 @@ def cmd_oracle(from_year: int, shock_name: str, shock_factor: float, shock_delta
                convert_dir: Path, tol: float, max_iter: int, reuse_gams: bool = False) -> None:
     """Solve the same shocked window with GAMS/IPOPT and with the free Newton solver; compare."""
     system = System()
+    if system.reference is not None:
+        raise SystemExit(f"oracle: gams.gms starts from the dump's own point, system.npz from {reference_stamp(system.reference)}; "
+                         "run 'parse' to drop the reference point before comparing the two solvers")
     window = Window(system, convert_dir, from_year)
     print(f"window: {len(window.eq_sel):,} equations ({window.n_years} years)")
 
@@ -2247,12 +2614,20 @@ def cmd_check(convert_dir: Path) -> None:
     evaluate(code, args, consts, eq_offsets, rhs, levels, out)
     print(f"residual pass: {time.time() - started:.1f}s")
 
-    absres = np.abs(out)
-    finite = np.isfinite(out)
+    # With a reference point (`reference`), only the years it is valid for are expected to hold.
+    reference = stored_reference(data)
+    scope = np.ones(len(out), dtype=bool)
+    if reference is not None:
+        eq_year, _ = load_years(convert_dir, len(out), len(levels))
+        scope = eq_year >= reference["valid_from"]
+        print(f"reference point: {reference_stamp(reference)}; judging the {int(scope.sum()):,} equations "
+              f"from {reference['valid_from']} on")
+    absres = np.where(scope, np.abs(out), 0.0)
+    finite = np.isfinite(out) | ~scope
     print(f"non-finite residuals: {int((~finite).sum()):,}")
     print(f"max |residual|:    {absres[finite].max():.3e}")
-    print(f"p99.9 |residual|:  {np.percentile(absres[finite], 99.9):.3e}")
-    print(f"p50 |residual|:    {np.percentile(absres[finite], 50):.3e}")
+    print(f"p99.9 |residual|:  {np.percentile(absres[finite & scope], 99.9):.3e}")
+    print(f"p50 |residual|:    {np.percentile(absres[finite & scope], 50):.3e}")
     for tol in (1e-3, 1e-5, 1e-7):
         print(f"equations with |res| > {tol:g}: {int((absres > tol).sum()):,}")
 
@@ -2268,7 +2643,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command",
                         choices=["parse", "check", "jacobian", "newton", "lutest", "_lu_child",
-                                 "structure", "oracle", "solve-export", "export-baseline"])
+                                 "structure", "oracle", "solve-export", "export-baseline", "reference"])
+    parser.add_argument("--gdx", type=Path, default=None,
+                        help="reference: the solution file whose point replaces the dump's (DREAM's baseline.gdx)")
+    parser.add_argument("--valid-by", type=int, default=2030,
+                        help="reference: the file must solve the dump's equations from this year at the latest")
     parser.add_argument("--shock-name", default="",
                         help="exact instance 'rRenteECB(2124)', symbol 'rRenteECB' with --shock-years, "
                              "or a comma-separated bundle 'pM,pXUdl' (solve-export); a member 'name@weight' "
@@ -2301,6 +2680,9 @@ def main() -> None:
                              "(permanent | ar = 0.9^dt | linear = 1-0.25dt | blip = first year only)")
     parser.add_argument("--export-stages", action="store_true",
                         help="solve-export: also write each converged continuation stage as <out>_sNNN.gdx")
+    parser.add_argument("--replay", type=Path, default=None,
+                        help="solve-export: another solver's solution file; every exogenous variable it moved "
+                             "against the reference is set to its value (instead of --shock-name/--package)")
     parser.add_argument("--package", default="",
                         help="solve-export: a /pakke/ query 'Topskat=-0.8&Offentligt_forbrug=-0.3' solved as "
                              "one run (catalog runs, scales as weights; makroskop-48o). Use with --shock-years.")
@@ -2309,6 +2691,10 @@ def main() -> None:
         cmd_parse(parsed.convert_dir)
     elif parsed.command == "check":
         cmd_check(parsed.convert_dir)
+    elif parsed.command == "reference":
+        if parsed.gdx is None:
+            raise SystemExit("reference: give the solution file with --gdx")
+        cmd_reference(parsed.convert_dir, parsed.gdx, parsed.valid_by)
     elif parsed.command == "jacobian":
         cmd_jacobian()
     elif parsed.command == "lutest":
@@ -2326,11 +2712,14 @@ def main() -> None:
         export_solution_gdx(parsed.convert_dir, data["levels"], parsed.out, meta={
             "fingerprint": model_fingerprint(parsed.convert_dir),
             "solver": "makroskop-freesolver", "kind": "reference",
+            "reference": reference_stamp(stored_reference(data)),
             "exported": datetime.date.today().isoformat(),
         })
     elif parsed.command == "solve-export":
-        if parsed.package and parsed.shock_name:
-            raise SystemExit("solve-export: --package and --shock-name are mutually exclusive")
+        if sum(bool(choice) for choice in (parsed.package, parsed.shock_name, parsed.replay)) > 1:
+            raise SystemExit("solve-export: --package, --shock-name and --replay are mutually exclusive")
+        if parsed.replay and parsed.endogenize:
+            raise SystemExit("solve-export: --replay takes the other solver's values as they are; --endogenize does not apply")
         years = None
         if parsed.shock_years:
             lo, _, hi = parsed.shock_years.partition("-")
@@ -2338,7 +2727,8 @@ def main() -> None:
         cmd_solve_export(parsed.from_year, parsed.shock_name, years, parsed.shock_factor,
                          parsed.shock_delta, parsed.out, parsed.convert_dir, parsed.tol,
                          export_stages=parsed.export_stages, shock_profile=parsed.shock_profile,
-                         endogenize=parsed.endogenize, closure=parsed.closure, package=parsed.package)
+                         endogenize=parsed.endogenize, closure=parsed.closure, package=parsed.package,
+                         replay=parsed.replay)
     else:
         cmd_newton(parsed.perturb, parsed.max_iter, parsed.tol, parsed.from_year, parsed.convert_dir)
 

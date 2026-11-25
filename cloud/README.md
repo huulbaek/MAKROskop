@@ -37,8 +37,11 @@ Sluk maskinen, når `run.log` er i hus — timeprisen løber, til den slettes.
 
 1. **Fuld-horisont Newton-test** (2.197.277 ligninger, forstyrret start): måler
    hukommelse og tid pr. iteration og beviser, at fuld skala virker på boksen.
-2. **`_reference.gdx`**: den uforstyrrede løsning. Stød-afvigelser måles mod den
-   (kalibreringspunktet afviger 0,3–9 pct. fra baseline.gdx, så dette er obligatorisk).
+2. **`_reference.gdx`**: den uforstyrrede løsning. Stød-afvigelser måles mod den. Siden
+   makroskop-f67 (november 2026) er udgangspunktet DREAMs eget grundforløb: `cloud/setup.sh`
+   kører `freesolver.py reference --gdx ../data/baseline.gdx`, som læser alle variable fra
+   `baseline.gdx` ind i systemet (zip'ens eget kalibreringspunkt ligger 0,3–9 pct. derfra og
+   bruges ikke længere), og `_reference.gdx` er det punkt eksporteret.
 3. **`Rente_perm.gdx`**: ECB-renten +100 bp permanent fra 2030 (kontinuationsløseren).
 4. **`Oliepris_perm.gdx`**: Brent +10 pct. permanent fra 2030.
 
@@ -108,16 +111,25 @@ og publicér grundforløb + scenarier i ét push.
 1. **Lokalt:** `git -C ~/vserver/MAKRO pull` (den uberørte klon). Notér README-titlen og
    `git rev-parse --short HEAD`. Kør `cloud/pack.sh` — bundtet indeholder den nye zip og
    baseline.
-2. **På boksen:** udpak i en *ny* mappe (ikke oven i den gamle: `etl/cache/` og
-   `system.npz` hører til den gamle version). `bash cloud/setup.sh` skal slutte med
-   max |res| ~1e-9 — ellers har parseren mødt nye konstruktioner; stop her.
-3. **Ny reference:** `uv run python freesolver.py export-baseline --out shock_gdx/_reference.gdx`.
-   Filen stemples med modellens fingerprint (sha256 af `raw.gms`), som `extract.py`
-   sammenholder med zip'en i MAKRO-klonen.
-4. **Genløs alle scenarier:** `shock_gdx/` skal være tom for gamle filer — `run_batch2.sh`
-   springer eksisterende `.gdx` over. Kør `cloud/run.sh`-scenarierne og
-   `cloud/run_batch2.sh` (gerne med `--export-stages`, se nedenfor). Budget: 2–3 timer pr.
-   stød på en 16-kerners boks, dvs. omkring et døgn for ti stød; prisen er boksens timepris.
+2. **På boksen:** flyt den gamle versions filer til side først (`etl/shock_gdx/*.gdx`,
+   `etl/proposal_gdx`, `etl/cache/convert`, `etl/cache/system.npz`), og udpak så bundtet.
+   `bash cloud/setup.sh` parser zip'en (max |res| ~1e-9 — ellers har parseren mødt nye
+   konstruktioner; stop her) og tager derefter `baseline.gdx` som udgangspunkt
+   (`freesolver.py reference`). Det trin stopper, hvis grundforløbet ikke løser zip'ens
+   ligninger fra 2030 — så hører zip og `baseline.gdx` ikke til samme model, og DREAM må spørges.
+3. **Tjek mod DREAM først:** kopiér DREAMs `Analysis/Standard_shocks/Gdx/*_ufin.gdx` til
+   `data/dream/` og genregn ét af dem, før hele batchet får lov at køre: `uv run python
+   freesolver.py solve-export --from-year 2030 --replay ../data/dream/Rente_ufin.gdx --out
+   shock_gdx_replay/replay_Rente_ufin.gdx`. Samme model, samme udgangspunkt og samme input skal
+   give DREAMs fil igen (`etl/residuals_at.py` viser, hvilke ligninger DREAMs løsning ikke
+   opfylder, hvis det ikke gør). `cloud/run_dream_replay.sh` genregner alle filerne.
+4. **Reference og scenarier:** `setsid nohup bash cloud/run_baseline_all.sh > baseline_all.log
+   2>&1 < /dev/null &` eksporterer `shock_gdx/_reference.gdx` og løser alle katalogets scenarier
+   (listen i `cloud/run_sep_all.sh`). Hver fil stemples med modellens fingerprint (sha256 af
+   `raw.gms`), det udgangspunkt, den er løst fra (`reference`), og første-periode-reglen
+   (`first_period`); `extract.py` sammenholder dem og nægter en blanding. `shock_gdx/` skal være
+   tom for gamle filer — eksisterende `.gdx` springes over. Budget med Pardiso: 5–20 minutter
+   pr. scenarie.
 5. **Hjem:** `scp` alle `shock_gdx/*.gdx`, `cd etl && uv run python extract.py`. Outputtet
    må hverken indeholde `WARNING: ... solved on a different model` eller `assuming ...`
    (ustemplet fil). `meta.json` og hvert scenaries `modelVersion` skal have samme
@@ -151,7 +163,9 @@ at skalere et løst scenarie i appen (fx +50 bp som halvdelen af +100 bp).
 
 ## Forbehold
 
-Scenarierne er afvigelser fra **kalibreringsforløbet** (zip'ens løsningspunkt), ikke
-DREAMs officielle grundforløb — fint til marginale eksperimenter, og MAKROskop viser
-kun afvigelser. En konfigurationsren baseline-zip (via licenseret CONVERT) er en
-senere forbedring.
+Scenarierne er afvigelser fra **DREAMs officielle grundforløb** (`baseline.gdx`, læst ind med
+`freesolver.py reference`) — ikke længere fra zip'ens eget kalibreringspunkt. Grundforløbet
+løser først zip'ens ligninger fra 2026, så intet løsningsvindue kan starte tidligere; løseren
+nægter det. Kontinuations-checkpoints (`etl/cache/ckpt_*.npz`) hører til én kørsel: løseren
+afviser et checkpoint fra et andet udgangspunkt eller stød, og de skal med, når en gammel
+versions filer flyttes til side.

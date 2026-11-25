@@ -101,7 +101,7 @@ describe('closureTaxLine', () => {
 	it('agrees with the shipped financed Bundskat', () => {
 		const perm = readScenario('Bundskat_perm');
 		expect(closureTaxLine({ perm, yearStart: readMeta().yearStart, scale: 1 })).toBe(
-			'I denne beregning sænker lukkeskatten husholdningernes direkte skatter med 2,13 pct.-point – ca. 0,55 pct. af BNP i 2030.'
+			'I denne beregning sænker lukkeskatten husholdningernes direkte skatter med 2,14 pct.-point – ca. 0,56 pct. af BNP i 2030.'
 		);
 	});
 });
@@ -125,6 +125,6 @@ describe('published pairs', () => {
 			ufin: readScenario('Bundskat_ufin'), perm: readScenario('Bundskat_perm'),
 			yearStart: readMeta().yearStart, firstYear: 2030, scale: 1
 		});
-		expect(line).toMatch(/sænker samtidig lukkeskatten .* med 2,13 pct\.-point\. Efter 3 år er BNP \+0,01 pct\. finansieret mod −0,2 pct\. ufinansieret\.$/);
+		expect(line).toMatch(/sænker samtidig lukkeskatten .* med 2,14 pct\.-point\. Efter 3 år er BNP \+0,01 pct\. finansieret mod −0,2 pct\. ufinansieret\.$/);
 	});
 });

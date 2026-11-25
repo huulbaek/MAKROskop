@@ -1,14 +1,14 @@
 {
  "personskattereform-2025": {
-  "query": "Beskaeftigelsesfradrag=1.8276&Topskat=-1.6766&Arbejdsudbud_beskaeftigelse=0.1686&Offentlig_varekoeb=-0.8619&Offentlig_Beskaeftigelse=-0.9584&variant=_ufin",
+  "query": "Beskaeftigelsesfradrag=1.9146&Topskat=-1.7367&Arbejdsudbud_beskaeftigelse=0.1684&Offentlig_varekoeb=-0.8548&Offentlig_Beskaeftigelse=-0.9807&variant=_ufin",
   "gapPct": {
    "qBNP": 0.07,
-   "nL": 0.45,
+   "nL": 0.46,
    "saldo2bnp": 0.16,
-   "qC": 0.14,
-   "vhW": 0.23
+   "qC": 0.15,
+   "vhW": 0.26
   },
-  "maxGapPct": 0.45,
-  "exported": "2026-10-02"
+  "maxGapPct": 0.46,
+  "exported": "2026-11-25"
  }
 }

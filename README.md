@@ -38,8 +38,10 @@ No GAMS license is needed at any step:
 A 10-year window (~200,000 equations) solves on a 16 GB laptop. The full horizon (2.2 million
 equations) needs about 64 GB and runs on a rented machine; see `cloud/README.md` (Danish).
 
-Shock deviations are **always** measured against `etl/shock_gdx/_reference.gdx`, the zip's
-calibration point, which `extract.py` prefers automatically when the file exists. Scenario
+Every scenario starts from DREAM's own baseline: `freesolver.py reference --gdx baseline.gdx`
+loads `Model/Gdx/baseline.gdx` into the parsed system (it solves the zip's equations from 2030),
+and deviations are measured against `etl/shock_gdx/_reference.gdx`, that point exported. Every
+GDX is stamped with the reference it started from, and `extract.py` refuses a mix. Scenario
 files follow the catalogue in `etl/catalog.py`: `<Name><variant>.gdx`, e.g. `Rente_perm.gdx`
 (`_perm` = permanent, financed through DREAM's closure tax; `_ufin` = unfinanced;
 `_midl`/`_blip` = temporary profiles). `/scenarier/` opens on `Rente_ufin`.
@@ -101,10 +103,12 @@ this site derives from belong to
 [MAKRO repository](https://github.com/DREAM-DK/MAKRO). MAKROskop is an independent project
 and is not affiliated with or endorsed by DREAM or the Danish Ministry of Finance.
 
-Scenario deviations are computed from the calibration path in the model zip, not from
-DREAM's official baseline, and the shock definitions differ from DREAM's standard
-shocks (raw instrument changes rather than revenue-normalised ones). See the Validering
-and Scenarier pages for the exact definitions.
+Scenario deviations are measured from DREAM's official baseline (`Model/Gdx/baseline.gdx`),
+and MAKROskop's solver reproduces DREAM's 11 published shock runs variable for variable
+when given DREAM's inputs. Most catalogue shocks are defined differently from DREAM's
+standard shocks, though (raw instrument changes rather than revenue-normalised ones), so
+they are MAKROskop's calculations on DREAM's model, not DREAM's or the Ministry of
+Finance's numbers. See the Validering and Scenarier pages for the exact definitions.
 
 ## Contributing
 

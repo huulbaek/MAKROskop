@@ -45,3 +45,11 @@ def test_a_current_unfinanced_2030_solve_passes() -> None:
 def test_a_joint_solve_of_another_design_is_refused(field: str, value: str) -> None:
     with pytest.raises(SystemExit, match=field):
         pc.check_stamp("x", {**GOOD_STAMP, field: value}, SPEC)
+
+
+def test_a_joint_solve_from_another_starting_point_is_refused() -> None:
+    # the joint solve is set against scenarios measured from _reference.gdx: it must have started there too
+    baseline = {"reference": "baseline.gdx 10f0acbded12"}
+    pc.check_reference("x", {**GOOD_STAMP, **baseline}, baseline)
+    with pytest.raises(SystemExit, match="calibration point"):
+        pc.check_reference("x", GOOD_STAMP, baseline)  # stamped before the field existed

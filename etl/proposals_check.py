@@ -11,7 +11,8 @@ import json
 from pathlib import Path
 from urllib.parse import parse_qsl
 
-from extract import YEARS, extract_detrended, extract_shock, open_gdx, read_stamp, read_trend_factors
+from extract import (YEARS, extract_detrended, extract_shock, open_gdx, read_stamp, read_trend_factors,
+                     reference_errors)
 
 ETL = Path(__file__).parent
 DATA = ETL.parent / "app" / "static" / "data"
@@ -56,6 +57,12 @@ def check_stamp(proposal_id: str, stamp: dict[str, str], spec: dict[str, str]) -
                              f"— rerun cloud/run_proposals.sh")
 
 
+def check_reference(proposal_id: str, stamp: dict[str, str], reference_stamp: dict[str, str]) -> None:
+    """The joint solve must start from the point in _reference.gdx, like the scenarios it is compared with."""
+    if errors := reference_errors(reference_stamp, {f"Forslag_{proposal_id}.gdx": stamp}):
+        raise SystemExit("; ".join(errors) + " — rerun cloud/run_proposals.sh")
+
+
 def main() -> None:
     specs = json.loads((ETL / "proposal_specs.json").read_text(encoding="utf-8"))
     reference = ETL / "shock_gdx" / "_reference.gdx"
@@ -71,6 +78,7 @@ def main() -> None:
             continue
         stamp = read_stamp(gdx)
         check_stamp(proposal_id, stamp, spec)
+        check_reference(proposal_id, stamp, read_stamp(reference))
         joint = extract_shock(gdx, shock_reference, factors)["deviations"]
         by_shock = scales(spec["package"])
         scenarios = {name: json.loads((DATA / "shocks" / f"{name}_ufin.json").read_text(encoding="utf-8"))["deviations"]

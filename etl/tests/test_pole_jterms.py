@@ -77,17 +77,21 @@ REAL_SYSTEM = (fs.CACHE_DIR / "system.npz").exists() and (fs.DEFAULT_CONVERT_DIR
 
 @pytest.fixture(scope="module")
 def real_system():
+    """The cached dump, if it is one with the pole: the 7 Sept 2026 dump and older have 1,944 jrUdl*
+    equations; from the 29 Oct 2026 dump DREAM's j-terms are additive (jvUdl*) and there is no pole."""
     if not REAL_SYSTEM:
         pytest.skip("needs etl/cache/system.npz and the convert dump")
-    return fs.System()
+    system = fs.System()
+    if not fs.load_pole_jterm_pairs(fs.DEFAULT_CONVERT_DIR, system.is_fixed):
+        pytest.skip("the cached dump has no jrUdl* pole equations (additive jvUdl* terms)")
+    return system
 
 
 def test_reference_point_is_a_fixed_point_of_the_recompute(real_system) -> None:
     pairs = fs.load_pole_jterm_pairs(fs.DEFAULT_CONVERT_DIR, real_system.is_fixed)
-    assert len(pairs) == 1944
     x = real_system.levels.copy()
     n_done, undefined = fs.recompute_pole_jterms(real_system.residual_one, pairs, x)
-    assert n_done == 1944 and undefined == []
+    assert n_done == len(pairs) and undefined == []
     assert np.allclose(x, real_system.levels, rtol=0, atol=1e-8)
 
 
@@ -132,6 +136,7 @@ Variables 1 to 5
 
 def test_window_keeps_only_the_pole_pairs_it_dropped(tmp_path: Path) -> None:
     (tmp_path / "dict.txt").write_text(WINDOW_DICT_TXT, encoding="utf-8")
+    (tmp_path / "raw.gms").write_text("E_vBNP[t]$((tx0[t]))..  vBNP[t]  =E=  1;\n", encoding="utf-8")
     system = _FakeSystem(np.zeros(5), np.array([False, False, False, False, True]), n_eq=4)
     window = fs.Window(system, tmp_path, from_year=2066)
     assert window.pole_pairs == [(1, 1)]  # the 2066 instance; 2065 is before the window

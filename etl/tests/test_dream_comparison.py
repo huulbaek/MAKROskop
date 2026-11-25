@@ -173,3 +173,54 @@ def test_reference_files_note_is_silent_without_the_facts() -> None:
 def test_danish_dates_are_written_out() -> None:
     assert dc.date_da("2026-09-07") == "7. september 2026"
     assert dc.date_da("2027-01-31") == "31. januar 2027"
+
+
+def test_ours_and_dream_share_the_baseline_when_our_runs_started_from_dreams_file() -> None:
+    sha = "10f0acbded1290ebc05629b3a88eedc7075c78f59e0fd8868ab619aad036b08e"
+    assert dc.same_baseline("baseline.gdx 10f0acbded12", sha) is True
+    assert dc.same_baseline("calibration point", sha) is False
+    assert dc.same_baseline("baseline.gdx 59ef347e2cc0", sha) is False  # an older baseline.gdx
+
+
+def test_the_reference_text_follows_the_point_our_runs_started_from() -> None:
+    assert "kalibreringspunktet" in dc.ours_baseline_da(shared=False)
+    shared = dc.ours_baseline_da(shared=True)
+    assert "baseline.gdx" in shared and "kalibreringspunktet" not in shared
+
+
+def test_replay_agreement_is_measured_on_the_variables_that_respond() -> None:
+    # our replay of DREAM's run against DREAM's file (makroskop-f67)
+    base = {"vbnp(2029)": 100.0, "vbnp(2030)": 100.0, "vbnp(2031)": 100.0, "qc(ctot,2030)": 50.0,
+            "nl(tot,2030)": 3000.0, "jvx(2030)": 0.0}
+    ours = {"vbnp(2029)": 100.0, "vbnp(2030)": 99.0, "vbnp(2031)": 98.0, "qc(ctot,2030)": 50.5,
+            "nl(tot,2030)": 3000.0, "jvx(2030)": 3e-11, "onlyours(2030)": 1.0}
+    dream = {"vbnp(2029)": 100.0, "vbnp(2030)": 99.0, "vbnp(2031)": 98.0 * (1 + 2e-9), "qc(ctot,2030)": 50.0,
+             "nl(tot,2030)": 3000.0, "jvx(2030)": -2e-11}
+    stats = dc.replay_agreement(ours, dream, base, {"vbnp", "qc", "nl", "jvx"}, from_year=2030)
+    # counted: vBNP 2030 and 2031 (moved in both) and qC (moved in ours only - that is a disagreement).
+    # not counted: 2029 (before the shock), nL (moved in neither), jvX (solver noise around zero in both),
+    # onlyOurs (DREAM's file does not hold the symbol)
+    assert stats["variables"] == 3
+    assert stats["within1e6Pct"] == 66.67
+    assert stats["maxDiff"] == pytest.approx(0.5 / 50.5)  # scaled by max(1, |ours|, |DREAM's|)
+
+
+def test_a_replay_that_is_not_a_reproduction_stops_the_comparison() -> None:
+    dc.require_reproduction("replay_Rente_ufin.gdx", {"maxDiff": 4e-9})
+    with pytest.raises(SystemExit, match="replay_Rente_ufin.gdx"):
+        dc.require_reproduction("replay_Rente_ufin.gdx", {"maxDiff": 2e-5})
+
+
+def test_a_replay_of_another_file_is_refused() -> None:
+    stamp = {"shock": "replay", "replay": "Rente_ufin.gdx 2858c16637a5"}
+    assert dc.replay_errors(stamp, "Rente_ufin.gdx", "2858c16637a59e7a104b664b91d76ab56e9fec39b48f57d0b38e0ef5d2a27479") == []
+    assert dc.replay_errors(stamp, "Rente_ufin.gdx", "6836da3ca87d1f3baaa45591950020c8b8fbeec8e00d700cbb5680d94384dba0") == [
+        "replays 'Rente_ufin.gdx 2858c16637a5', but DREAM's file is 'Rente_ufin.gdx 6836da3ca87d'"]
+    assert dc.replay_errors({"shock": "rRenteECB"}, "Rente_ufin.gdx", "28" * 32) == ["is not a replay (shock 'rRenteECB')"]
+
+
+def test_max_series_gap_is_the_largest_difference_over_the_table_series_and_years() -> None:
+    ours = {"qBNP": {2030: -0.7750, 2031: -1.0806}, "nL": {2030: -0.2502}, "other": {2030: 9.0}}
+    dream = {"qBNP": {2030: -0.7750, 2031: -1.0800}, "nL": {2030: -0.2502}, "other": {2030: 0.0}}
+    # only the series asked for count; a year one side lacks is skipped
+    assert dc.max_series_gap(ours, dream, ["qBNP", "nL"], [2030, 2031]) == pytest.approx(0.0006)

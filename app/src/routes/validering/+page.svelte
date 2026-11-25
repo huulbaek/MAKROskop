@@ -155,21 +155,54 @@
 	function gapPct(value: number | undefined): string {
 		return value === undefined ? '–' : `${daSigned.format(value)} pct.`;
 	}
+
+	/** DREAM's runs that our solver has replayed from DREAM's baseline with DREAM's inputs. */
+	const replays = $derived(dream.shocks.flatMap((shock) => (shock.replay ? [shock.replay] : [])));
+	const replayWorst = $derived(Math.max(...replays.map((r) => r.maxDiff)));
+	const replayGap = $derived(Math.max(...replays.map((r) => r.maxSeriesGap)));
+	const replayFewest = $derived(Math.min(...replays.map((r) => r.variables)));
+	const replayMost = $derived(Math.max(...replays.map((r) => r.variables)));
 </script>
 
 <section class="intro">
 	<h1>Kan man stole på tallene?</h1>
-	<p class="lede">
-		MAKROskops frie beregningsmotor løser MAKROs ligninger uden kommerciel software. Vi har
-		efterprøvet den på to måder: ved at løse <em>præcis de samme stød-scenarier</em> med den
-		officielle GAMS-platform (solveren IPOPT) og med vores egen frie Newton-løser — og ved at
-		lade den frie løser genfinde modellens egen løsning for <em>alle
-		{daInt.format(full.equations)} ligninger</em> over hele horisonten. Begge prøver bestås:
-		forskellene ligger på computerens afrundingsniveau, det man kalder maskinpræcision.
-	</p>
+	{#if replays.length > 0}
+		<p class="lede">
+			MAKROskops frie beregningsmotor løser MAKROs ligninger uden kommerciel software. Vi har
+			efterprøvet den på tre måder: ved at regne <em>DREAMs egne offentliggjorte stød-kørsler</em>
+			efter over hele horisonten, ved at løse præcis de samme stød-scenarier med den officielle
+			GAMS-platform (solveren IPOPT) og med vores egen frie Newton-løser — og ved at lade den frie
+			løser genfinde modellens egen løsning for <em>alle {daInt.format(full.equations)}
+			ligninger</em>. Alle tre prøver bestås: DREAMs tal genfindes inden for én milliontedel, og de
+			to andre prøver ligger på computerens afrundingsniveau, det man kalder maskinpræcision.
+		</p>
+	{:else}
+		<p class="lede">
+			MAKROskops frie beregningsmotor løser MAKROs ligninger uden kommerciel software. Vi har
+			efterprøvet den på to måder: ved at løse <em>præcis de samme stød-scenarier</em> med den
+			officielle GAMS-platform (solveren IPOPT) og med vores egen frie Newton-løser — og ved at
+			lade den frie løser genfinde modellens egen løsning for <em>alle
+			{daInt.format(full.equations)} ligninger</em> over hele horisonten. Begge prøver bestås:
+			forskellene ligger på computerens afrundingsniveau, det man kalder maskinpræcision.
+		</p>
+	{/if}
 </section>
 
 <div class="figures">
+	{#if replays.length > 0}
+		<StatTile
+			label="DREAMs egne stød regnet efter"
+			value="{replays.length} af {dream.shocks.length}"
+			note="alle variable, der reagerer, inden for én milliontedel af DREAMs tal"
+			tone="good"
+		/>
+	{:else}
+		<StatTile
+			label="Variable der reagerede på rentestødet"
+			value={daInt.format(flagship?.responders ?? 0)}
+			note="alle sammenlignet én for én"
+		/>
+	{/if}
 	<StatTile
 		label="Typisk uenighed mellem de to løsere"
 		value="1,1 × 10⁻¹⁵"
@@ -180,11 +213,6 @@
 		label="Ligninger løst i fuld skala"
 		value={daInt.format(full.equations)}
 		note="hele horisonten {full.years} på én lejet server"
-	/>
-	<StatTile
-		label="Variable der reagerede på rentestødet"
-		value={daInt.format(flagship?.responders ?? 0)}
-		note="alle sammenlignet én for én"
 	/>
 	<StatTile
 		label="Enighed om selve stød-effekterne"
@@ -304,8 +332,11 @@
 					rentevirkningen på de offentlige finanser akkumulerer over tid.
 				</p>
 				<p class="footnote">
-					Størrelsesordenerne svarer til DREAMs egne publicerede rentestød. Alle kurver kan
-					udforskes under <a href="/scenarier/?stod=Rente&variant=_ufin">Scenarier</a>.
+					{#if dream.ours.sharedBaseline}Det er de samme tal som i DREAMs egen løsning af
+						rentestødet, se sammenligningen nedenfor.{:else}Størrelsesordenerne svarer til DREAMs
+						egne publicerede rentestød.{/if}
+					Alle kurver kan udforskes under
+					<a href="/scenarier/?stod=Rente&variant=_ufin">Scenarier</a>.
 				</p>
 			{:else}
 				<p class="story">
@@ -327,8 +358,8 @@
 						<td>{solve.stagesConverged} konvergerede · {solve.stagesRejected} afvist og halveret</td>
 					</tr>
 					<tr>
-						<th scope="row">Faktoriseringer (UMFPACK)</th>
-						<td>{solve.freshFactorizations} · {daOne.format(solve.factorHours)} timer</td>
+						<th scope="row">Faktoriseringer ({solve.factorBackend})</th>
+						<td>{solve.freshFactorizations} · {daInt.format(solve.factorMinutes)} minutter</td>
 					</tr>
 					<tr>
 						<th scope="row">Slutresidual, ‖fejl‖<sub>∞</sub></th>
@@ -439,10 +470,27 @@
 		<a href={dream.dream.url} target="_blank" rel="noopener noreferrer"
 			>MAKRO-repositoriet<span class="sr-only"> (åbner i nyt vindue)</span></a
 		>, løst på {dream.dream.modelDa} frem til {lastYear}. Her læses DREAMs tal direkte fra filerne
-		— ikke aflæst fra figurer — og stilles ved siden af MAKROskops egne ufinansierede scenarier på
-		samme modelversion ({meta.model.name}). Kurven viser BNP i pct. fra grundforløbet over hele
-		horisonten; tabellen bruger notatets enheder: beskæftigelse i 1.000 personer, eksport og privat
-		forbrug i pct.-point af BNP, resten i pct. {dream.shockYear} er stødåret (år 1).
+		— ikke aflæst fra figurer — og bruges på to måder.
+	</p>
+	{#if replays.length > 0}
+		<p class="story">
+			<strong>Samme regnestykke, to løsere.</strong> MAKROskops løser har regnet
+			{replays.length === dream.shocks.length ? `alle ${replays.length}` : `${replays.length} af de ${dream.shocks.length}`}
+			stød igen med præcis DREAMs input og fra DREAMs grundforløb. Resultatet er DREAMs eget: alle
+			variable, der reagerer på stødet — mellem {daInt.format(replayFewest)} og
+			{daInt.format(replayMost)} pr. fil — ligger inden for én milliontedel af DREAMs tal. Den største
+			afvigelse i nogen fil er {@html sci(replayWorst)}, målt i forhold til tallets størrelse (for tal
+			under 1 i absolut størrelse), og de otte serier i tabellerne afviger højst
+			{@html sci(replayGap)} pct.-point i noget år. Linjen »Genregnet« under hvert stød viser tallene.
+		</p>
+	{/if}
+	<p class="story">
+		<strong>MAKROskops offentliggjorte scenarie ved siden af DREAMs.</strong> Tabellerne stiller
+		DREAMs tal ved siden af MAKROskops egne ufinansierede scenarier på samme modelversion
+		({meta.model.name}), skaleret til DREAMs stødstørrelse, hvor den er en anden. Kurven viser BNP i
+		pct. fra grundforløbet over hele horisonten; tabellen bruger notatets enheder: beskæftigelse i
+		1.000 personer, eksport og privat forbrug i pct.-point af BNP, resten i pct. {dream.shockYear} er
+		stødåret (år 1).
 	</p>
 	<div class="dream-list">
 		{#each dream.shocks as shock, index (shock.id)}
@@ -453,6 +501,14 @@
 					<span class="dream-headline">{headline(shock)}</span>
 				</summary>
 				<p class="dream-caption" id="dream-caption-{shock.id}">{shock.scaleNoteDa}</p>
+				{#if shock.replay}
+					<p class="dream-replay">
+						<strong>Genregnet</strong> med DREAMs input: alle {daInt.format(shock.replay.variables)}
+						variable, der reagerer, ligger inden for én milliontedel af DREAMs fil (største afvigelse
+						{@html sci(shock.replay.maxDiff)}); tabellens serier afviger højst
+						{@html sci(shock.replay.maxSeriesGap)} pct.-point.
+					</p>
+				{/if}
 				{#if gdp}
 					<div class="dream-chart">
 						<LineChart
@@ -510,34 +566,47 @@
 			</details>
 		{/each}
 	</div>
-	<p class="footnote">
-		<strong>Referencepunkt.</strong> DREAMs afvigelser måles mod modellens officielle grundforløb
-		(<code>Model/Gdx/baseline.gdx</code>, som nulstødet gengiver). MAKROskops måles mod
-		kalibreringspunktet i modellens zip-fil, der i {dream.shockYear} ligger
-		{gapPct(dream.ours.levelGapPct.vBNP)} (nominelt BNP) og {gapPct(dream.ours.levelGapPct.qBNP)}
-		(realt BNP) fra det officielle grundforløb.
-		{dream.ours.referenceFilesDa ?? ''}
-		Marginale virkninger i pct. er robuste over for niveauforskellen, men den er den mest
-		sandsynlige kilde til de forskelle, der er tilbage: beskæftigelsen i år 1 er 15–25 pct. højere i MAKROskop ved
-		efterspørgselsstød og identisk fra år 3, og på langt sigt afviger rente- og
-		investeringsstødet 10–15 pct.
-	</p>
-	<p class="footnote">
-		<strong>Stødstørrelse.</strong> Hvor DREAM normerer stødet til 1 pct. af BNP, aflæses størrelsen
-		i DREAMs egen fil (instrumentets ændring i {dream.shockYear}), og MAKROskops 1-pct.-stød
-		skaleres lineært op med forholdet; faktoren står over hver tabel. Lineær opskalering afveg
-		højst 3 pct. (varekøb) og 10 pct. (offentlig beskæftigelse) fra fuldt løste kørsler i DREAMs
-		størrelse, så forskelle på 10–20 pct. bør ikke overfortolkes.
-	</p>
+	{#if dream.ours.sharedBaseline}
+		<p class="footnote">
+			<strong>Referencepunkt.</strong> Begge sæt afvigelser måles mod modellens officielle grundforløb
+			(<code>Model/Gdx/baseline.gdx</code>, som nulstødet gengiver). MAKROskop læser hele
+			grundforløbet ind i ligningerne fra modellens zip-fil, hvor det går op til regnenøjagtighed fra
+			stødåret og frem, og starter hvert scenarie derfra. Som i DREAMs kørsler ligger de størrelser,
+			modellen først bestemmer året efter, fast i stødåret — blandt andet virksomhedernes
+			diskonteringsrente.
+		</p>
+		<p class="footnote">
+			<strong>Stødstørrelse.</strong> Hvor DREAM normerer stødet til 1 pct. af BNP, aflæses størrelsen
+			i DREAMs egen fil (instrumentets ændring i {dream.shockYear}), og MAKROskops 1-pct.-stød
+			skaleres lineært op med forholdet; faktoren står over hver tabel. DREAMs stød følger BNP år for
+			år, mens MAKROskops katalogstød har samme størrelse i alle år, så de skalerede tal kan afvige
+			noget, mest på langt sigt. Det er stødets form og ikke modellen: genregningen med DREAMs egne
+			input rammer DREAMs tal.
+		</p>
+	{:else}
+		<p class="footnote">
+			<strong>Referencepunkt.</strong> DREAMs afvigelser måles mod modellens officielle grundforløb
+			(<code>Model/Gdx/baseline.gdx</code>, som nulstødet gengiver). MAKROskops måles mod
+			kalibreringspunktet i modellens zip-fil, der i {dream.shockYear} ligger
+			{gapPct(dream.ours.levelGapPct.vBNP)} (nominelt BNP) og {gapPct(dream.ours.levelGapPct.qBNP)}
+			(realt BNP) fra det officielle grundforløb.
+			{dream.ours.referenceFilesDa ?? ''}
+			Niveauforskellen er den mest sandsynlige kilde til forskellene mellem de to sæt tal.
+		</p>
+		<p class="footnote">
+			<strong>Stødstørrelse.</strong> Hvor DREAM normerer stødet til 1 pct. af BNP, aflæses størrelsen
+			i DREAMs egen fil (instrumentets ændring i {dream.shockYear}), og MAKROskops 1-pct.-stød
+			skaleres lineært op med forholdet; faktoren står over hver tabel.
+		</p>
+	{/if}
 	<p class="footnote">
 		<strong>Proveniens.</strong> {dream.dream.files.length} GDX-filer fra
 		<a href={dream.dream.url} target="_blank" rel="noopener noreferrer"
 			>Analysis/Standard_shocks/Gdx<span class="sr-only"> (åbner i nyt vindue)</span></a
 		> (commit {dream.dream.commit}), læst {dream.generated}; hver fil er kontrolleret med SHA-256
-		og skal ligge præcis på grundforløbet i året før stødet. MAKROskops scenarier er løst på
-		zip-filen fra samme modelversion (fingeraftryk {dream.ours.fingerprint}). Tak til DREAM for at
-		stille filerne til
-		rådighed. Notatet:
+		og skal ligge præcis på grundforløbet i året før stødet. MAKROskops scenarier er løst med
+		ligningerne i zip-filen fra samme modelversion (fingeraftryk {dream.ours.fingerprint}). Tak til
+		DREAM for at stille filerne til rådighed. Notatet:
 		<a href={dream.dream.paper.url} target="_blank" rel="noopener noreferrer"
 			>{dream.dream.paper.source}<span class="sr-only"> (åbner i nyt vindue)</span></a
 		>.
@@ -657,15 +726,27 @@
 	<ul>
 		<li>
 			Krydstjekket mod GAMS/IPOPT er kørt på et 10-års udsnit ({validation.system.windowYears}) på
-			en almindelig bærbar. I fuld skala har vi kun den frie løsers egen kontrol (genfinding af
-			modellens løsning til {@html sci(full.medianRecovery)}); en GAMS-løsning af samme
-			fuld-horisont-scenarie kræver licens og mange timer og er ikke gjort.
+			en almindelig bærbar.
+			{#if replays.length > 0}
+				I fuld skala er prøven DREAMs egne løsninger: de {replays.length} stød-filer ovenfor er
+				regnet med GAMS over hele horisonten, og den frie løser rammer dem inden for én
+				milliontedel.
+			{:else}
+				I fuld skala har vi kun den frie løsers egen kontrol (genfinding af modellens løsning til
+				{@html sci(full.medianRecovery)}); en GAMS-løsning af samme fuld-horisont-scenarie kræver
+				licens og mange timer og er ikke gjort.
+			{/if}
 		</li>
 		<li>
-			Rentescenariet er et rigtigt scenarie, men afvigelserne måles mod modellens
-			kalibreringsforløb — ikke DREAMs officielle grundforløb, som ikke kan genskabes uden
-			licenseret software. Til marginale eksperimenter gør det ingen forskel; tallene bør
-			ikke citeres som "Finansministeriets".
+			{#if dream.ours.sharedBaseline}
+				Scenarierne måles mod DREAMs officielle grundforløb, som MAKROskop læser ind i modellens
+				ligninger. De er MAKROskops beregninger på DREAMs model og bør ikke citeres som
+				"Finansministeriets".
+			{:else}
+				Rentescenariet er et rigtigt scenarie, men afvigelserne måles mod modellens
+				kalibreringsforløb — ikke DREAMs officielle grundforløb. Til marginale eksperimenter gør
+				det ingen forskel; tallene bør ikke citeres som "Finansministeriets".
+			{/if}
 		</li>
 		<li>
 			Kolonnen "størst" i to-løser-testen afspejler IPOPTs stop-tolerance, ikke den frie løsers
@@ -971,6 +1052,12 @@
 
 	.dream-table {
 		min-width: 560px;
+	}
+
+	.dream-replay {
+		color: var(--ink-secondary);
+		font-size: 12.5px;
+		margin: 0 0 6px;
 	}
 
 	.dream-caption {

@@ -9,8 +9,13 @@ MAKRO 2026-September and published them as Git LFS files in `Analysis/Standard_s
 reproduces it by construction (standard_shocks.gms asserts it to 1e-5 before any shock file is
 written), so no separate Nulstoed file exists. If DREAM's copy of baseline.gdx sits next to the
 shock files it must be byte-identical to the model's — the run stops otherwise. MAKROskop's
-deviations are against `etl/shock_gdx/_reference.gdx`, the calibration point of the zip, which
-differs from baseline.gdx in levels (the gap is written to the output, not hidden).
+deviations are against `etl/shock_gdx/_reference.gdx`: since makroskop-f67 that is DREAM's
+baseline.gdx itself, loaded into the zip's equations (`sharedBaseline`); a set solved from the
+zip's own calibration point is still read, and its level gap is written to the output.
+
+With the shared baseline, our replays of DREAM's own runs (`etl/shock_gdx_replay/`, solved by
+cloud/run_dream_replay.sh with `solve-export --replay`) are checked against DREAM's files variable
+by variable; a replay that is not a reproduction stops the run. Without those files `replay` is null.
 
 Where DREAM normalises a shock to 1 pct. of GDP the size is read from the instrument in DREAM's
 own file (e.g. uXMarked 2030 / baseline − 1) and divided by the change in ours; our deviations are
@@ -150,6 +155,106 @@ def reference_files_note(dumped: str, zip_commit: str, zip_committed: str,
     return (f"De to filer er lagt i MAKRO-repositoriet hver for sig: zip-filen er dannet {date_da(dumped)} og lagt ud "
             f"{date_da(zip_committed)} (commit {zip_commit}), grundforløbet {date_da(baseline_committed)} "
             f"(commit {baseline_commit}).")
+
+
+REPLAY_TOLERANCE = 1e-6  # scaled difference a replayed run may have from DREAM's file and still count as the same
+
+
+def replay_agreement(ours: dict[str, float], dream: dict[str, float], base: dict[str, float],
+                     dream_symbols: set[str], from_year: int) -> dict[str, float]:
+    """How closely our replay of a DREAM run (freesolver solve-export --replay) matches DREAM's file.
+
+    Compared are the variables that respond: dated `from_year` or later, held by DREAM's file, and moved
+    against the baseline in either file (by more than 1e-9 x max(1, |baseline|)). Exogenous data and
+    variables the shock does not touch are equal by construction and would only flatter the share. The
+    difference is |ours - DREAM's| / max(1, |ours|, |DREAM's|): relative for large values, absolute
+    below 1, so an adjustment term at 1e-11 in both files is not a disagreement by a factor of two.
+    """
+    import numpy as np
+
+    diffs = []
+    for key, a in ours.items():
+        symbol, _, rest = key.partition("(")
+        if symbol not in dream_symbols:
+            continue
+        tail = rest.rstrip(")").rpartition(",")[2]
+        if not (len(tail) == 4 and tail.isdigit() and int(tail) >= from_year):
+            continue
+        b, c = dream.get(key, 0.0), base.get(key, 0.0)
+        moved = 1e-9 * max(1.0, abs(c))
+        if abs(a - c) <= moved and abs(b - c) <= moved:
+            continue
+        diffs.append(abs(a - b) / max(1.0, abs(a), abs(b)))
+    values = np.array(diffs)
+    return {"variables": int(len(values)),
+            "within1e6Pct": round(100.0 * float((values <= REPLAY_TOLERANCE).mean()), 2),
+            "medianDiff": float(np.median(values)),
+            "maxDiff": float(values.max())}
+
+
+def require_reproduction(name: str, stats: dict[str, float]) -> None:
+    """The page says our solver reproduces DREAM's runs: a replay that does not must stop the comparison."""
+    if stats["maxDiff"] > REPLAY_TOLERANCE:
+        raise SystemExit(f"{name}: differs from DREAM's file by up to {stats['maxDiff']:.2e} (scaled), more than "
+                         f"{REPLAY_TOLERANCE:g}: not a reproduction - find out why before publishing")
+
+
+def max_series_gap(ours: dict[str, dict[int, float]], dream: dict[str, dict[int, float]],
+                   keys: list[str], years: list[int]) -> float:
+    """Largest |ours - dream| over the given series and years, in the series' own unit (pct. or pct.-points)."""
+    return max((abs(ours[key][year] - dream[key][year])
+                for key in keys if key in ours and key in dream
+                for year in years if year in ours[key] and year in dream[key]), default=0.0)
+
+
+def replay_check(replay_path: Path, dream_path: Path, dream_dev: dict[str, dict[int, float]],
+                 ours_detrended: dict[str, dict[int, float]], reference_meta: dict[str, str],
+                 base_point: dict[str, float]) -> dict | None:
+    """Agreement of our replay of DREAM's run with DREAM's file, or None when it has not been solved.
+
+    Refuses a file that replays another version of DREAM's file or started from another reference.
+    """
+    from extract import deviation_series, open_gdx, read_stamp, reference_errors
+    from freesolver import gdx_point
+
+    if not replay_path.exists():
+        return None
+    stamp = read_stamp(replay_path)
+    errors = replay_errors(stamp, dream_path.name, sha256(dream_path)) + reference_errors(reference_meta, {replay_path.name: stamp})
+    if errors:
+        raise SystemExit(f"{replay_path.name}: " + "; ".join(errors))
+    ours_point, _ = gdx_point(replay_path)
+    dream_point, dream_symbols = gdx_point(dream_path)
+    stats = replay_agreement(ours_point, dream_point, base_point, dream_symbols, SHOCK_YEAR)
+    require_reproduction(replay_path.name, stats)
+    replay_dev, _ = deviation_series(open_gdx(replay_path), ours_detrended)
+    stats["maxSeriesGap"] = max_series_gap(replay_dev, dream_dev, [key for key, _, _ in SERIES], HORIZON)
+    stats["file"] = replay_path.name
+    return stats
+
+
+def replay_errors(stamp: dict[str, str], dream_name: str, dream_sha256: str) -> list[str]:
+    """Why a file in shock_gdx_replay is not a replay of this DREAM file (empty when it is)."""
+    if stamp.get("shock") != "replay":
+        return [f"is not a replay (shock '{stamp.get('shock', '')}')"]
+    want = f"{dream_name} {dream_sha256[:12]}"
+    if stamp.get("replay") != want:
+        return [f"replays '{stamp.get('replay', '')}', but DREAM's file is '{want}'"]
+    return []
+
+
+def same_baseline(reference_stamp: str, baseline_sha256: str) -> bool:
+    """True when our runs started from DREAM's own baseline file (freesolver `reference`, makroskop-f67):
+    their stamp names the file and the first 12 hex digits of its SHA-256."""
+    return reference_stamp == f"baseline.gdx {baseline_sha256[:12]}"
+
+
+def ours_baseline_da(shared: bool) -> str:
+    """What our deviations are measured against, for the page."""
+    if shared:
+        return ("DREAMs grundforløb, Model/Gdx/baseline.gdx, læst ind i ligningerne fra modellens zip-fil "
+                "(etl/shock_gdx/_reference.gdx)")
+    return "kalibreringspunktet i Model/deep_dynamic_calibration.zip (etl/shock_gdx/_reference.gdx)"
 
 
 def checkout_reference_note(makro_root: Path, solved_fingerprint: str) -> str | None:
@@ -323,7 +428,8 @@ def level_gap(ours_detrended: dict[str, dict[int, float]], dream_detrended: dict
 
 def main() -> None:
     from catalog import SHOCKS as CATALOG, stamp_mismatches
-    from extract import deviation_series, extract_detrended, open_gdx, read_solver_meta
+    from extract import (deviation_series, extract_detrended, open_gdx, read_solver_meta, read_stamp,
+                         reference_errors)
 
     here = Path(__file__).parent
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -333,6 +439,8 @@ def main() -> None:
     parser.add_argument("--dream-baseline", type=Path, default=None,
                         help="DREAM's reference (default <makro-root>/Model/Gdx/baseline.gdx)")
     parser.add_argument("--shocks-dir", type=Path, default=here / "shock_gdx")
+    parser.add_argument("--replay-dir", type=Path, default=here / "shock_gdx_replay",
+                        help="our replays of DREAM's runs (cloud/run_dream_replay.sh): replay_<shock>_ufin.gdx")
     parser.add_argument("--out", type=Path, default=here.parent / "app" / "static" / "data" / "dream_comparison.json")
     args = parser.parse_args()
     dream_dir = args.dream_dir or args.makro_root / "Analysis" / "Standard_shocks" / "Gdx"
@@ -344,6 +452,9 @@ def main() -> None:
     dream_detrended = extract_detrended(dream_base)
     dream_ref = reference_levels(dream_base)
     ours_base = open_gdx(args.shocks_dir / "_reference.gdx")
+    reference_meta = read_stamp(args.shocks_dir / "_reference.gdx")
+    ours_reference = reference_meta.get("reference", "calibration point")
+    shared = same_baseline(ours_reference, sha256(dream_baseline))
     ours_detrended = extract_detrended(ours_base)
     ours_ref = reference_levels(ours_base)
     gap = level_gap(ours_detrended, dream_detrended)
@@ -353,6 +464,16 @@ def main() -> None:
     print(f"ours _reference: nL {ours_ref.employment_thousands:.1f} k, vX/vBNP {ours_ref.export_share:.4f}, "
           f"vC/vBNP {ours_ref.consumption_share:.4f}; level gap {SHOCK_YEAR} ours/DREAM: "
           + ", ".join(f"{k} {v:+.2f} %" for k, v in gap.items()))
+
+    # DREAM's baseline by variable name, for the replay check (which variables respond)
+    base_point: dict[str, float] = {}
+    if shared and any(args.replay_dir.glob("replay_*.gdx")):
+        from freesolver import gdx_point
+
+        base_point, _ = gdx_point(dream_baseline)
+    if ours_reference.startswith("baseline.gdx ") and not shared:
+        raise SystemExit(f"our runs started from '{ours_reference}', which is not the checkout's {dream_baseline.name} "
+                         f"({sha256(dream_baseline)[:12]}): scenarios and DREAM's files do not share a baseline")
 
     files = []
     shocks = []
@@ -384,6 +505,8 @@ def main() -> None:
             stamp = read_solver_meta(ours_gdx)
             if mismatches := stamp_mismatches(ours_run, "_ufin", stamp, HORIZON_END):
                 raise SystemExit(f"{ours_path.name}: solver stamp disagrees with the catalog: {mismatches}")
+            if errors := reference_errors(reference_meta, {ours_path.name: stamp}):
+                raise SystemExit("; ".join(errors))
             solved = {"exported": stamp.get("exported"), "fingerprint": stamp.get("fingerprint")}
             ours_model.setdefault("fingerprint", stamp.get("fingerprint", ""))
             if cellwise:
@@ -413,6 +536,8 @@ def main() -> None:
             "id": shock_id, "labelDa": labels[shock_id], "scenario": f"{ours_run}_ufin",
             "dreamFile": dream_path.name, "solved": solved,
             "scale": None if scale is None else round(scale, 4), "scaleNoteDa": scale_note, "noteDa": note,
+            "replay": replay_check(args.replay_dir / f"replay_{dream_path.name}", dream_path, dream_dev,
+                                   ours_detrended, reference_meta, base_point) if shared else None,
             "rows": rows,
         })
         gdp = next(row for row in rows if row["series"] == "qBNP")
@@ -438,9 +563,13 @@ def main() -> None:
         },
         "ours": {
             "fingerprint": ours_model.get("fingerprint", ""),
-            "baselineDa": "kalibreringspunktet i Model/deep_dynamic_calibration.zip (etl/shock_gdx/_reference.gdx)",
+            "baselineDa": ours_baseline_da(shared),
+            "reference": ours_reference,
+            "sharedBaseline": shared,
             "levelGapPct": gap,
-            "referenceFilesDa": checkout_reference_note(args.makro_root, ours_model.get("fingerprint", "")),
+            # only when the two reference points differ is it worth saying when each file was made
+            "referenceFilesDa": None if shared else checkout_reference_note(args.makro_root,
+                                                                            ours_model.get("fingerprint", "")),
         },
         "series": [{"key": key, "labelDa": label, "unitDa": unit} for key, label, unit in SERIES],
         "shocks": shocks,

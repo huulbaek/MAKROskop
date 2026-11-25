@@ -40,7 +40,7 @@
 			href: DATA_PAGE,
 			label: 'Data',
 			description:
-				'Hent alle MAKROskops scenarier som CSV og JSON – afvigelser fra MAKROs referenceforløb, versioneret, med dataordbog og licens CC BY 4.0.'
+				'Hent alle MAKROskops scenarier som CSV og JSON – afvigelser fra MAKROs grundforløb, versioneret, med dataordbog og licens CC BY 4.0.'
 		}
 	];
 
